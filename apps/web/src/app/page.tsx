@@ -168,9 +168,14 @@ export default function HomePage() {
 
 							{/* Screenshot */}
 							<img
-								src="/demo-screenshot.png"
+								src="/demo-light.png"
 								alt="Unranked SEO audit report showing health score, keyword opportunities, and traffic potential"
-								className="w-full"
+								className="w-full dark:hidden"
+							/>
+							<img
+								src="/demo-dark.png"
+								alt="Unranked SEO audit report showing health score, keyword opportunities, and traffic potential"
+								className="w-full hidden dark:block"
 							/>
 						</div>
 					</motion.div>

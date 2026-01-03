@@ -69,3 +69,19 @@ export function button(text: string, url: string): string {
 export function footnote(text: string): string {
 	return `<p style="margin: 24px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center;">${text}</p>`;
 }
+
+/**
+ * Data row for displaying labeled key-value pairs (e.g., Audit ID, Email)
+ */
+export function dataRow(label: string, value: string, mono = false): string {
+	const valueStyle = mono
+		? "margin: 0; font-family: monospace; font-size: 13px;"
+		: "margin: 0; font-size: 14px; color: #0f172a;";
+
+	return `
+<div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin: 16px 0;">
+  <p style="margin: 0 0 8px 0; font-size: 14px; color: #64748b;">${label}</p>
+  <p style="${valueStyle}">${value}</p>
+</div>
+`.trim();
+}

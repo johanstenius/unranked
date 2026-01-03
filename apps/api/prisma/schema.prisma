@@ -26,14 +26,16 @@ model Audit {
   redirectChains   Json?
 
   // Resilient pipeline: component-level progress tracking
-  progress         Json?      // AuditProgress object tracking each component's status
-  retryAfter       DateTime?  // When to retry failed components
-  delayEmailSentAt DateTime?  // When we sent "taking longer" notification
+  progress           Json?      // AuditProgress object tracking each component's status
+  retryAfter         DateTime?  // When to retry failed components
+  delayEmailSentAt   DateTime?  // When we sent "taking longer" notification
+  supportAlertSentAt DateTime?  // When we alerted support about struggling audit
 
   stripeSessionId       String?   @unique
   tier                  AuditTier
   reportToken           String?   @unique
   reportTokenExpiresAt  DateTime?
+  reportEmailSentAt     DateTime?  // When report email was successfully sent
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

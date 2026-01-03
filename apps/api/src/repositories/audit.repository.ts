@@ -28,6 +28,8 @@ export type UpdateAuditInput = {
 	completedAt?: Date;
 	reportToken?: string;
 	reportTokenExpiresAt?: Date;
+	reportEmailSentAt?: Date | null;
+	supportAlertSentAt?: Date | null;
 };
 
 export function createAudit(input: CreateAuditInput) {
@@ -115,6 +117,39 @@ export function getExpiredRetryingAudits(maxAgeHours = 24) {
 		where: {
 			status: "RETRYING",
 			createdAt: { lt: cutoff },
+		},
+	});
+}
+
+/**
+ * Get audits stuck in processing states (ANALYZING, GENERATING_BRIEFS)
+ * for longer than the specified threshold. These likely crashed mid-process.
+ */
+export function getStaleProcessingAudits(staleMinutes = 30) {
+	const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+	return db.audit.findMany({
+		where: {
+			status: { in: ["ANALYZING", "GENERATING_BRIEFS"] },
+			updatedAt: { lt: cutoff },
+		},
+		include: {
+			crawledPages: true,
+		},
+	});
+}
+
+/**
+ * Get audits that need report email sent (completed with token but email not sent).
+ */
+export function getAuditsMissingReportEmail() {
+	return db.audit.findMany({
+		where: {
+			status: "COMPLETED",
+			reportToken: { not: null },
+			reportEmailSentAt: null,
+		},
+		include: {
+			briefs: true,
 		},
 	});
 }

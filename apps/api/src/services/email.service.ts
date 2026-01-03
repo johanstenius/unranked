@@ -5,6 +5,7 @@ import { createLogger } from "../lib/logger.js";
 import {
 	alertBox,
 	card,
+	dataRow,
 	footnote,
 	heading,
 	paragraph,
@@ -246,4 +247,76 @@ export async function sendAuditFailureEmail(
 	}
 
 	log.info({ to: input.to }, "Failure email sent");
+}
+
+// ============================================================================
+// INTERNAL SUPPORT ALERTS
+// ============================================================================
+
+const SUPPORT_EMAIL = "support@unranked.io";
+
+export type SendSupportAlertInput = {
+	auditId: string;
+	siteUrl: string;
+	email: string;
+	tier: string;
+	retryCount: number;
+	failingComponents: string[];
+};
+
+/**
+ * Send internal alert to support when a paid audit is struggling.
+ * Triggered after N retries so team can intervene before 24h timeout.
+ */
+export async function sendSupportAlertEmail(
+	input: SendSupportAlertInput,
+): Promise<void> {
+	const client = getClient();
+	const fromEmail = process.env.SENDPIGEON_FROM_EMAIL;
+
+	if (!fromEmail) {
+		throw new Error("SENDPIGEON_FROM_EMAIL not configured");
+	}
+
+	const hostname = new URL(input.siteUrl).hostname;
+	const isPaid = input.tier !== "FREE";
+
+	const html = wrapEmail(
+		card(
+			heading(
+				`${isPaid ? "🚨 PAID" : "⚠️"} Audit Struggling`,
+				`${hostname} - ${input.tier} tier`,
+			) +
+				alertBox(
+					`Audit has failed ${input.retryCount} retry attempts. Manual intervention may be needed.`,
+					"error",
+				) +
+				dataRow("Audit ID", input.auditId, true) +
+				dataRow("Customer Email", input.email) +
+				dataRow(
+					"Failing Components",
+					input.failingComponents.join(", ") || "Unknown",
+				) +
+				paragraph(
+					isPaid
+						? "This is a PAID audit. Customer may need refund if not resolved."
+						: "This is a free audit but still worth investigating.",
+				) +
+				footnote("Check DataForSEO/Claude dashboards for API issues."),
+		),
+	);
+
+	const { error } = await client.send({
+		from: fromEmail,
+		to: SUPPORT_EMAIL,
+		subject: `${isPaid ? "[PAID] " : ""}Audit struggling: ${hostname} (${input.retryCount} retries)`,
+		html,
+	});
+
+	if (error) {
+		log.error({ error }, "SendPigeon error sending support alert");
+		throw new Error(`Failed to send support alert: ${error.message}`);
+	}
+
+	log.info({ auditId: input.auditId }, "Support alert email sent");
 }
