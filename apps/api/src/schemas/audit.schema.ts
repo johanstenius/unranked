@@ -8,6 +8,7 @@ export const auditStatusSchema = z.enum([
 	"CRAWLING",
 	"ANALYZING",
 	"GENERATING_BRIEFS",
+	"RETRYING",
 	"COMPLETED",
 	"FAILED",
 ]);

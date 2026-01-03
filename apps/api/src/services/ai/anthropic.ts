@@ -86,13 +86,21 @@ function categorizeError(error: unknown): AiErrorType {
 	if (error instanceof Anthropic.RateLimitError) {
 		return "rate_limit";
 	}
-	if (error instanceof Anthropic.APIStatusError) {
-		if (error.status === 529) return "overloaded";
-		if (error.status === 401 || error.status === 403) return "auth_error";
-		if (error.status >= 500) return "overloaded";
+	if (error instanceof Anthropic.AuthenticationError) {
+		return "auth_error";
+	}
+	if (error instanceof Anthropic.PermissionDeniedError) {
+		return "auth_error";
+	}
+	if (error instanceof Anthropic.InternalServerError) {
+		return "overloaded";
 	}
 	if (error instanceof Anthropic.APIConnectionError) {
 		return "timeout";
+	}
+	if (error instanceof Anthropic.APIError) {
+		// Check status for 529 (overloaded)
+		if (error.status === 529) return "overloaded";
 	}
 	return "unknown";
 }
@@ -543,4 +551,300 @@ export async function classifyKeywordIntents(
 	}
 
 	return result;
+}
+
+// ============================================================================
+// TYPED RESULT FUNCTIONS - For resilient pipeline with graceful degradation
+// ============================================================================
+
+/**
+ * Classify keyword intents with typed result
+ */
+export async function classifyKeywordIntentsTyped(
+	keywords: string[],
+): Promise<AiResult<Map<string, SearchIntent>>> {
+	if (keywords.length === 0) {
+		return { ok: true, data: new Map() };
+	}
+
+	const circuitCheck = checkCircuitBreaker();
+	if (circuitCheck) return circuitCheck;
+
+	if (env.TEST_MODE) {
+		const data = await mockAi.classifyKeywordIntents(keywords);
+		return { ok: true, data };
+	}
+
+	const result = new Map<string, SearchIntent>();
+
+	try {
+		for (let i = 0; i < keywords.length; i += INTENT_BATCH_SIZE) {
+			const batch = keywords.slice(i, i + INTENT_BATCH_SIZE);
+			const batchResult = await classifyIntentBatch(batch);
+			for (const [k, v] of batchResult) {
+				result.set(k, v);
+			}
+		}
+		recordSuccess();
+		return { ok: true, data: result };
+	} catch (error) {
+		recordFailure();
+		const errorType = categorizeError(error);
+		const message = error instanceof Error ? error.message : "Unknown error";
+		log.error({ error: message }, "Intent classification failed");
+		return { ok: false, error: errorType, message };
+	}
+}
+
+/**
+ * Cluster keywords with typed result
+ */
+export async function clusterKeywordsSemanticTyped(
+	keywords: KeywordWithVolume[],
+): Promise<AiResult<SemanticCluster[]>> {
+	if (keywords.length === 0) {
+		return { ok: true, data: [] };
+	}
+
+	const circuitCheck = checkCircuitBreaker();
+	if (circuitCheck) return circuitCheck;
+
+	if (env.TEST_MODE) {
+		const data = await mockAi.clusterKeywordsSemantic(keywords);
+		return { ok: true, data };
+	}
+
+	const keywordList = keywords
+		.map((k) => `- "${k.keyword}" (vol: ${k.searchVolume})`)
+		.join("\n");
+
+	const prompt = `You are an SEO expert grouping keywords into topical clusters for content planning.
+
+Group these keywords by topic/intent. Each cluster = ONE content piece.
+
+Keywords:
+${keywordList}
+
+Rules:
+- Group semantically related keywords that can be targeted with a single page
+- Give each cluster a descriptive topic name (2-5 words, like "Email API Integration" or "SMTP Configuration Guide")
+- Max 8 keywords per cluster
+- Include ALL keywords exactly as written
+- Topic name should reflect the search intent, not just repeat keywords
+
+Respond ONLY with JSON:
+{
+  "clusters": [
+    { "topic": "Email API Integration", "keywords": ["email api", "send email api"] },
+    { "topic": "SMTP Setup Guide", "keywords": ["smtp setup", "configure smtp"] }
+  ]
+}`;
+
+	try {
+		const response = await getClient().messages.create({
+			model: getModel("fast"),
+			max_tokens: 2048,
+			messages: [{ role: "user", content: prompt }],
+		});
+
+		const textContent = response.content.find((c) => c.type === "text");
+		if (!textContent || textContent.type !== "text") {
+			recordFailure();
+			return { ok: false, error: "unknown", message: "No text response from AI" };
+		}
+
+		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			recordFailure();
+			return { ok: false, error: "unknown", message: "No JSON in AI response" };
+		}
+
+		const parsed = semanticClusterSchema.parse(JSON.parse(jsonMatch[0]));
+		recordSuccess();
+		return { ok: true, data: parsed.clusters };
+	} catch (error) {
+		recordFailure();
+		const errorType = categorizeError(error);
+		const message = error instanceof Error ? error.message : "Unknown error";
+		log.error({ error: message }, "AI clustering failed");
+		return { ok: false, error: errorType, message };
+	}
+}
+
+/**
+ * Generate quick win suggestions with typed result
+ */
+export async function generateQuickWinSuggestionsTyped(
+	input: QuickWinInput,
+): Promise<AiResult<QuickWinSuggestions>> {
+	const circuitCheck = checkCircuitBreaker();
+	if (circuitCheck) return circuitCheck;
+
+	if (env.TEST_MODE) {
+		const data = await mockAi.generateQuickWinSuggestions(input);
+		return { ok: true, data };
+	}
+
+	const competitorsList = input.topCompetitors
+		.slice(0, 3)
+		.map((c) => `- ${c.title}: ${c.description.slice(0, 200)}`)
+		.join("\n");
+
+	const existingPagesList = input.existingPages
+		.filter((p) => p.url !== input.pageUrl)
+		.slice(0, 10)
+		.map((p) => `- ${p.title}: ${p.url}`)
+		.join("\n");
+
+	const contentPreview = (input.pageContent ?? "").slice(0, 2000);
+
+	const prompt = `You are an SEO expert analyzing a page that ranks #${input.currentPosition} for "${input.keyword}".
+
+PAGE BEING ANALYZED:
+URL: ${input.pageUrl}
+Title: ${input.pageTitle || "Unknown"}
+Content preview: ${contentPreview}
+
+PAGES RANKING ABOVE (competitors):
+${competitorsList}
+
+RELATED QUESTIONS PEOPLE ASK:
+${input.relatedQuestions.map((q) => `- ${q}`).join("\n")}
+
+OTHER PAGES ON THIS SITE (for internal linking):
+${existingPagesList}
+
+Analyze why this page ranks #${input.currentPosition} instead of higher, and provide specific, actionable suggestions to improve rankings.
+
+Respond in JSON format:
+{
+  "contentGaps": ["Specific section or topic to add based on what competitors cover"],
+  "questionsToAnswer": ["Specific questions from the PAA list that should be answered"],
+  "internalLinksToAdd": [{"fromPage": "URL of page that should link to this", "suggestedAnchor": "anchor text to use"}],
+  "estimatedNewPosition": 5
+}
+
+Be specific. Don't give generic advice like "add more content" - instead say exactly what content to add based on what competitors cover.`;
+
+	try {
+		const response = await getClient().messages.create({
+			model: getModel("quality"),
+			max_tokens: 1024,
+			messages: [{ role: "user", content: prompt }],
+		});
+
+		const textContent = response.content.find((c) => c.type === "text");
+		if (!textContent || textContent.type !== "text") {
+			recordFailure();
+			return { ok: false, error: "unknown", message: "No text response from AI" };
+		}
+
+		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			recordFailure();
+			return { ok: false, error: "unknown", message: "No JSON in AI response" };
+		}
+
+		recordSuccess();
+		return { ok: true, data: JSON.parse(jsonMatch[0]) as QuickWinSuggestions };
+	} catch (error) {
+		recordFailure();
+		const errorType = categorizeError(error);
+		const message = error instanceof Error ? error.message : "Unknown error";
+		log.error({ error: message }, "Quick win generation failed");
+		return { ok: false, error: errorType, message };
+	}
+}
+
+/**
+ * Generate brief structure with typed result
+ */
+export async function generateBriefStructureTyped(
+	input: GenerateStructureInput,
+): Promise<AiResult<{ title: string; structure: BriefStructure }>> {
+	const circuitCheck = checkCircuitBreaker();
+	if (circuitCheck) return circuitCheck;
+
+	if (env.TEST_MODE) {
+		const data = await mockAi.generateBriefStructure(input);
+		return { ok: true, data };
+	}
+
+	const existingPagesList = input.existingPages
+		.slice(0, 10)
+		.map((p) => `- ${p.title}: ${p.url}`)
+		.join("\n");
+
+	const topResults = input.topResults
+		.slice(0, 5)
+		.map((r) => `${r.position}. ${r.title} - ${r.url}`)
+		.join("\n");
+
+	const prompt = `You are an SEO expert creating a content brief to outrank competitors.
+
+Target keyword: "${input.keyword}"
+Website/product: ${input.productDesc || "A product or service"}
+
+Existing pages on this website:
+${existingPagesList}
+
+Top ranking pages for this keyword (competitors to beat):
+${topResults}
+
+Common questions people ask:
+${input.questions.map((q) => `- ${q}`).join("\n")}
+
+Create a comprehensive content brief with:
+1. A compelling page title (include the keyword naturally, under 60 chars)
+2. A meta description (compelling, 150-160 chars, include keyword)
+3. Recommended word count based on what's ranking
+4. H2/H3 structure that covers the topic better than competitors
+5. Primary and secondary keywords to target
+
+Respond in JSON format:
+{
+  "title": "Page title here",
+  "structure": {
+    "metaDescription": "Compelling meta description under 160 chars",
+    "wordCount": 1500,
+    "primaryKeywords": ["main keyword", "close variant"],
+    "secondaryKeywords": ["related term 1", "related term 2"],
+    "h2s": [
+      {
+        "title": "H2 heading",
+        "h3s": ["H3 subheading 1", "H3 subheading 2"],
+        "keyPoints": ["Key point to cover", "What competitors miss"]
+      }
+    ]
+  }
+}`;
+
+	try {
+		const response = await getClient().messages.create({
+			model: getModel("quality"),
+			max_tokens: 1024,
+			messages: [{ role: "user", content: prompt }],
+		});
+
+		const textContent = response.content.find((c) => c.type === "text");
+		if (!textContent || textContent.type !== "text") {
+			recordFailure();
+			return { ok: false, error: "unknown", message: "No text response from AI" };
+		}
+
+		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			recordFailure();
+			return { ok: false, error: "unknown", message: "No JSON in AI response" };
+		}
+
+		recordSuccess();
+		return { ok: true, data: JSON.parse(jsonMatch[0]) };
+	} catch (error) {
+		recordFailure();
+		const errorType = categorizeError(error);
+		const message = error instanceof Error ? error.message : "Unknown error";
+		log.error({ error: message }, "Brief structure generation failed");
+		return { ok: false, error: errorType, message };
+	}
 }

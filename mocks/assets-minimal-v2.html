@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unranked - Brand Assets (Minimal v2)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #FFFFFF;
+            --fg: #000000;
+            --gray: #666666;
+            --border: #E5E5E5;
+        }
+
+        body {
+            background-color: #F5F5F5;
+            font-family: 'Inter', sans-serif;
+            color: var(--fg);
+            margin: 0;
+            padding: 80px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 80px;
+        }
+
+        h2 {
+            font-family: 'Inter Tight', sans-serif;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray);
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        /* --- LOGO CONCEPTS --- */
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+        }
+
+        .logo-card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .logo-label {
+            font-size: 13px;
+            color: var(--gray);
+        }
+
+        /* Canvas for logos - simulates 512x512 on a smaller scale */
+        .icon-box {
+            width: 120px;
+            height: 120px;
+            background: white; /* Default app icon bg */
+            border: 1px solid var(--border);
+            border-radius: 24px; /* App icon curvature */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .icon-box.dark {
+            background: #000000;
+            border: 1px solid #000000;
+        }
+
+        /* Concept A: The "Gap" / "Missing Bar" */
+        /* Represents finding the missing piece/gap in SEO */
+        .logo-a {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            height: 60px;
+        }
+        .bar { width: 16px; background: black; border-radius: 2px; }
+        .bar.l { height: 40px; }
+        .bar.m { height: 60px; }
+        .bar.r { height: 40px; border: 2px solid black; background: transparent; } /* The gap */
+        
+        .icon-box.dark .bar { background: white; }
+        .icon-box.dark .bar.r { border-color: white; background: transparent; }
+
+
+        /* Concept B: The Monogram "U" */
+        /* Extremely bold, tight spacing tracking */
+        .logo-b {
+            font-family: 'Inter Tight', sans-serif;
+            font-weight: 700;
+            font-size: 80px;
+            letter-spacing: -0.05em;
+            line-height: 1;
+            color: black;
+        }
+        .icon-box.dark .logo-b { color: white; }
+
+        /* Concept C: The "Unranked" Underscore */
+        /* Minimalist text cursor / underscore metaphor */
+        .logo-c {
+            position: relative;
+        }
+        .u-shape {
+            width: 40px;
+            height: 48px;
+            border-left: 12px solid black;
+            border-right: 12px solid black;
+            border-bottom: 12px solid black;
+        }
+        .icon-box.dark .u-shape { border-color: white; }
+
+
+        /* --- OG IMAGE PREVIEW --- */
+        .og-preview {
+            width: 1200px;
+            height: 630px;
+            background: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 50px -10px rgba(0,0,0,0.1);
+            transform: scale(0.6); /* Scale down for viewing */
+            transform-origin: top center;
+            border: 1px solid #eee;
+            
+            /* Layout */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 80px;
+            box-sizing: border-box;
+        }
+
+        .og-grid-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(#f5f5f5 1px, transparent 1px),
+                linear-gradient(90deg, #f5f5f5 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+        }
+
+        .og-content {
+            z-index: 1;
+            position: relative;
+        }
+
+        .og-brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        
+        .og-brand-icon {
+            width: 40px; height: 40px;
+            background: black;
+            display: flex; align-items: center; justify-content: center;
+            color: white;
+            font-family: 'Inter Tight', sans-serif;
+            font-weight: 700;
+            font-size: 24px;
+        }
+
+        .og-title {
+            font-family: 'Inter Tight', sans-serif;
+            font-size: 110px;
+            font-weight: 700;
+            line-height: 0.95;
+            letter-spacing: -0.04em;
+            color: black;
+            margin: 0;
+            max-width: 900px;
+        }
+
+        .og-title span {
+            color: #ccc; /* Subtle contrast */
+        }
+
+        .og-footer {
+            z-index: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-top: 40px;
+            border-top: 2px solid #000;
+        }
+
+        .og-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .stat-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #666;
+        }
+        .stat-value {
+            font-family: 'Inter Tight', sans-serif;
+            font-size: 32px;
+            font-weight: 600;
+            color: black;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- LOGOS -->
+    <div>
+        <h2>Logo Concepts (App Icon)</h2>
+        <div class="logo-grid">
+            
+            <!-- Concept A -->
+            <div class="logo-card">
+                <div class="icon-box">
+                    <div class="logo-a">
+                        <div class="bar l"></div>
+                        <div class="bar m"></div>
+                        <div class="bar r"></div>
+                    </div>
+                </div>
+                <span class="logo-label">Concept A: "The Gap"</span>
+            </div>
+
+            <!-- Concept B -->
+            <div class="logo-card">
+                <div class="icon-box">
+                    <div class="logo-b">U</div>
+                </div>
+                <span class="logo-label">Concept B: "Bold Mono"</span>
+            </div>
+
+            <!-- Concept C -->
+            <div class="logo-card">
+                <div class="icon-box dark">
+                    <div class="logo-b">U</div>
+                </div>
+                <span class="logo-label">Concept B (Dark)</span>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- OG IMAGE -->
+    <div style="margin-top: -120px;"> <!-- Negative margin to account for scale -->
+        <h2>Open Graph Image (1200x630)</h2>
+        <div class="og-preview">
+            <div class="og-grid-bg"></div>
+            
+            <div class="og-content">
+                <div class="og-brand">
+                    <div class="og-brand-icon">U</div>
+                    <div style="font-weight: 600; font-size: 20px; letter-spacing: -0.02em;">UNRANKED</div>
+                </div>
+                
+                <h1 class="og-title">
+                    Identify gaps.<br>
+                    <span>Outrank them.</span>
+                </h1>
+            </div>
+
+            <div class="og-footer">
+                <div class="og-stat">
+                    <span class="stat-label">For Developers</span>
+                    <span class="stat-value">Zero Fluff SEO</span>
+                </div>
+                <div class="og-stat">
+                    <span class="stat-label">Analysis</span>
+                    <span class="stat-value">Technical & Content</span>
+                </div>
+                <div class="og-stat">
+                    <span class="stat-label">Pricing</span>
+                    <span class="stat-value">Pay Once (Lifetime)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
