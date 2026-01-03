@@ -6,8 +6,35 @@ export type AuditStatus =
 	| "CRAWLING"
 	| "ANALYZING"
 	| "GENERATING_BRIEFS"
+	| "RETRYING"
 	| "COMPLETED"
 	| "FAILED";
+
+// Component-level status for audit progress tracking
+export type ComponentStatus =
+	| "pending"
+	| "running"
+	| "completed"
+	| "retrying"
+	| "failed";
+
+// Component-level progress tracking
+export type AuditProgress = {
+	crawl: ComponentStatus;
+	technicalIssues: ComponentStatus;
+	internalLinking: ComponentStatus;
+	duplicateContent: ComponentStatus;
+	redirectChains: ComponentStatus;
+	currentRankings: ComponentStatus;
+	competitorAnalysis: ComponentStatus;
+	keywordOpportunities: ComponentStatus;
+	intentClassification: ComponentStatus;
+	keywordClustering: ComponentStatus;
+	quickWins: ComponentStatus;
+	briefs: ComponentStatus;
+	lastRetryAt?: string;
+	retryCount: number;
+};
 
 export type SectionInfo = {
 	path: string;
@@ -35,6 +62,8 @@ export type Audit = {
 	pagesFound: number | null;
 	sitemapUrlCount: number | null;
 	currentRankings: CurrentRanking[] | null;
+	progress: AuditProgress | null;
+	retryAfter: string | null;
 	createdAt: string;
 	completedAt: string | null;
 };

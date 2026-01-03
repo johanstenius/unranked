@@ -11,14 +11,6 @@ export const metadata: Metadata = {
 		default: "Unranked - SEO Audit Tool",
 		template: "%s | Unranked",
 	},
-	icons: {
-		icon: [
-			{ url: "/favicon.ico", sizes: "any" },
-			{ url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-			{ url: "/favicon-64x64.png", sizes: "64x64", type: "image/png" },
-		],
-		apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
-	},
 	description:
 		"Find keyword gaps, get AI content briefs, and improve your rankings. Full SEO audit with prioritized opportunities. One-time purchase, no subscription.",
 	keywords: [
@@ -41,21 +33,12 @@ export const metadata: Metadata = {
 		title: "Unranked - SEO Audit Tool",
 		description:
 			"Find keyword gaps, get AI content briefs, and improve your rankings. Full SEO audit with prioritized opportunities.",
-		images: [
-			{
-				url: "/og-image.png",
-				width: 1200,
-				height: 630,
-				alt: "Unranked - SEO Audit Tool",
-			},
-		],
 	},
 	twitter: {
 		card: "summary_large_image",
 		title: "Unranked - SEO Audit Tool",
 		description:
 			"Find keyword gaps, get AI content briefs, and improve your rankings. Full SEO audit with prioritized opportunities.",
-		images: ["/og-image.png"],
 	},
 	robots: {
 		index: true,

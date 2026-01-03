@@ -650,7 +650,11 @@ Respond ONLY with JSON:
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {
 			recordFailure();
-			return { ok: false, error: "unknown", message: "No text response from AI" };
+			return {
+				ok: false,
+				error: "unknown",
+				message: "No text response from AI",
+			};
 		}
 
 		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
@@ -736,7 +740,11 @@ Be specific. Don't give generic advice like "add more content" - instead say exa
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {
 			recordFailure();
-			return { ok: false, error: "unknown", message: "No text response from AI" };
+			return {
+				ok: false,
+				error: "unknown",
+				message: "No text response from AI",
+			};
 		}
 
 		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
@@ -829,7 +837,11 @@ Respond in JSON format:
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {
 			recordFailure();
-			return { ok: false, error: "unknown", message: "No text response from AI" };
+			return {
+				ok: false,
+				error: "unknown",
+				message: "No text response from AI",
+			};
 		}
 
 		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);

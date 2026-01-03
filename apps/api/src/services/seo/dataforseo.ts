@@ -363,16 +363,15 @@ export async function getKeywordData(
 		return mockDataforseo.getKeywordData(keywords, location, language);
 	}
 
-	const response = await apiRequestLegacy<DataForSeoResponse<KeywordDataResult>>(
-		"/keywords_data/google_ads/search_volume/live",
-		[
-			{
-				keywords,
-				location_name: location,
-				language_name: language,
-			},
-		],
-	);
+	const response = await apiRequestLegacy<
+		DataForSeoResponse<KeywordDataResult>
+	>("/keywords_data/google_ads/search_volume/live", [
+		{
+			keywords,
+			location_name: location,
+			language_name: language,
+		},
+	]);
 
 	if (!response?.tasks?.[0]?.result) return [];
 
@@ -518,16 +517,15 @@ export async function getRelatedKeywords(
 		return mockDataforseo.getRelatedKeywords(keyword, location, language);
 	}
 
-	const response = await apiRequestLegacy<DataForSeoResponse<RelatedKeywordResult>>(
-		"/keywords_data/google_ads/keywords_for_keywords/live",
-		[
-			{
-				keywords: [keyword],
-				location_name: location,
-				language_name: language,
-			},
-		],
-	);
+	const response = await apiRequestLegacy<
+		DataForSeoResponse<RelatedKeywordResult>
+	>("/keywords_data/google_ads/keywords_for_keywords/live", [
+		{
+			keywords: [keyword],
+			location_name: location,
+			language_name: language,
+		},
+	]);
 
 	if (!response?.tasks?.[0]?.result?.[0]?.items) return [];
 
@@ -631,19 +629,18 @@ export async function getDomainRankedKeywords(
 		]);
 	}
 
-	const response = await apiRequestLegacy<DataForSeoResponse<RankedKeywordResult>>(
-		"/dataforseo_labs/google/ranked_keywords/live",
-		[
-			{
-				target: domain,
-				location_name: location,
-				language_name: language,
-				limit,
-				order_by: ["keyword_data.keyword_info.search_volume,desc"],
-				filters,
-			},
-		],
-	);
+	const response = await apiRequestLegacy<
+		DataForSeoResponse<RankedKeywordResult>
+	>("/dataforseo_labs/google/ranked_keywords/live", [
+		{
+			target: domain,
+			location_name: location,
+			language_name: language,
+			limit,
+			order_by: ["keyword_data.keyword_info.search_volume,desc"],
+			filters,
+		},
+	]);
 
 	if (!response?.tasks?.[0]?.result?.[0]?.items) {
 		log.debug({ domain }, "No ranked keywords found");
@@ -696,20 +693,19 @@ export async function discoverCompetitors(
 
 	log.debug({ domain }, "Discovering competitors");
 
-	const response = await apiRequestLegacy<DataForSeoResponse<CompetitorDomainResult>>(
-		"/dataforseo_labs/google/competitors_domain/live",
-		[
-			{
-				target: domain,
-				location_name: location,
-				language_name: language,
-				limit,
-				exclude_top_domains: true,
-				filters: [["intersections", ">", 10]],
-				order_by: ["intersections,desc"],
-			},
-		],
-	);
+	const response = await apiRequestLegacy<
+		DataForSeoResponse<CompetitorDomainResult>
+	>("/dataforseo_labs/google/competitors_domain/live", [
+		{
+			target: domain,
+			location_name: location,
+			language_name: language,
+			limit,
+			exclude_top_domains: true,
+			filters: [["intersections", ">", 10]],
+			order_by: ["intersections,desc"],
+		},
+	]);
 
 	if (!response?.tasks?.[0]?.result?.[0]?.items) {
 		log.debug({ domain }, "No competitors found");
@@ -853,7 +849,11 @@ export async function getKeywordDataTyped(
 	language = "en",
 ): Promise<ApiResult<KeywordData[]>> {
 	if (env.TEST_MODE) {
-		const data = await mockDataforseo.getKeywordData(keywords, location, language);
+		const data = await mockDataforseo.getKeywordData(
+			keywords,
+			location,
+			language,
+		);
 		return { ok: true, data };
 	}
 
@@ -892,7 +892,11 @@ export async function getSerpResultsTyped(
 	language = "en",
 ): Promise<ApiResult<SerpResult[]>> {
 	if (env.TEST_MODE) {
-		const data = await mockDataforseo.getSerpResults(keyword, location, language);
+		const data = await mockDataforseo.getSerpResults(
+			keyword,
+			location,
+			language,
+		);
 		return { ok: true, data };
 	}
 

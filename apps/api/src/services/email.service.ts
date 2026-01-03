@@ -2,6 +2,14 @@ import { randomBytes } from "node:crypto";
 import { SendPigeon } from "sendpigeon";
 import { env } from "../config/env.js";
 import { createLogger } from "../lib/logger.js";
+import {
+	alertBox,
+	card,
+	footnote,
+	heading,
+	paragraph,
+	wrapEmail,
+} from "./email/templates/base.js";
 
 const log = createLogger("email");
 
@@ -134,4 +142,108 @@ function buildReportEmailHtml(input: EmailTemplateInput): string {
 </body>
 </html>
   `.trim();
+}
+
+// ============================================================================
+// DELAY AND FAILURE EMAILS
+// ============================================================================
+
+export type SendDelayEmailInput = {
+	to: string;
+	siteUrl: string;
+	auditId: string;
+};
+
+export async function sendAuditDelayEmail(
+	input: SendDelayEmailInput,
+): Promise<void> {
+	const client = getClient();
+	const fromEmail = process.env.SENDPIGEON_FROM_EMAIL;
+
+	if (!fromEmail) {
+		throw new Error("SENDPIGEON_FROM_EMAIL not configured");
+	}
+
+	const hostname = new URL(input.siteUrl).hostname;
+
+	const html = wrapEmail(
+		card(
+			heading(
+				"Your Audit is Taking Longer",
+				`Site audit for <strong>${hostname}</strong>`,
+			) +
+				alertBox(
+					"We're still working on your SEO audit. Our keyword analysis is experiencing temporary delays, but don't worry - we're automatically retrying and will email you as soon as it's ready.",
+					"warning",
+				) +
+				paragraph(
+					"Technical SEO analysis is already complete and waiting for you. Once the full analysis is ready, you'll receive another email with access to your complete report.",
+				) +
+				footnote("No action needed - we'll notify you when it's ready."),
+		),
+	);
+
+	const { error } = await client.send({
+		from: fromEmail,
+		to: input.to,
+		subject: `Your Unranked audit for ${hostname} is taking longer than expected`,
+		html,
+	});
+
+	if (error) {
+		log.error({ error }, "SendPigeon error");
+		throw new Error(`Failed to send delay email: ${error.message}`);
+	}
+
+	log.info({ to: input.to }, "Delay email sent");
+}
+
+export type SendFailureEmailInput = {
+	to: string;
+	siteUrl: string;
+	auditId: string;
+};
+
+export async function sendAuditFailureEmail(
+	input: SendFailureEmailInput,
+): Promise<void> {
+	const client = getClient();
+	const fromEmail = process.env.SENDPIGEON_FROM_EMAIL;
+
+	if (!fromEmail) {
+		throw new Error("SENDPIGEON_FROM_EMAIL not configured");
+	}
+
+	const hostname = new URL(input.siteUrl).hostname;
+
+	const html = wrapEmail(
+		card(
+			heading(
+				"Issue With Your Audit",
+				`Site audit for <strong>${hostname}</strong>`,
+			) +
+				alertBox(
+					"We were unable to complete the full keyword analysis for your site due to temporary service issues. We apologize for the inconvenience.",
+					"error",
+				) +
+				paragraph(
+					"Your technical SEO analysis was completed and may still contain valuable insights. If you'd like us to retry or have any questions, please contact our support team.",
+				) +
+				footnote("We'll be happy to help resolve any issues."),
+		),
+	);
+
+	const { error } = await client.send({
+		from: fromEmail,
+		to: input.to,
+		subject: `Issue with your Unranked audit for ${hostname}`,
+		html,
+	});
+
+	if (error) {
+		log.error({ error }, "SendPigeon error");
+		throw new Error(`Failed to send failure email: ${error.message}`);
+	}
+
+	log.info({ to: input.to }, "Failure email sent");
 }

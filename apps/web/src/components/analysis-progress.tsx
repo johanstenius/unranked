@@ -2,6 +2,7 @@
 
 import type { Audit, AuditStatus } from "@/lib/api";
 import { tierInfo } from "@/lib/config";
+import type { AuditProgress, ComponentStatus } from "@/lib/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -40,6 +41,40 @@ const STATUS_STEPS: {
 		activeLabel: "Creating content briefs",
 		description: "AI-powered content recommendations",
 	},
+];
+
+// Component-level progress configuration
+type ProgressComponentConfig = {
+	key: keyof Omit<AuditProgress, "lastRetryAt" | "retryCount">;
+	label: string;
+	group: "local" | "dataforseo" | "claude";
+};
+
+const PROGRESS_COMPONENTS: ProgressComponentConfig[] = [
+	{ key: "crawl", label: "Site crawl", group: "local" },
+	{ key: "technicalIssues", label: "Technical analysis", group: "local" },
+	{ key: "internalLinking", label: "Internal linking", group: "local" },
+	{ key: "duplicateContent", label: "Duplicate content", group: "local" },
+	{ key: "redirectChains", label: "Redirect chains", group: "local" },
+	{ key: "currentRankings", label: "Current rankings", group: "dataforseo" },
+	{
+		key: "competitorAnalysis",
+		label: "Competitor analysis",
+		group: "dataforseo",
+	},
+	{
+		key: "keywordOpportunities",
+		label: "Keyword opportunities",
+		group: "dataforseo",
+	},
+	{
+		key: "intentClassification",
+		label: "Intent classification",
+		group: "claude",
+	},
+	{ key: "keywordClustering", label: "Keyword clustering", group: "claude" },
+	{ key: "quickWins", label: "Quick wins", group: "claude" },
+	{ key: "briefs", label: "Content briefs", group: "claude" },
 ];
 
 function getStatusIndex(status: AuditStatus): number {
@@ -395,10 +430,210 @@ function WaveformIndicator() {
 	);
 }
 
+function ComponentStatusIcon({ status }: { status: ComponentStatus }) {
+	switch (status) {
+		case "completed":
+			return (
+				<motion.div
+					initial={{ scale: 0 }}
+					animate={{ scale: 1 }}
+					className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center"
+				>
+					<svg
+						className="w-3 h-3 text-emerald-500"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="3"
+						strokeLinecap="round"
+						aria-hidden="true"
+					>
+						<path d="M5 13l4 4L19 7" />
+					</svg>
+				</motion.div>
+			);
+		case "retrying":
+			return (
+				<div className="w-5 h-5 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+					<motion.svg
+						className="w-3 h-3 text-amber-500"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						animate={{ rotate: 360 }}
+						transition={{
+							duration: 2,
+							repeat: Number.POSITIVE_INFINITY,
+							ease: "linear",
+						}}
+						aria-hidden="true"
+					>
+						<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+						<path d="M3 3v5h5" />
+						<path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+						<path d="M16 16h5v5" />
+					</motion.svg>
+				</div>
+			);
+		case "running":
+			return (
+				<div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+					<motion.div
+						className="w-2 h-2 rounded-full bg-emerald-500"
+						animate={{ opacity: [0.4, 1, 0.4] }}
+						transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY }}
+					/>
+				</div>
+			);
+		case "failed":
+			return (
+				<div className="w-5 h-5 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+					<svg
+						className="w-3 h-3 text-red-500"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2.5"
+						strokeLinecap="round"
+						aria-hidden="true"
+					>
+						<path d="M18 6L6 18M6 6l12 12" />
+					</svg>
+				</div>
+			);
+		default:
+			return (
+				<div className="w-5 h-5 rounded-full bg-subtle border border-border flex items-center justify-center">
+					<div className="w-1.5 h-1.5 rounded-full bg-text-tertiary/50" />
+				</div>
+			);
+	}
+}
+
+function ComponentProgressItem({
+	config,
+	status,
+	index,
+}: {
+	config: ProgressComponentConfig;
+	status: ComponentStatus;
+	index: number;
+}) {
+	const statusLabel: Record<ComponentStatus, string> = {
+		pending: "Waiting",
+		running: "Processing...",
+		completed: "Complete",
+		retrying: "Retrying...",
+		failed: "Failed",
+	};
+
+	return (
+		<motion.div
+			initial={{ opacity: 0, x: -10 }}
+			animate={{ opacity: 1, x: 0 }}
+			transition={{ delay: index * 0.03 }}
+			className={`flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
+				status === "retrying"
+					? "bg-amber-500/5 border border-amber-500/10"
+					: status === "running"
+						? "bg-emerald-500/5 border border-emerald-500/10"
+						: "border border-transparent"
+			}`}
+		>
+			<div className="flex items-center gap-3">
+				<ComponentStatusIcon status={status} />
+				<span
+					className={`text-sm ${
+						status === "pending"
+							? "text-text-tertiary"
+							: status === "failed"
+								? "text-red-400"
+								: "text-text-primary"
+					}`}
+				>
+					{config.label}
+				</span>
+			</div>
+			<span
+				className={`text-xs font-medium ${
+					status === "completed"
+						? "text-emerald-500"
+						: status === "retrying"
+							? "text-amber-500"
+							: status === "running"
+								? "text-emerald-400"
+								: status === "failed"
+									? "text-red-400"
+									: "text-text-tertiary"
+				}`}
+			>
+				{statusLabel[status]}
+			</span>
+		</motion.div>
+	);
+}
+
+function ComponentProgressView({ progress }: { progress: AuditProgress }) {
+	const completedCount = PROGRESS_COMPONENTS.filter(
+		(c) => progress[c.key] === "completed",
+	).length;
+	const retryingCount = PROGRESS_COMPONENTS.filter(
+		(c) => progress[c.key] === "retrying",
+	).length;
+	const progressPercent = (completedCount / PROGRESS_COMPONENTS.length) * 100;
+
+	return (
+		<div className="space-y-4">
+			{/* Progress summary */}
+			<div className="flex items-center justify-between text-sm">
+				<span className="text-text-secondary">
+					{completedCount} of {PROGRESS_COMPONENTS.length} complete
+				</span>
+				{retryingCount > 0 && (
+					<span className="text-amber-500 flex items-center gap-1.5">
+						<motion.span
+							animate={{ opacity: [0.5, 1, 0.5] }}
+							transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
+						>
+							●
+						</motion.span>
+						{retryingCount} retrying
+					</span>
+				)}
+			</div>
+
+			{/* Progress bar */}
+			<div className="h-1.5 bg-subtle rounded-full overflow-hidden">
+				<motion.div
+					className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full"
+					initial={{ width: 0 }}
+					animate={{ width: `${progressPercent}%` }}
+					transition={{ duration: 0.5 }}
+				/>
+			</div>
+
+			{/* Component list */}
+			<div className="space-y-1">
+				{PROGRESS_COMPONENTS.map((config, idx) => (
+					<ComponentProgressItem
+						key={config.key}
+						config={config}
+						status={progress[config.key]}
+						index={idx}
+					/>
+				))}
+			</div>
+		</div>
+	);
+}
+
 export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 	const statusIndex = getStatusIndex(audit.status);
 	const progressPercent = ((statusIndex + 0.5) / STATUS_STEPS.length) * 100;
 	const [startTime] = useState(() => new Date(audit.createdAt));
+	const isRetrying = audit.status === "RETRYING";
 
 	return (
 		<div className="max-w-[680px] mx-auto">
@@ -408,10 +643,26 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				animate={{ opacity: 1, y: 0 }}
 				className="text-center mb-10"
 			>
-				<div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-4">
-					<ActivityPulse />
-					<span className="text-sm font-medium text-emerald-500">
-						Analysis in progress
+				<div
+					className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-4 ${
+						isRetrying
+							? "bg-amber-500/10 border border-amber-500/20"
+							: "bg-emerald-500/10 border border-emerald-500/20"
+					}`}
+				>
+					{isRetrying ? (
+						<motion.div
+							className="w-2 h-2 rounded-full bg-amber-500"
+							animate={{ opacity: [0.5, 1, 0.5] }}
+							transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
+						/>
+					) : (
+						<ActivityPulse />
+					)}
+					<span
+						className={`text-sm font-medium ${isRetrying ? "text-amber-500" : "text-emerald-500"}`}
+					>
+						{isRetrying ? "Retrying..." : "Analysis in progress"}
 					</span>
 				</div>
 				<h1 className="font-display text-3xl font-semibold text-text-primary mb-2">
@@ -424,6 +675,20 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				</p>
 			</motion.div>
 
+			{/* Retrying notice */}
+			{isRetrying && (
+				<motion.div
+					initial={{ opacity: 0, y: 10 }}
+					animate={{ opacity: 1, y: 0 }}
+					className="mb-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg"
+				>
+					<p className="text-sm text-amber-600 dark:text-amber-400">
+						Some components are taking longer than expected. We&apos;re
+						automatically retrying and will email you when complete.
+					</p>
+				</motion.div>
+			)}
+
 			{/* Main progress card */}
 			<motion.div
 				initial={{ opacity: 0, y: 20 }}
@@ -432,47 +697,88 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				className="relative border border-border rounded-xl overflow-hidden bg-canvas"
 			>
 				{/* Subtle ambient background */}
-				<div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.02] to-transparent" />
+				<div
+					className={`absolute inset-0 bg-gradient-to-b ${
+						isRetrying
+							? "from-amber-500/[0.02] to-transparent"
+							: "from-emerald-500/[0.02] to-transparent"
+					}`}
+				/>
 
-				{/* Progress bar */}
-				<div className="relative h-1 bg-subtle">
-					<motion.div
-						className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 to-emerald-400"
-						initial={{ width: 0 }}
-						animate={{ width: `${progressPercent}%` }}
-						transition={{ duration: 0.8, ease: "easeOut" }}
-					/>
-					<motion.div
-						className="absolute inset-y-0 bg-gradient-to-r from-emerald-400/0 via-emerald-300/50 to-emerald-400/0"
-						style={{ width: "30%" }}
-						animate={{ left: ["0%", "100%"] }}
-						transition={{
-							duration: 1.5,
-							repeat: Number.POSITIVE_INFINITY,
-							ease: "linear",
-						}}
-					/>
-				</div>
-
-				{/* Steps */}
-				<div className="relative p-6 space-y-2">
-					{STATUS_STEPS.map((step, idx) => (
-						<ProgressStep
-							key={step.status}
-							step={step}
-							index={idx}
-							currentIndex={statusIndex}
-							audit={audit}
+				{/* Progress bar - only for non-retrying status */}
+				{!isRetrying && (
+					<div className="relative h-1 bg-subtle">
+						<motion.div
+							className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 to-emerald-400"
+							initial={{ width: 0 }}
+							animate={{ width: `${progressPercent}%` }}
+							transition={{ duration: 0.8, ease: "easeOut" }}
 						/>
-					))}
+						<motion.div
+							className="absolute inset-y-0 bg-gradient-to-r from-emerald-400/0 via-emerald-300/50 to-emerald-400/0"
+							style={{ width: "30%" }}
+							animate={{ left: ["0%", "100%"] }}
+							transition={{
+								duration: 1.5,
+								repeat: Number.POSITIVE_INFINITY,
+								ease: "linear",
+							}}
+						/>
+					</div>
+				)}
+
+				{/* Steps or Component progress */}
+				<div className="relative p-6">
+					{isRetrying && audit.progress ? (
+						<ComponentProgressView progress={audit.progress} />
+					) : (
+						<div className="space-y-2">
+							{STATUS_STEPS.map((step, idx) => (
+								<ProgressStep
+									key={step.status}
+									step={step}
+									index={idx}
+									currentIndex={statusIndex}
+									audit={audit}
+								/>
+							))}
+						</div>
+					)}
 				</div>
 
 				{/* Footer status bar */}
 				<div className="relative border-t border-border bg-subtle/30 px-6 py-4">
 					<div className="flex items-center justify-between text-sm">
 						<div className="flex items-center gap-3">
-							<WaveformIndicator />
-							<span className="text-text-secondary">Processing...</span>
+							{isRetrying ? (
+								<motion.div
+									className="flex items-center gap-1.5"
+									animate={{ opacity: [0.7, 1, 0.7] }}
+									transition={{
+										duration: 2,
+										repeat: Number.POSITIVE_INFINITY,
+									}}
+								>
+									<svg
+										className="w-4 h-4 text-amber-500"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="2"
+										strokeLinecap="round"
+										aria-hidden="true"
+									>
+										<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+										<path d="M3 3v5h5" />
+									</svg>
+									<span className="text-amber-500">Auto-retrying</span>
+								</motion.div>
+							) : (
+								<>
+									<WaveformIndicator />
+									<span className="text-text-secondary">Processing...</span>
+								</>
+							)}
 						</div>
 						<div className="flex items-center gap-4 text-text-tertiary">
 							<span>
