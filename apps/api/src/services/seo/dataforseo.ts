@@ -119,17 +119,98 @@ const RETRY_CONFIG = {
 	maxRetries: 3,
 	baseDelayMs: 500,
 	maxDelayMs: 5000,
+	jitterMs: 200,
 } as const;
+
+const CIRCUIT_BREAKER = {
+	threshold: 5, // Open after 5 consecutive failures
+	resetMs: 60_000, // Reset after 1 minute
+} as const;
+
+// Circuit breaker state
+let circuitState: "closed" | "open" = "closed";
+let consecutiveFailures = 0;
+let circuitOpenedAt: number | null = null;
+
+/**
+ * Error types for typed API responses
+ */
+export type ApiErrorType =
+	| "rate_limit"
+	| "server_error"
+	| "timeout"
+	| "auth_error"
+	| "circuit_open"
+	| "unknown";
+
+/**
+ * Typed result for API calls - enables graceful degradation
+ */
+export type ApiResult<T> =
+	| { ok: true; data: T }
+	| { ok: false; error: ApiErrorType; message: string };
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function checkCircuitBreaker(): ApiResult<never> | null {
+	if (circuitState === "open") {
+		const elapsed = Date.now() - (circuitOpenedAt ?? 0);
+		if (elapsed < CIRCUIT_BREAKER.resetMs) {
+			return {
+				ok: false,
+				error: "circuit_open",
+				message: `Circuit breaker open, retry in ${Math.ceil((CIRCUIT_BREAKER.resetMs - elapsed) / 1000)}s`,
+			};
+		}
+		// Reset circuit breaker
+		circuitState = "closed";
+		consecutiveFailures = 0;
+		circuitOpenedAt = null;
+		log.info("Circuit breaker reset");
+	}
+	return null;
+}
+
+function recordSuccess(): void {
+	consecutiveFailures = 0;
+}
+
+function recordFailure(): void {
+	consecutiveFailures++;
+	if (
+		consecutiveFailures >= CIRCUIT_BREAKER.threshold &&
+		circuitState === "closed"
+	) {
+		circuitState = "open";
+		circuitOpenedAt = Date.now();
+		log.warn(
+			{ failures: consecutiveFailures },
+			"Circuit breaker opened due to consecutive failures",
+		);
+	}
+}
+
+/**
+ * Check if DataForSEO API is available (circuit not open)
+ */
+export function isApiAvailable(): boolean {
+	return checkCircuitBreaker() === null;
+}
+
 async function apiRequest<T>(
 	endpoint: string,
 	body: unknown,
-): Promise<T | null> {
+): Promise<ApiResult<T>> {
+	// Check circuit breaker first
+	const circuitCheck = checkCircuitBreaker();
+	if (circuitCheck) {
+		return circuitCheck;
+	}
+
 	let lastError: unknown;
+	let lastErrorType: ApiErrorType = "unknown";
 
 	for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
 		try {
@@ -143,29 +224,52 @@ async function apiRequest<T>(
 			});
 
 			if (response.ok) {
-				return response.json() as Promise<T>;
+				recordSuccess();
+				const data = (await response.json()) as T;
+				return { ok: true, data };
 			}
 
-			// Don't retry client errors (4xx) except 429
-			if (
-				response.status >= 400 &&
-				response.status < 500 &&
-				response.status !== 429
-			) {
-				log.error({ status: response.status }, "DataForSEO API error");
-				return null;
+			// Determine error type
+			if (response.status === 429) {
+				lastErrorType = "rate_limit";
+			} else if (response.status === 401 || response.status === 403) {
+				lastErrorType = "auth_error";
+				recordFailure();
+				return {
+					ok: false,
+					error: "auth_error",
+					message: "Authentication failed",
+				};
+			} else if (response.status >= 500) {
+				lastErrorType = "server_error";
+			} else if (response.status >= 400) {
+				// Other 4xx - don't retry
+				recordFailure();
+				return {
+					ok: false,
+					error: "unknown",
+					message: `HTTP ${response.status}`,
+				};
 			}
 
 			lastError = new Error(`HTTP ${response.status}`);
 		} catch (error) {
 			lastError = error;
+			if (error instanceof Error && error.message.includes("timeout")) {
+				lastErrorType = "timeout";
+			} else {
+				lastErrorType = "server_error";
+			}
 		}
 
 		if (attempt < RETRY_CONFIG.maxRetries) {
-			const delay = Math.min(
+			// Exponential backoff with jitter
+			const baseDelay = Math.min(
 				RETRY_CONFIG.baseDelayMs * 2 ** attempt,
 				RETRY_CONFIG.maxDelayMs,
 			);
+			const jitter = Math.random() * RETRY_CONFIG.jitterMs;
+			const delay = baseDelay + jitter;
 			log.debug(
 				{ attempt: attempt + 1, maxRetries: RETRY_CONFIG.maxRetries, delay },
 				"Retrying API request",
@@ -174,10 +278,23 @@ async function apiRequest<T>(
 		}
 	}
 
-	log.error(
-		{ error: lastError },
-		"DataForSEO API request failed after retries",
-	);
+	recordFailure();
+	const message =
+		lastError instanceof Error ? lastError.message : "Unknown error";
+	log.error({ error: message }, "DataForSEO API request failed after retries");
+	return { ok: false, error: lastErrorType, message };
+}
+
+/**
+ * Legacy wrapper for backward compatibility
+ * @deprecated Use typed result functions instead
+ */
+async function apiRequestLegacy<T>(
+	endpoint: string,
+	body: unknown,
+): Promise<T | null> {
+	const result = await apiRequest<T>(endpoint, body);
+	if (result.ok) return result.data;
 	return null;
 }
 
@@ -246,7 +363,7 @@ export async function getKeywordData(
 		return mockDataforseo.getKeywordData(keywords, location, language);
 	}
 
-	const response = await apiRequest<DataForSeoResponse<KeywordDataResult>>(
+	const response = await apiRequestLegacy<DataForSeoResponse<KeywordDataResult>>(
 		"/keywords_data/google_ads/search_volume/live",
 		[
 			{
@@ -293,7 +410,7 @@ async function fetchSerpWithFeatures(
 		};
 	}
 
-	const response = await apiRequest<DataForSeoResponse<SerpDataResult>>(
+	const response = await apiRequestLegacy<DataForSeoResponse<SerpDataResult>>(
 		"/serp/google/organic/live/regular",
 		[
 			{
@@ -401,7 +518,7 @@ export async function getRelatedKeywords(
 		return mockDataforseo.getRelatedKeywords(keyword, location, language);
 	}
 
-	const response = await apiRequest<DataForSeoResponse<RelatedKeywordResult>>(
+	const response = await apiRequestLegacy<DataForSeoResponse<RelatedKeywordResult>>(
 		"/keywords_data/google_ads/keywords_for_keywords/live",
 		[
 			{
@@ -514,7 +631,7 @@ export async function getDomainRankedKeywords(
 		]);
 	}
 
-	const response = await apiRequest<DataForSeoResponse<RankedKeywordResult>>(
+	const response = await apiRequestLegacy<DataForSeoResponse<RankedKeywordResult>>(
 		"/dataforseo_labs/google/ranked_keywords/live",
 		[
 			{
@@ -579,7 +696,7 @@ export async function discoverCompetitors(
 
 	log.debug({ domain }, "Discovering competitors");
 
-	const response = await apiRequest<DataForSeoResponse<CompetitorDomainResult>>(
+	const response = await apiRequestLegacy<DataForSeoResponse<CompetitorDomainResult>>(
 		"/dataforseo_labs/google/competitors_domain/live",
 		[
 			{
@@ -610,4 +727,203 @@ export async function discoverCompetitors(
 			avgPosition: item.avg_position ?? 0,
 			etv: item.full_domain_metrics?.organic?.etv ?? 0,
 		}));
+}
+
+// ============================================================================
+// TYPED RESULT FUNCTIONS - For resilient pipeline with graceful degradation
+// ============================================================================
+
+/**
+ * Get domain ranked keywords with typed result
+ */
+export async function getDomainRankedKeywordsTyped(
+	domain: string,
+	options: DomainKeywordOptions = {},
+): Promise<ApiResult<DomainKeyword[]>> {
+	if (env.TEST_MODE) {
+		const data = await mockDataforseo.getDomainRankedKeywords(domain, options);
+		return { ok: true, data };
+	}
+
+	const {
+		location = "United States",
+		language = "en",
+		limit = 200,
+		maxPosition = 50,
+		minVolume = 10,
+		maxDifficulty,
+	} = options;
+
+	const filters: unknown[] = [
+		["ranked_serp_element.serp_item.rank_group", "<", maxPosition],
+		"and",
+		["keyword_data.keyword_info.search_volume", ">", minVolume],
+	];
+
+	if (maxDifficulty !== undefined) {
+		filters.push("and", [
+			"keyword_data.keyword_info.keyword_difficulty",
+			"<",
+			maxDifficulty,
+		]);
+	}
+
+	const result = await apiRequest<DataForSeoResponse<RankedKeywordResult>>(
+		"/dataforseo_labs/google/ranked_keywords/live",
+		[
+			{
+				target: domain,
+				location_name: location,
+				language_name: language,
+				limit,
+				order_by: ["keyword_data.keyword_info.search_volume,desc"],
+				filters,
+			},
+		],
+	);
+
+	if (!result.ok) return result;
+
+	const items = result.data?.tasks?.[0]?.result?.[0]?.items ?? [];
+	return {
+		ok: true,
+		data: items
+			.filter((item) => item.keyword_data?.keyword)
+			.map((item) => ({
+				keyword: item.keyword_data?.keyword ?? "",
+				position: item.ranked_serp_element?.serp_item?.rank_group ?? 0,
+				url: item.ranked_serp_element?.serp_item?.url ?? "",
+				searchVolume: item.keyword_data?.keyword_info?.search_volume ?? 0,
+				difficulty: item.keyword_data?.keyword_info?.keyword_difficulty ?? 0,
+			})),
+	};
+}
+
+/**
+ * Discover competitors with typed result
+ */
+export async function discoverCompetitorsTyped(
+	domain: string,
+	options: DiscoverCompetitorsOptions = {},
+): Promise<ApiResult<DiscoveredCompetitor[]>> {
+	if (env.TEST_MODE) {
+		const data = await mockDataforseo.discoverCompetitors(domain, options);
+		return { ok: true, data };
+	}
+
+	const { location = "United States", language = "en", limit = 10 } = options;
+
+	const result = await apiRequest<DataForSeoResponse<CompetitorDomainResult>>(
+		"/dataforseo_labs/google/competitors_domain/live",
+		[
+			{
+				target: domain,
+				location_name: location,
+				language_name: language,
+				limit,
+				exclude_top_domains: true,
+				filters: [["intersections", ">", 10]],
+				order_by: ["intersections,desc"],
+			},
+		],
+	);
+
+	if (!result.ok) return result;
+
+	const items = result.data?.tasks?.[0]?.result?.[0]?.items ?? [];
+	return {
+		ok: true,
+		data: items
+			.filter((item) => item.domain && item.domain !== domain)
+			.map((item) => ({
+				domain: item.domain ?? "",
+				intersections: item.intersections ?? 0,
+				avgPosition: item.avg_position ?? 0,
+				etv: item.full_domain_metrics?.organic?.etv ?? 0,
+			})),
+	};
+}
+
+/**
+ * Get keyword data with typed result
+ */
+export async function getKeywordDataTyped(
+	keywords: string[],
+	location = "United States",
+	language = "en",
+): Promise<ApiResult<KeywordData[]>> {
+	if (env.TEST_MODE) {
+		const data = await mockDataforseo.getKeywordData(keywords, location, language);
+		return { ok: true, data };
+	}
+
+	const result = await apiRequest<DataForSeoResponse<KeywordDataResult>>(
+		"/keywords_data/google_ads/search_volume/live",
+		[
+			{
+				keywords,
+				location_name: location,
+				language_name: language,
+			},
+		],
+	);
+
+	if (!result.ok) return result;
+
+	const items = result.data?.tasks?.[0]?.result ?? [];
+	return {
+		ok: true,
+		data: items.map((item) => ({
+			keyword: item.keyword,
+			searchVolume: item.keyword_info?.search_volume ?? 0,
+			difficulty: item.keyword_info?.keyword_difficulty ?? 0,
+			cpc: item.keyword_info?.cpc ?? 0,
+			competition: item.keyword_info?.competition ?? 0,
+		})),
+	};
+}
+
+/**
+ * Get SERP results with typed result
+ */
+export async function getSerpResultsTyped(
+	keyword: string,
+	location = "United States",
+	language = "en",
+): Promise<ApiResult<SerpResult[]>> {
+	if (env.TEST_MODE) {
+		const data = await mockDataforseo.getSerpResults(keyword, location, language);
+		return { ok: true, data };
+	}
+
+	const cached = serpCache.get(keyword, location, language);
+	if (cached) {
+		return { ok: true, data: cached.serp };
+	}
+
+	const result = await apiRequest<DataForSeoResponse<SerpDataResult>>(
+		"/serp/google/organic/live/regular",
+		[
+			{
+				keyword,
+				location_name: location,
+				language_name: language,
+				depth: 10,
+			},
+		],
+	);
+
+	if (!result.ok) return result;
+
+	const items = result.data?.tasks?.[0]?.result?.[0]?.items ?? [];
+	const serp: SerpResult[] = items
+		.filter((item) => item.url && item.type !== "featured_snippet")
+		.map((item) => ({
+			position: item.rank_group ?? 0,
+			url: item.url ?? "",
+			title: item.title ?? "",
+			description: item.description ?? "",
+		}));
+
+	return { ok: true, data: serp };
 }

@@ -25,6 +25,11 @@ model Audit {
   healthScore      Json?
   redirectChains   Json?
 
+  // Resilient pipeline: component-level progress tracking
+  progress         Json?      // AuditProgress object tracking each component's status
+  retryAfter       DateTime?  // When to retry failed components
+  delayEmailSentAt DateTime?  // When we sent "taking longer" notification
+
   stripeSessionId       String?   @unique
   tier                  AuditTier
   reportToken           String?   @unique
@@ -103,6 +108,7 @@ enum AuditStatus {
   CRAWLING
   ANALYZING
   GENERATING_BRIEFS
+  RETRYING           // Waiting for background retry of failed components
   COMPLETED
   FAILED
 }

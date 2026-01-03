@@ -22,6 +22,9 @@ export type UpdateAuditInput = {
 	detectedSections?: Prisma.InputJsonValue;
 	healthScore?: Prisma.InputJsonValue;
 	redirectChains?: Prisma.InputJsonValue;
+	progress?: Prisma.InputJsonValue;
+	retryAfter?: Date | null;
+	delayEmailSentAt?: Date | null;
 	completedAt?: Date;
 	reportToken?: string;
 	reportTokenExpiresAt?: Date;
@@ -83,6 +86,35 @@ export function countRecentFreeAuditsByEmail(
 			email,
 			tier: "FREE",
 			createdAt: { gte: since },
+		},
+	});
+}
+
+/**
+ * Get audits in RETRYING status that are ready for retry attempt.
+ * Returns audits where retryAfter is in the past (or null).
+ */
+export function getAuditsNeedingRetry() {
+	return db.audit.findMany({
+		where: {
+			status: "RETRYING",
+			OR: [{ retryAfter: null }, { retryAfter: { lte: new Date() } }],
+		},
+		include: {
+			crawledPages: true,
+		},
+	});
+}
+
+/**
+ * Get audits in RETRYING status that have exceeded the 24h retry window.
+ */
+export function getExpiredRetryingAudits(maxAgeHours = 24) {
+	const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+	return db.audit.findMany({
+		where: {
+			status: "RETRYING",
+			createdAt: { lt: cutoff },
 		},
 	});
 }

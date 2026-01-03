@@ -12,6 +12,91 @@ const client = env.TEST_MODE
 			apiKey: env.ANTHROPIC_API_KEY,
 		});
 
+// ============================================================================
+// ERROR TYPES AND TYPED RESULTS
+// ============================================================================
+
+export type AiErrorType =
+	| "rate_limit"
+	| "overloaded"
+	| "auth_error"
+	| "timeout"
+	| "circuit_open"
+	| "unknown";
+
+export type AiResult<T> =
+	| { ok: true; data: T }
+	| { ok: false; error: AiErrorType; message: string };
+
+// ============================================================================
+// CIRCUIT BREAKER
+// ============================================================================
+
+const CIRCUIT_BREAKER = {
+	threshold: 5,
+	resetMs: 60_000,
+} as const;
+
+let circuitState: "closed" | "open" = "closed";
+let consecutiveFailures = 0;
+let circuitOpenedAt: number | null = null;
+
+function checkCircuitBreaker(): AiResult<never> | null {
+	if (circuitState === "open") {
+		const elapsed = Date.now() - (circuitOpenedAt ?? 0);
+		if (elapsed < CIRCUIT_BREAKER.resetMs) {
+			return {
+				ok: false,
+				error: "circuit_open",
+				message: `Circuit breaker open, retry in ${Math.ceil((CIRCUIT_BREAKER.resetMs - elapsed) / 1000)}s`,
+			};
+		}
+		circuitState = "closed";
+		consecutiveFailures = 0;
+		circuitOpenedAt = null;
+		log.info("AI circuit breaker reset");
+	}
+	return null;
+}
+
+function recordSuccess(): void {
+	consecutiveFailures = 0;
+}
+
+function recordFailure(): void {
+	consecutiveFailures++;
+	if (
+		consecutiveFailures >= CIRCUIT_BREAKER.threshold &&
+		circuitState === "closed"
+	) {
+		circuitState = "open";
+		circuitOpenedAt = Date.now();
+		log.warn(
+			{ failures: consecutiveFailures },
+			"AI circuit breaker opened due to consecutive failures",
+		);
+	}
+}
+
+export function isAiAvailable(): boolean {
+	return checkCircuitBreaker() === null;
+}
+
+function categorizeError(error: unknown): AiErrorType {
+	if (error instanceof Anthropic.RateLimitError) {
+		return "rate_limit";
+	}
+	if (error instanceof Anthropic.APIStatusError) {
+		if (error.status === 529) return "overloaded";
+		if (error.status === 401 || error.status === 403) return "auth_error";
+		if (error.status >= 500) return "overloaded";
+	}
+	if (error instanceof Anthropic.APIConnectionError) {
+		return "timeout";
+	}
+	return "unknown";
+}
+
 function getModel(type: "fast" | "quality"): string {
 	return type === "fast" ? env.AI_MODEL_FAST : env.AI_MODEL_QUALITY;
 }
