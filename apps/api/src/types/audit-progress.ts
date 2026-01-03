@@ -2,15 +2,21 @@
  * Component-level status for audit progress tracking.
  * Each section of the audit report can be independently tracked.
  */
-export type ComponentStatus =
-	| "pending"
-	| "running"
-	| "completed"
-	| "retrying"
-	| "failed";
+export type ComponentStatus = "pending" | "running" | "completed" | "failed";
 
 /**
- * Component keys that can have ComponentStatus values (excludes metadata)
+ * Per-component progress with timestamps for stale detection.
+ * If status="running" and startedAt > 10 min ago, treat as failed.
+ */
+export type ComponentProgress = {
+	status: ComponentStatus;
+	startedAt?: string; // ISO date - when we started running
+	completedAt?: string; // ISO date - when we finished
+	error?: string; // Last error message for debugging
+};
+
+/**
+ * Component keys that can have ComponentProgress values (excludes metadata)
  */
 export type ComponentKey =
 	| "crawl"
@@ -33,27 +39,26 @@ export type ComponentKey =
  */
 export type AuditProgress = {
 	// Phase tracking
-	crawl: ComponentStatus;
+	crawl: ComponentProgress;
 
 	// Local components (always succeed - no external deps)
-	technicalIssues: ComponentStatus;
-	internalLinking: ComponentStatus;
-	duplicateContent: ComponentStatus;
-	redirectChains: ComponentStatus;
+	technicalIssues: ComponentProgress;
+	internalLinking: ComponentProgress;
+	duplicateContent: ComponentProgress;
+	redirectChains: ComponentProgress;
 
 	// DataForSEO dependent components
-	currentRankings: ComponentStatus;
-	competitorAnalysis: ComponentStatus;
-	keywordOpportunities: ComponentStatus;
+	currentRankings: ComponentProgress;
+	competitorAnalysis: ComponentProgress;
+	keywordOpportunities: ComponentProgress;
 
 	// Claude dependent components
-	intentClassification: ComponentStatus;
-	keywordClustering: ComponentStatus;
-	quickWins: ComponentStatus;
-	briefs: ComponentStatus;
+	intentClassification: ComponentProgress;
+	keywordClustering: ComponentProgress;
+	quickWins: ComponentProgress;
+	briefs: ComponentProgress;
 
 	// Retry metadata
-	lastRetryAt?: string; // ISO date string
 	retryCount: number;
 };
 
@@ -100,22 +105,54 @@ export const RETRYABLE_COMPONENTS: readonly ComponentKey[] = [
 ] as const;
 
 /**
+ * All component keys
+ */
+export const ALL_COMPONENTS: readonly ComponentKey[] = [
+	"crawl",
+	"technicalIssues",
+	"internalLinking",
+	"duplicateContent",
+	"redirectChains",
+	"currentRankings",
+	"competitorAnalysis",
+	"keywordOpportunities",
+	"intentClassification",
+	"keywordClustering",
+	"quickWins",
+	"briefs",
+] as const;
+
+/**
+ * Stale threshold - if a component is "running" for longer than this, treat as failed.
+ * Catches scenarios where the process died unexpectedly (server crash, OOM, deploy).
+ * Normal errors are caught and marked failed properly - this is just for crashes.
+ */
+export const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Create a pending component progress
+ */
+function pendingProgress(): ComponentProgress {
+	return { status: "pending" };
+}
+
+/**
  * Create initial progress state for a new audit
  */
 export function createInitialProgress(): AuditProgress {
 	return {
-		crawl: "pending",
-		technicalIssues: "pending",
-		internalLinking: "pending",
-		duplicateContent: "pending",
-		redirectChains: "pending",
-		currentRankings: "pending",
-		competitorAnalysis: "pending",
-		keywordOpportunities: "pending",
-		intentClassification: "pending",
-		keywordClustering: "pending",
-		quickWins: "pending",
-		briefs: "pending",
+		crawl: pendingProgress(),
+		technicalIssues: pendingProgress(),
+		internalLinking: pendingProgress(),
+		duplicateContent: pendingProgress(),
+		redirectChains: pendingProgress(),
+		currentRankings: pendingProgress(),
+		competitorAnalysis: pendingProgress(),
+		keywordOpportunities: pendingProgress(),
+		intentClassification: pendingProgress(),
+		keywordClustering: pendingProgress(),
+		quickWins: pendingProgress(),
+		briefs: pendingProgress(),
 		retryCount: 0,
 	};
 }
@@ -124,73 +161,133 @@ export function createInitialProgress(): AuditProgress {
  * Check if all components are completed
  */
 export function isFullyCompleted(progress: AuditProgress): boolean {
-	const components: ComponentKey[] = [
-		"crawl",
-		"technicalIssues",
-		"internalLinking",
-		"duplicateContent",
-		"redirectChains",
-		"currentRankings",
-		"competitorAnalysis",
-		"keywordOpportunities",
-		"intentClassification",
-		"keywordClustering",
-		"quickWins",
-		"briefs",
-	];
-
-	return components.every((key) => progress[key] === "completed");
+	return ALL_COMPONENTS.every((key) => progress[key].status === "completed");
 }
 
 /**
- * Check if any components are in retrying state
+ * Check if component is stale (running too long, likely crashed)
  */
-export function hasRetryingComponents(progress: AuditProgress): boolean {
-	return RETRYABLE_COMPONENTS.some((key) => progress[key] === "retrying");
+export function isComponentStale(component: ComponentProgress): boolean {
+	if (component.status !== "running" || !component.startedAt) {
+		return false;
+	}
+	const startedAt = new Date(component.startedAt).getTime();
+	return Date.now() - startedAt > STALE_THRESHOLD_MS;
 }
 
 /**
- * Get list of components that are in retrying state
+ * Check if any components need to be run (pending, failed, or stale)
  */
-export function getRetryingComponents(progress: AuditProgress): ComponentKey[] {
-	return RETRYABLE_COMPONENTS.filter((key) => progress[key] === "retrying");
+export function hasComponentsToRun(progress: AuditProgress): boolean {
+	return RETRYABLE_COMPONENTS.some((key) => {
+		const comp = progress[key];
+		return (
+			comp.status === "pending" ||
+			comp.status === "failed" ||
+			isComponentStale(comp)
+		);
+	});
+}
+
+/**
+ * Get list of components that need to be run (pending, failed, or stale)
+ */
+export function getComponentsToRun(progress: AuditProgress): ComponentKey[] {
+	return RETRYABLE_COMPONENTS.filter((key) => {
+		const comp = progress[key];
+		return (
+			comp.status === "pending" ||
+			comp.status === "failed" ||
+			isComponentStale(comp)
+		);
+	});
 }
 
 /**
  * Check if local (non-API) components are all completed
  */
 export function localComponentsCompleted(progress: AuditProgress): boolean {
-	return LOCAL_COMPONENTS.every((key) => progress[key] === "completed");
+	return LOCAL_COMPONENTS.every((key) => progress[key].status === "completed");
 }
 
 /**
- * Update a component's status immutably
+ * Mark component as starting (running with startedAt timestamp)
  */
-export function setComponentStatus(
+export function markComponentRunning(
 	progress: AuditProgress,
 	component: ComponentKey,
-	status: ComponentStatus,
 ): AuditProgress {
-	return { ...progress, [component]: status };
+	return {
+		...progress,
+		[component]: {
+			status: "running" as const,
+			startedAt: new Date().toISOString(),
+		},
+	};
 }
 
 /**
- * Update multiple components at once immutably
+ * Mark component as completed
  */
-export function setComponentStatuses(
+export function markComponentCompleted(
 	progress: AuditProgress,
-	updates: Partial<Record<ComponentKey, ComponentStatus>>,
+	component: ComponentKey,
 ): AuditProgress {
-	return { ...progress, ...updates };
+	return {
+		...progress,
+		[component]: {
+			status: "completed" as const,
+			startedAt: progress[component].startedAt,
+			completedAt: new Date().toISOString(),
+		},
+	};
 }
 
 /**
- * Increment retry count and set timestamp
+ * Mark component as failed with error message
+ */
+export function markComponentFailed(
+	progress: AuditProgress,
+	component: ComponentKey,
+	error: string,
+): AuditProgress {
+	return {
+		...progress,
+		[component]: {
+			status: "failed" as const,
+			startedAt: progress[component].startedAt,
+			completedAt: new Date().toISOString(),
+			error,
+		},
+	};
+}
+
+/**
+ * Increment retry count
  */
 export function incrementRetry(progress: AuditProgress): AuditProgress {
 	return {
 		...progress,
 		retryCount: progress.retryCount + 1,
-		lastRetryAt: new Date().toISOString(),
 	};
+}
+
+// Legacy helpers for backward compatibility during migration
+export function setComponentStatus(
+	progress: AuditProgress,
+	component: ComponentKey,
+	status: ComponentStatus,
+): AuditProgress {
+	return {
+		...progress,
+		[component]: { ...progress[component], status },
+	};
+}
+
+export function getRetryingComponents(progress: AuditProgress): ComponentKey[] {
+	return getComponentsToRun(progress);
+}
+
+export function hasRetryingComponents(progress: AuditProgress): boolean {
+	return hasComponentsToRun(progress);
 }

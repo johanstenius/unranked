@@ -1,32 +1,36 @@
+/**
+ * Audit Jobs - Primary crawl trigger
+ *
+ * Flow:
+ * 1. Crawl pages
+ * 2. Run local analysis (technical issues, health score)
+ * 3. Call pipeline service for external components (DataForSEO/Claude)
+ * 4. If all done → complete, else → RETRYING (retry job picks up)
+ */
+
 import type PgBoss from "pg-boss";
 import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
-import * as briefRepo from "../repositories/brief.repository.js";
 import * as crawledPageRepo from "../repositories/crawled-page.repository.js";
 import { tierLimits } from "../schemas/audit.schema.js";
-import { generateBriefs } from "../services/brief/generator.js";
+import {
+	completeAudit,
+	runPendingComponents,
+} from "../services/audit-pipeline.service.js";
 import { crawlDocs } from "../services/crawler/crawler.js";
 import type { RedirectChain } from "../services/crawler/types.js";
-import {
-	generateReportToken,
-	getReportTokenExpiry,
-	sendReportReadyEmail,
-} from "../services/email.service.js";
 import { analyzeSite } from "../services/seo/analysis.js";
 import { clearSerpCache } from "../services/seo/dataforseo.js";
 import { calculateHealthScore } from "../services/seo/health-score.js";
+import {
+	type AuditProgress,
+	createInitialProgress,
+	markComponentCompleted,
+} from "../types/audit-progress.js";
 
 const log = createLogger("queue");
 
 export type CrawlJobData = {
-	auditId: string;
-};
-
-export type AnalyzeJobData = {
-	auditId: string;
-};
-
-export type BriefsJobData = {
 	auditId: string;
 };
 
@@ -51,65 +55,10 @@ async function markAuditFailed(auditId: string, error: unknown): Promise<void> {
 	}
 }
 
-type HealthScoreData = {
-	score: number;
-	grade: string;
-};
-
-type AnalysisOpportunities = {
-	opportunities?: Array<unknown>;
-};
-
-async function completeAuditAndNotify(
-	auditId: string,
-	briefsCount: number,
-): Promise<void> {
-	const reportToken = generateReportToken();
-	const reportTokenExpiresAt = getReportTokenExpiry();
-
-	await auditRepo.updateAudit(auditId, {
-		status: "COMPLETED",
-		completedAt: new Date(),
-		reportToken,
-		reportTokenExpiresAt,
-	});
-
-	const audit = await auditRepo.getAuditById(auditId);
-	if (!audit) {
-		createLogger("email", { auditId }).error(
-			"Audit not found after completion",
-		);
-		return;
-	}
-
-	const healthScore = audit.healthScore as HealthScoreData | null;
-	const opportunities = audit.opportunities as AnalysisOpportunities | null;
-
-	try {
-		await sendReportReadyEmail({
-			to: audit.email,
-			siteUrl: audit.siteUrl,
-			reportToken,
-			healthScore: healthScore?.score,
-			healthGrade: healthScore?.grade,
-			opportunitiesCount: opportunities?.opportunities?.length ?? 0,
-			briefsCount,
-		});
-	} catch (emailError) {
-		createLogger("email", { auditId }).error(
-			{ error: emailError },
-			"Failed to send report email",
-		);
-	}
-}
-
 export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 	log.info("Registering audit job handlers");
 
-	// Create queues (pg-boss v10 requires explicit queue creation)
 	await boss.createQueue("audit.crawl");
-	await boss.createQueue("audit.analyze");
-	await boss.createQueue("audit.briefs");
 	log.info("Queues created");
 
 	await boss.work<CrawlJobData>("audit.crawl", async (jobs) => {
@@ -127,8 +76,17 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					throw new Error(`Audit ${auditId} not found`);
 				}
 
-				await auditRepo.updateAuditStatus(auditId, "CRAWLING");
+				// Initialize progress
+				let progress = createInitialProgress();
 
+				await auditRepo.updateAudit(auditId, {
+					status: "CRAWLING",
+					progress,
+				});
+
+				// ============================================================
+				// PHASE 1: Crawl pages
+				// ============================================================
 				const limits = tierLimits[audit.tier];
 				const sectionsFilter =
 					audit.sections.length > 0 ? audit.sections : undefined;
@@ -145,7 +103,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					throw new Error("No pages crawled - site may be inaccessible");
 				}
 
-				// Store crawled pages with all fields
+				// Store crawled pages
 				await crawledPageRepo.deleteCrawledPagesByAuditId(auditId);
 				await crawledPageRepo.createManyCrawledPages(
 					result.pages.map((page) => ({
@@ -161,7 +119,6 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 						codeBlockCount: page.codeBlockCount,
 						imageCount: page.imageCount,
 						codeBlocks: page.codeBlocks,
-						// SEO meta fields
 						metaDescription: page.metaDescription,
 						canonicalUrl: page.canonicalUrl,
 						ogTitle: page.ogTitle,
@@ -185,72 +142,43 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					redirectChains: result.redirectChains,
 				});
 
+				// Mark crawl completed
+				progress = markComponentCompleted(progress, "crawl");
+				await auditRepo.updateAudit(auditId, { progress });
+
 				jobLog.info({ pagesFound: result.pages.length }, "Crawl complete");
 
-				// Queue next job
-				await boss.send("audit.analyze", { auditId }, JOB_OPTIONS);
-			} catch (error) {
-				await markAuditFailed(auditId, error);
-				throw error; // Re-throw to trigger pg-boss retry
-			}
-		}
-	});
+				// ============================================================
+				// PHASE 2: Local analysis (always succeeds - no external deps)
+				// ============================================================
+				await auditRepo.updateAudit(auditId, { status: "ANALYZING" });
 
-	await boss.work<AnalyzeJobData>("audit.analyze", async (jobs) => {
-		for (const job of jobs) {
-			const { auditId } = job.data;
-			const jobLog = createLogger("audit.analyze", { auditId, jobId: job.id });
-			jobLog.info("Starting analysis");
-
-			try {
-				const audit = await auditRepo.getAuditById(auditId);
-				if (!audit) {
-					throw new Error(`Audit ${auditId} not found`);
-				}
-
-				// Skip if already failed
-				if (audit.status === "FAILED") {
-					jobLog.info("Skipping - audit already failed");
-					return;
-				}
-
-				await auditRepo.updateAuditStatus(auditId, "ANALYZING");
-
-				const crawledPages =
-					await crawledPageRepo.getCrawledPagesByAuditId(auditId);
-
-				if (crawledPages.length === 0) {
-					throw new Error("No crawled pages found");
-				}
-
-				const pages = crawledPages.map((p) => ({
+				const pages = result.pages.map((p) => ({
 					url: p.url,
 					title: p.title,
 					h1: p.h1,
 					content: p.content,
-					wordCount: p.wordCount ?? 0,
-					section: p.section ?? "",
+					wordCount: p.wordCount,
+					section: p.section,
 					outboundLinks: p.outboundLinks,
 					readabilityScore: p.readabilityScore,
 					codeBlockCount: p.codeBlockCount,
 					imageCount: p.imageCount,
 					codeBlocks: p.codeBlocks,
-					// SEO meta fields
 					metaDescription: p.metaDescription,
 					canonicalUrl: p.canonicalUrl,
 					ogTitle: p.ogTitle,
 					ogDescription: p.ogDescription,
 					ogImage: p.ogImage,
-					h1Count: p.h1Count,
-					h2s: p.h2s,
-					h3s: p.h3s,
-					imagesWithoutAlt: p.imagesWithoutAlt,
-					hasSchemaOrg: p.hasSchemaOrg,
-					schemaTypes: p.schemaTypes,
-					hasViewport: p.hasViewport,
+					h1Count: p.h1Count ?? 1,
+					h2s: p.h2s ?? [],
+					h3s: p.h3s ?? [],
+					imagesWithoutAlt: p.imagesWithoutAlt ?? 0,
+					hasSchemaOrg: p.hasSchemaOrg ?? false,
+					schemaTypes: p.schemaTypes ?? [],
+					hasViewport: p.hasViewport ?? false,
 				}));
 
-				const limits = tierLimits[audit.tier];
 				const isFreeTier = audit.tier === "FREE";
 				const redirectChains = (audit.redirectChains ?? []) as RedirectChain[];
 				const analysis = await analyzeSite(pages, audit.competitors, {
@@ -271,140 +199,65 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					healthScore,
 				});
 
+				// Mark local components completed
+				progress = markComponentCompleted(progress, "technicalIssues");
+				progress = markComponentCompleted(progress, "internalLinking");
+				progress = markComponentCompleted(progress, "duplicateContent");
+				progress = markComponentCompleted(progress, "redirectChains");
+				await auditRepo.updateAudit(auditId, { progress });
+
 				jobLog.info(
 					{
-						opportunities: analysis.opportunities.length,
 						healthScore: healthScore.score,
+						opportunities: analysis.opportunities.length,
 					},
-					"Analysis complete",
+					"Local analysis complete",
 				);
 
-				// Queue next job
-				await boss.send("audit.briefs", { auditId }, JOB_OPTIONS);
-			} catch (error) {
-				await markAuditFailed(auditId, error);
-				throw error;
-			}
-		}
-	});
-
-	await boss.work<BriefsJobData>("audit.briefs", async (jobs) => {
-		for (const job of jobs) {
-			const { auditId } = job.data;
-			const jobLog = createLogger("audit.briefs", { auditId, jobId: job.id });
-			jobLog.info("Generating briefs");
-
-			try {
-				const audit = await auditRepo.getAuditById(auditId);
-				if (!audit) {
-					throw new Error(`Audit ${auditId} not found`);
+				// ============================================================
+				// PHASE 3: External components (DataForSEO/Claude)
+				// ============================================================
+				const freshAudit = await auditRepo.getAuditById(auditId);
+				if (!freshAudit) {
+					throw new Error(`Audit ${auditId} not found after analysis`);
 				}
 
-				// Skip if already failed
-				if (audit.status === "FAILED") {
-					jobLog.info("Skipping - audit already failed");
-					return;
-				}
+				const pipelineResult = await runPendingComponents({
+					id: freshAudit.id,
+					siteUrl: freshAudit.siteUrl,
+					competitors: freshAudit.competitors,
+					tier: freshAudit.tier,
+					productDesc: freshAudit.productDesc,
+					email: freshAudit.email,
+					progress: freshAudit.progress as AuditProgress,
+					opportunities: freshAudit.opportunities,
+				});
 
-				await auditRepo.updateAuditStatus(auditId, "GENERATING_BRIEFS");
-
-				const limits = tierLimits[audit.tier];
-
-				// Skip brief generation for tiers with 0 briefs (FREE)
-				if (limits.briefs === 0) {
-					jobLog.info("Tier has 0 briefs, completing");
-					await completeAuditAndNotify(auditId, 0);
-					return;
-				}
-
-				const analysisResult = audit.opportunities as {
-					opportunities: Array<{
-						keyword: string;
-						searchVolume: number;
-						difficulty: number;
-						impactScore: number;
-						reason: string;
-						competitorUrl?: string;
-					}>;
-				} | null;
-				const opportunities = analysisResult?.opportunities ?? [];
-
-				if (opportunities.length === 0) {
-					jobLog.info("No opportunities found, completing");
-					await completeAuditAndNotify(auditId, 0);
-					return;
-				}
-
-				const crawledPages =
-					await crawledPageRepo.getCrawledPagesByAuditId(auditId);
-				const pages = crawledPages.map((p) => ({
-					url: p.url,
-					title: p.title,
-					h1: p.h1,
-					content: p.content,
-					wordCount: p.wordCount ?? 0,
-					section: p.section ?? "",
-					outboundLinks: p.outboundLinks,
-					readabilityScore: p.readabilityScore,
-					codeBlockCount: p.codeBlockCount,
-					imageCount: p.imageCount,
-					codeBlocks: p.codeBlocks,
-					// SEO meta fields
-					metaDescription: p.metaDescription,
-					canonicalUrl: p.canonicalUrl,
-					ogTitle: p.ogTitle,
-					ogDescription: p.ogDescription,
-					ogImage: p.ogImage,
-					h2s: p.h2s,
-					h3s: p.h3s,
-					imagesWithoutAlt: p.imagesWithoutAlt,
-					hasSchemaOrg: p.hasSchemaOrg,
-				}));
-
-				const { briefs, failedCount, failedKeywords } = await generateBriefs(
-					opportunities,
-					audit.productDesc,
-					pages,
-					limits.briefs,
-				);
-
-				if (failedCount > 0) {
-					jobLog.warn({ failedCount, failedKeywords }, "Some briefs failed");
-				}
-
-				// Store briefs
-				for (const brief of briefs) {
-					await briefRepo.createBrief({
-						auditId,
-						keyword: brief.keyword,
-						searchVolume: brief.searchVolume,
-						difficulty: brief.difficulty,
-						title: brief.title,
-						structure: brief.structure,
-						questions: brief.questions,
-						relatedKw: brief.relatedKw,
-						competitors: brief.competitors,
-						suggestedInternalLinks: brief.suggestedInternalLinks,
-						clusteredKeywords: brief.clusteredKeywords,
-						totalClusterVolume: brief.totalClusterVolume,
-						intent: brief.intent,
+				if (pipelineResult.allDone) {
+					jobLog.info("All components done, completing audit");
+					await completeAudit(auditId);
+				} else {
+					// Some components failed - set RETRYING for retry job to pick up
+					jobLog.info(
+						{
+							ran: pipelineResult.componentsRun.length,
+							failed: pipelineResult.componentsFailed.length,
+						},
+						"Some components failed, setting RETRYING",
+					);
+					await auditRepo.updateAudit(auditId, {
+						status: "RETRYING",
+						retryAfter: new Date(Date.now() + 15 * 60 * 1000), // 15 min
 					});
 				}
-
-				await completeAuditAndNotify(auditId, briefs.length);
-
-				jobLog.info(
-					{ briefsGenerated: briefs.length, failedCount },
-					"Briefs complete",
-				);
 			} catch (error) {
 				await markAuditFailed(auditId, error);
-				throw error;
+				throw error; // Re-throw to trigger pg-boss retry
 			}
 		}
 	});
 
-	log.info("All audit job handlers registered");
+	log.info("Audit job handlers registered");
 }
 
 export async function queueCrawlJob(

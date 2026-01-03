@@ -10,12 +10,18 @@ import type {
 } from "../../types/audit-progress.js";
 import {
 	type AiResult,
+	type QuickWinSuggestions,
 	type SearchIntent,
 	type SemanticCluster,
 	classifyKeywordIntentsTyped,
 	clusterKeywordsSemanticTyped,
 	generateQuickWinSuggestionsTyped,
 } from "../ai/anthropic.js";
+import {
+	type GenerateBriefsResult,
+	type GeneratedBrief,
+	generateBriefs,
+} from "../brief/generator.js";
 import type { CrawledPage, RedirectChain } from "../crawler/types.js";
 import {
 	type ApiResult,
@@ -24,17 +30,18 @@ import {
 	discoverCompetitorsTyped,
 	getDomainRankedKeywordsTyped,
 	getKeywordDataTyped,
+	getPeopleAlsoAsk,
+	getSerpResults,
 	isApiAvailable,
 } from "./dataforseo.js";
 
 const log = createLogger("analysis-components");
 
-// Re-export types from main analysis
+// Re-export types from main analysis (QuickWin defined locally with different shape)
 export type {
 	AnalysisResult,
 	CurrentRanking,
 	TechnicalIssue,
-	QuickWin,
 	CompetitorGap,
 	CannibalizationIssue,
 	SnippetOpportunity,
@@ -199,28 +206,14 @@ export async function runKeywordClustering(
 }
 
 /**
- * Update progress for a component based on result
- */
-export function updateComponentProgress<T>(
-	progress: AuditProgress,
-	component: keyof AuditProgress,
-	result: ComponentResult<T>,
-): ComponentStatus {
-	if (result.ok) {
-		return "completed";
-	}
-	return result.retriable ? "retrying" : "failed";
-}
-
-/**
  * Check if all required components for briefs are ready
  */
 export function canGenerateBriefs(progress: AuditProgress): boolean {
 	// Need keywords and at least intent classification for briefs
 	return (
-		progress.keywordOpportunities === "completed" &&
-		(progress.intentClassification === "completed" ||
-			progress.keywordClustering === "completed")
+		progress.keywordOpportunities.status === "completed" &&
+		(progress.intentClassification.status === "completed" ||
+			progress.keywordClustering.status === "completed")
 	);
 }
 
@@ -230,8 +223,8 @@ export function canGenerateBriefs(progress: AuditProgress): boolean {
 export function hasPartialResults(progress: AuditProgress): boolean {
 	// Show results if technical analysis is done
 	return (
-		progress.technicalIssues === "completed" &&
-		progress.internalLinking === "completed"
+		progress.technicalIssues.status === "completed" &&
+		progress.internalLinking.status === "completed"
 	);
 }
 
@@ -241,7 +234,7 @@ export function hasPartialResults(progress: AuditProgress): boolean {
 export function determineOverallStatus(
 	progress: AuditProgress,
 ): "ANALYZING" | "RETRYING" | "COMPLETED" | "FAILED" {
-	const allComponents: (keyof AuditProgress)[] = [
+	const componentKeys: (keyof Omit<AuditProgress, "retryCount">)[] = [
 		"crawl",
 		"technicalIssues",
 		"internalLinking",
@@ -257,17 +250,265 @@ export function determineOverallStatus(
 	];
 
 	// If any critical component failed, overall is FAILED
-	const criticalFailed = progress.crawl === "failed";
+	const criticalFailed = progress.crawl.status === "failed";
 	if (criticalFailed) return "FAILED";
 
 	// If all are completed, overall is COMPLETED
-	const allCompleted = allComponents.every((c) => progress[c] === "completed");
+	const allCompleted = componentKeys.every(
+		(c) => progress[c].status === "completed",
+	);
 	if (allCompleted) return "COMPLETED";
 
-	// If any are retrying, overall is RETRYING
-	const anyRetrying = allComponents.some((c) => progress[c] === "retrying");
-	if (anyRetrying) return "RETRYING";
+	// If any are pending or failed (need to run), overall is RETRYING
+	const anyNeedRun = componentKeys.some(
+		(c) => progress[c].status === "pending" || progress[c].status === "failed",
+	);
+	if (anyNeedRun) return "RETRYING";
 
-	// Otherwise still analyzing
+	// Otherwise still analyzing (running)
 	return "ANALYZING";
 }
+
+// ============================================================================
+// QUICK WINS GENERATION
+// ============================================================================
+
+export type QuickWin = {
+	url: string;
+	keyword: string;
+	currentPosition: number;
+	suggestions: string[];
+	aiSuggestions?: QuickWinSuggestions;
+};
+
+type CurrentRankingInput = {
+	url: string;
+	keyword: string;
+	position: number;
+	searchVolume: number;
+	estimatedTraffic: number;
+};
+
+/**
+ * Generate quick win suggestions for a single ranking
+ */
+async function generateQuickWinForRanking(
+	ranking: CurrentRankingInput,
+	page: CrawledPage,
+	allPages: CrawledPage[],
+): Promise<QuickWinSuggestions | null> {
+	try {
+		const [serpResults, questions] = await Promise.all([
+			getSerpResults(ranking.keyword),
+			getPeopleAlsoAsk(ranking.keyword),
+		]);
+
+		const result = await generateQuickWinSuggestionsTyped({
+			pageUrl: ranking.url,
+			pageTitle: page.title,
+			pageContent: page.content,
+			keyword: ranking.keyword,
+			currentPosition: ranking.position,
+			topCompetitors: serpResults.slice(0, 3).map((r) => ({
+				title: r.title,
+				url: r.url,
+				description: r.description,
+			})),
+			relatedQuestions: questions,
+			existingPages: allPages.map((p) => ({ title: p.title, url: p.url })),
+		});
+
+		if (result.ok) {
+			return result.data;
+		}
+		log.warn(
+			{ keyword: ranking.keyword, error: result.message },
+			"Quick win AI failed",
+		);
+		return null;
+	} catch (error) {
+		log.error(
+			{ keyword: ranking.keyword, error },
+			"Quick win generation error",
+		);
+		return null;
+	}
+}
+
+/**
+ * Run quick wins generation (Claude + DataForSEO dependent)
+ * Generates AI-powered improvement suggestions for pages ranking 4-20
+ */
+export async function runQuickWins(
+	currentRankings: CurrentRankingInput[],
+	pages: CrawledPage[],
+): Promise<ComponentResult<QuickWin[]>> {
+	log.info(
+		{ rankings: currentRankings.length },
+		"Running quick wins component",
+	);
+
+	if (currentRankings.length === 0 || pages.length === 0) {
+		return { ok: true, data: [] };
+	}
+
+	const pagesByUrl = new Map(pages.map((p) => [p.url, p]));
+
+	// Filter to positions 4-20 (already ranking, can improve)
+	const candidates = currentRankings
+		.filter((r) => r.position >= 4 && r.position <= 20)
+		.sort((a, b) => {
+			// Prioritize by traffic gain potential
+			const aGain = a.searchVolume * (0.32 - estimateCtr(a.position));
+			const bGain = b.searchVolume * (0.32 - estimateCtr(b.position));
+			return bGain - aGain;
+		})
+		.slice(0, 10); // Top 10 candidates
+
+	// Generate AI suggestions for top 5
+	const aiCandidates = candidates.slice(0, 5);
+	const nonAiCandidates = candidates.slice(5);
+
+	const aiResults = await Promise.all(
+		aiCandidates.map(async (ranking) => {
+			const page = pagesByUrl.get(ranking.url);
+			if (!page) return { ranking, suggestions: null };
+
+			const suggestions = await generateQuickWinForRanking(
+				ranking,
+				page,
+				pages,
+			);
+			return { ranking, suggestions };
+		}),
+	);
+
+	const quickWins: QuickWin[] = [];
+
+	for (const { ranking, suggestions } of aiResults) {
+		quickWins.push({
+			url: ranking.url,
+			keyword: ranking.keyword,
+			currentPosition: ranking.position,
+			suggestions: suggestions
+				? [
+						...suggestions.contentGaps.slice(0, 2),
+						...suggestions.questionsToAnswer.slice(0, 2),
+					]
+				: [
+						`Optimize for "${ranking.keyword}" to improve from position ${ranking.position}`,
+					],
+			aiSuggestions: suggestions ?? undefined,
+		});
+	}
+
+	for (const ranking of nonAiCandidates) {
+		quickWins.push({
+			url: ranking.url,
+			keyword: ranking.keyword,
+			currentPosition: ranking.position,
+			suggestions: [
+				`Optimize for "${ranking.keyword}" to improve from position ${ranking.position}`,
+			],
+		});
+	}
+
+	log.info({ count: quickWins.length }, "Quick wins complete");
+	return { ok: true, data: quickWins };
+}
+
+function estimateCtr(position: number): number {
+	const ctrByPosition: Record<number, number> = {
+		1: 0.32,
+		2: 0.17,
+		3: 0.11,
+		4: 0.08,
+		5: 0.06,
+		6: 0.05,
+		7: 0.04,
+		8: 0.03,
+		9: 0.03,
+		10: 0.02,
+	};
+	return ctrByPosition[position] ?? 0.01;
+}
+
+// ============================================================================
+// BRIEFS GENERATION
+// ============================================================================
+
+type OpportunityInput = {
+	keyword: string;
+	searchVolume: number;
+	difficulty: number;
+	impactScore: number;
+	reason: string;
+	competitorUrl?: string;
+	intent?: SearchIntent | string; // Allow string from DB JSON
+};
+
+/**
+ * Run briefs generation (Claude + DataForSEO dependent)
+ * Generates content briefs for top keyword opportunities
+ */
+export async function runBriefs(
+	opportunities: OpportunityInput[],
+	productDesc: string | null,
+	pages: CrawledPage[],
+	maxBriefs: number,
+): Promise<ComponentResult<GenerateBriefsResult>> {
+	log.info(
+		{ opportunities: opportunities.length, maxBriefs },
+		"Running briefs component",
+	);
+
+	if (opportunities.length === 0) {
+		return {
+			ok: true,
+			data: { briefs: [], failedCount: 0, failedKeywords: [] },
+		};
+	}
+
+	if (maxBriefs === 0) {
+		return {
+			ok: true,
+			data: { briefs: [], failedCount: 0, failedKeywords: [] },
+		};
+	}
+
+	try {
+		// Cast opportunities - intent might be string from JSON, generateBriefs handles it
+		const typedOpportunities = opportunities.map((o) => ({
+			...o,
+			intent: o.intent as SearchIntent | undefined,
+		}));
+		const result = await generateBriefs(
+			typedOpportunities,
+			productDesc,
+			pages,
+			maxBriefs,
+		);
+
+		// If all briefs failed, return error
+		if (result.briefs.length === 0 && result.failedCount > 0) {
+			return {
+				ok: false,
+				error: `All ${result.failedCount} briefs failed to generate`,
+				retriable: true,
+			};
+		}
+
+		log.info(
+			{ generated: result.briefs.length, failed: result.failedCount },
+			"Briefs complete",
+		);
+		return { ok: true, data: result };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Unknown error";
+		log.error({ error: message }, "Briefs generation failed");
+		return { ok: false, error: message, retriable: true };
+	}
+}
+
+// Re-export brief types
+export type { GeneratedBrief, GenerateBriefsResult };
