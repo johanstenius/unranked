@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocRank - Precision (Dark)</title>
+    <!-- Inter Tight for that "Technical Manual" precision -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* --- MIDNIGHT PALETTE --- */
+            --bg-canvas: #0A0A0A;  /* Deepest Black */
+            --bg-subtle: #141414;  /* Panel Backgrounds */
+            --bg-surface: #141414; 
+            
+            /* Borders */
+            --border-subtle: #262626;
+            --border-active: #404040;
+            --border-focus: #EDEDED;
+
+            /* Type */
+            --text-primary: #EDEDED;   /* High contrast white */
+            --text-secondary: #A1A1A1; /* Muted grey */
+            --text-tertiary: #666666;  /* Dark grey */
+            
+            /* Accent: Electric Blue (Visible against black) */
+            --accent: #4C4CFF; 
+            --accent-subtle: #1A1A2E; 
+
+            /* Metrics */
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --maxWidth: 1100px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-canvas);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3, h4, .display-font { font-family: 'Inter Tight', sans-serif; letter-spacing: -0.02em; }
+
+        /* --- UTILS --- */
+        .container { max-width: var(--maxWidth); margin: 0 auto; padding: 0 40px; }
+        .flex { display: flex; align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-4 { gap: 16px; }
+        .gap-2 { gap: 8px; }
+        .grid { display: grid; gap: 24px; }
+        .border-b { border-bottom: 1px solid var(--border-subtle); }
+        
+        .tag {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+        }
+
+        /* --- COMPONENTS --- */
+
+        /* Precision Button */
+        .btn {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            height: 36px;
+            padding: 0 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-canvas); /* Inverted text for primary button */
+            border: 1px solid var(--text-primary);
+        }
+        .btn-primary:hover { background: #CCC; border-color: #CCC; }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-active);
+        }
+        .btn-secondary:hover { border-color: var(--text-primary); background: var(--bg-subtle); }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid transparent;
+        }
+        .btn-ghost:hover { color: var(--text-primary); background: var(--bg-subtle); }
+
+        /* --- HEADER --- */
+        nav {
+            height: 60px;
+            position: sticky; top: 0;
+            background: rgba(10,10,10,0.8);
+            backdrop-filter: blur(12px);
+            z-index: 100;
+        }
+        .nav-link { 
+            font-size: 14px; color: var(--text-secondary); text-decoration: none; margin-left: 24px; transition: color 0.2s; 
+        }
+        .nav-link:hover { color: var(--text-primary); }
+        .nav-logo { font-weight: 600; font-family: 'Inter Tight', sans-serif; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .logo-sq { width: 16px; height: 16px; background: var(--text-primary); border-radius: 3px; }
+
+        /* --- HERO --- */
+        .hero {
+            padding: 100px 0 80px;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 56px;
+            line-height: 1.05;
+            font-weight: 600;
+            margin: 0 0 24px 0;
+            color: var(--text-primary);
+        }
+        .hero p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            max-width: 500px;
+            margin: 0 auto 32px;
+        }
+
+        /* --- INTERFACE MOCK (The "Product") --- */
+        .app-window {
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 20px 40px -10px rgba(0,0,0,0.5); /* Enhanced shadow for dark mode */
+            background: var(--bg-surface);
+            overflow: hidden;
+            max-width: 1000px;
+            margin: 0 auto 100px;
+            display: grid;
+            grid-template-columns: 240px 1fr; /* Sidebar | Main */
+            min-height: 600px;
+        }
+
+        /* App Sidebar */
+        .app-sidebar {
+            background: #0F0F0F; /* Slightly darker than main */
+            border-right: 1px solid var(--border-subtle);
+            padding: 24px 16px;
+        }
+        .sidebar-group { margin-bottom: 24px; }
+        .sidebar-title { 
+            font-size: 11px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 12px; padding-left: 8px; text-transform: uppercase; 
+        }
+        .sidebar-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            margin-bottom: 2px;
+            transition: all 0.1s;
+        }
+        .sidebar-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+        .sidebar-item.active { background: var(--bg-subtle); color: var(--text-primary); border: 1px solid var(--border-subtle); font-weight: 500; }
+
+        /* App Main */
+        .app-main { padding: 32px; background: var(--bg-surface); }
+        
+        .app-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; }
+        .app-breadcrumb { font-size: 13px; color: var(--text-tertiary); margin-bottom: 4px; }
+        .app-title { font-size: 20px; font-weight: 600; font-family: 'Inter Tight', sans-serif; display: flex; align-items: center; gap: 8px; }
+
+        /* Data Table */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            text-align: left;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .data-table td {
+            padding: 16px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+        .data-table tr:hover td { background: rgba(255,255,255,0.03); }
+        
+        .cell-mono { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--text-secondary); }
+        .trend-up { color: #4ade80; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; } /* Lighter Green for Dark Mode */
+        .trend-neutral { color: var(--text-tertiary); font-size: 12px; }
+
+        /* Progress Bar (Minimal) */
+        .progress-bar { width: 80px; height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--text-primary); }
+
+        /* Score Badge */
+        .score-badge {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            border: 1px solid var(--border-subtle);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 600;
+        }
+        .score-high { border-color: #22c55e; color: #4ade80; background: rgba(34, 197, 94, 0.1); }
+        .score-med { border-color: #eab308; color: #facc15; background: rgba(234, 179, 8, 0.1); }
+
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav class="border-b">
+        <div class="container flex justify-between" style="height: 100%;">
+            <div class="nav-logo">
+                <div class="logo-sq"></div>
+                DocRank
+            </div>
+            <div class="flex">
+                <a href="#" class="nav-link">Features</a>
+                <a href="#" class="nav-link">Pricing</a>
+                <a href="#" class="nav-link">Log In</a>
+                <button class="btn btn-primary" style="margin-left: 24px;">Start Analysis</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div style="margin-bottom: 24px;"><span class="tag">Release v2.0</span></div>
+        <h1>Documentation that<br>drives organic growth.</h1>
+        <p>Transform technical documentation into your most powerful acquisition channel. Precision analytics for developer-focused teams.</p>
+        <div class="flex" style="justify-content: center; gap: 12px;">
+            <button class="btn btn-primary" style="height: 44px; padding: 0 24px; font-size: 15px;">Analyze Documentation</button>
+            <button class="btn btn-secondary" style="height: 44px; padding: 0 24px; font-size: 15px;">View Live Demo</button>
+        </div>
+    </section>
+
+    <!-- APP MOCKUP -->
+    <div class="container">
+        <div class="app-window">
+            
+            <!-- Sidebar -->
+            <div class="app-sidebar">
+                <div class="sidebar-group">
+                    <div class="sidebar-item active">
+                        <span>Overview</span>
+                    </div>
+                    <div class="sidebar-item">
+                        <span>Gap Analysis</span>
+                    </div>
+                    <div class="sidebar-item">
+                        <span>Keywords</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-group">
+                    <div class="sidebar-title">Projects</div>
+                    <div class="sidebar-item">
+                        <span>stripe-python</span>
+                    </div>
+                    <div class="sidebar-item">
+                        <span>stripe-js</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="app-main">
+                
+                <div class="app-header">
+                    <div>
+                        <div class="app-breadcrumb">Overview / stripe-python</div>
+                        <div class="app-title">Gap Analysis Report <span class="tag" style="margin-left: 8px;">24 Issues</span></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="btn btn-secondary">Export PDF</button>
+                        <button class="btn btn-primary">Create Brief</button>
+                    </div>
+                </div>
+
+                <!-- TABLE -->
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th width="35%">Keyword Opportunity</th>
+                            <th width="15%">Est. Traffic</th>
+                            <th width="15%">Difficulty</th>
+                            <th width="20%">Top Competitor</th>
+                            <th width="15%" style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div style="font-weight: 500;">python sdk authentication</div>
+                                <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">/docs/api-keys</div>
+                            </td>
+                            <td>
+                                2.4k <span class="trend-up">↑ 12%</span>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <div class="score-badge score-med">42</div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <div style="width: 16px; height: 16px; background: #333; border-radius: 50%;"></div>
+                                    Adyen Docs
+                                </div>
+                            </td>
+                            <td style="text-align: right;">
+                                <button class="btn btn-ghost" style="height: 32px;">Review</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="font-weight: 500;">webhook signatures</div>
+                                <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">/docs/webhooks</div>
+                            </td>
+                            <td>
+                                850 <span class="trend-neutral">-</span>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <div class="score-badge score-high">78</div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <div style="width: 16px; height: 16px; background: #333; border-radius: 50%;"></div>
+                                    Paddle
+                                </div>
+                            </td>
+                            <td style="text-align: right;">
+                                <button class="btn btn-ghost" style="height: 32px;">Review</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="font-weight: 500;">checkout session id</div>
+                                <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">Missing Page</div>
+                            </td>
+                            <td>
+                                3.1k <span class="trend-up">↑ 5%</span>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <div class="score-badge score-med">56</div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <div style="width: 16px; height: 16px; background: #333; border-radius: 50%;"></div>
+                                    StackOverflow
+                                </div>
+                            </td>
+                            <td style="text-align: right;">
+                                <button class="btn btn-ghost" style="height: 32px;">Review</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

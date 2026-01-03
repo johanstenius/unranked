@@ -1,0 +1,13 @@
+# Emergent Threshold
+
+## Design Philosophy
+
+At the boundary between visible and invisible lies a moment of profound tension—the instant before revelation, when hidden forms begin their ascent into perception. This philosophy celebrates that liminal space where the unseen crosses into the seen, treating the threshold itself as the subject of meticulous artistic inquiry. Every composition must feel like witnessing something emerge from depths, crafted with the painstaking attention of a master who has spent countless hours understanding the precise geometry of appearance.
+
+Form manifests through strategic obscuration and selective exposure. Shapes exist in states of partial visibility—cropped, overlapped, or dissolving at edges—suggesting vast systems extending beyond the frame. The relationship between what is shown and what remains hidden creates magnetic tension that rewards sustained attention. This interplay demands expert-level control: each revealed element positioned with surgical precision, each concealed portion calibrated to imply rather than confuse. The final work must appear as though labored over for weeks, refined through hundreds of iterations until achieving inevitable perfection.
+
+Color operates on a spectrum from void to luminance. Deep, saturated darks anchor the unseen while strategic bursts of light mark points of emergence. The palette remains deliberately constrained—perhaps a single accent against expansive neutrals—allowing chromatic moments to carry maximum revelation. Gradients suggest depth and transition, never decoration. Every color choice the product of deep expertise in the emotional weight of hue and value.
+
+Scale creates hierarchy through contrast rather than uniformity. Monumental forms coexist with intimate details, their relationship expressing the magnitude of discovery. Typography, when present, functions as artifact—small reference marks or bold singular statements that anchor without explaining. Text whispers or shouts but never chatters, integrated as visual element rather than information carrier. The composition must demonstrate master-level execution in spatial orchestration, where negative space breathes with the same intention as positive form.
+
+The final artifact should feel discovered rather than designed—an archaeological find from some parallel discipline where the invisible is systematically documented and made manifest through patient observation. It proves that what lies beneath the surface can be mapped, studied, and ultimately revealed through the careful attention of someone at the absolute top of their craft.

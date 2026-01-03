@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "CrawledPage" ADD COLUMN     "codeBlockCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "imageCount" INTEGER NOT NULL DEFAULT 0;

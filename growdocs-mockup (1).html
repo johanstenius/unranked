@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrowDocs — Mockups</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans">
+
+  <!-- Navigation between mockups -->
+  <div class="fixed top-0 left-0 right-0 bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 z-50">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex gap-4 text-sm">
+      <span class="text-zinc-500">Screens:</span>
+      <a href="#landing" class="text-emerald-400 hover:text-emerald-300">Landing</a>
+      <a href="#start" class="text-emerald-400 hover:text-emerald-300">Start</a>
+      <a href="#discovery" class="text-emerald-400 hover:text-emerald-300">Discovery</a>
+      <a href="#progress" class="text-emerald-400 hover:text-emerald-300">Progress</a>
+      <a href="#dashboard" class="text-emerald-400 hover:text-emerald-300">Dashboard</a>
+      <a href="#brief" class="text-emerald-400 hover:text-emerald-300">Content Brief</a>
+    </div>
+  </div>
+
+  <!-- ==================== LANDING PAGE ==================== -->
+  <section id="landing" class="min-h-screen pt-16">
+    <div class="border-b border-zinc-800">
+      <!-- Header -->
+      <header class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg"></div>
+          <span class="font-semibold text-lg">GrowDocs</span>
+        </div>
+        <nav class="flex items-center gap-6 text-sm">
+          <a href="#" class="text-zinc-400 hover:text-white">How it works</a>
+          <a href="#" class="text-zinc-400 hover:text-white">Pricing</a>
+          <a href="#" class="text-zinc-400 hover:text-white">Login</a>
+          <a href="#start" class="bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-4 py-2 rounded-lg font-medium">Get Started</a>
+        </nav>
+      </header>
+    </div>
+
+    <!-- Hero -->
+    <div class="max-w-6xl mx-auto px-6 pt-24 pb-16">
+      <div class="max-w-3xl">
+        <h1 class="text-5xl font-bold leading-tight mb-6">
+          Your content should drive traffic.<br>
+          <span class="text-zinc-500">Most doesn't. We fix that.</span>
+        </h1>
+        <p class="text-xl text-zinc-400 mb-10">
+          Find out what pages to write, how to structure them, and track your rankings. SEO for docs, blogs, and guides — made simple.
+        </p>
+        
+        <!-- CTA Input -->
+        <div class="flex gap-3 mb-6">
+          <input 
+            type="url" 
+            placeholder="yourproduct.com" 
+            class="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-emerald-500"
+          >
+          <a href="#start" class="bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-6 py-3 rounded-lg font-semibold text-lg whitespace-nowrap">
+            Analyze Free →
+          </a>
+        </div>
+        <p class="text-sm text-zinc-500">We'll find your /docs, /blog, /guides automatically. No credit card required.</p>
+      </div>
+    </div>
+
+    <!-- Social Proof -->
+    <div class="max-w-6xl mx-auto px-6 pb-16">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-xl">
+        <p class="text-lg mb-4">
+          "Found 34 keywords we weren't targeting. Traffic up 47% in 8 weeks."
+        </p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-zinc-700 rounded-full"></div>
+          <div>
+            <p class="font-medium">@marcseiler</p>
+            <p class="text-sm text-zinc-500">Founder, SomeProduct</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div class="max-w-6xl mx-auto px-6 pb-24">
+      <h2 class="text-2xl font-semibold mb-10">How it works</h2>
+      <div class="grid grid-cols-3 gap-8">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div class="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center font-semibold mb-4">1</div>
+          <h3 class="font-semibold text-lg mb-2">We find your content</h3>
+          <p class="text-zinc-400">Enter your domain. We auto-discover /docs, /blog, /guides and analyze everything.</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div class="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center font-semibold mb-4">2</div>
+          <h3 class="font-semibold text-lg mb-2">Get actionable briefs</h3>
+          <p class="text-zinc-400">Detailed content briefs tell you exactly what to write and how to structure it.</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div class="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center font-semibold mb-4">3</div>
+          <h3 class="font-semibold text-lg mb-2">Track your progress</h3>
+          <p class="text-zinc-400">See if your new pages rank. Get alerts when things change.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="border-t border-zinc-800">
+      <div class="max-w-6xl mx-auto px-6 py-24">
+        <h2 class="text-2xl font-semibold mb-4">Simple pricing</h2>
+        <p class="text-zinc-400 mb-10">Start with a one-time audit. Upgrade if you want ongoing tracking.</p>
+        
+        <div class="grid grid-cols-4 gap-6">
+          <!-- Quick Scan -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 class="font-semibold mb-1">Quick Scan</h3>
+            <p class="text-3xl font-bold mb-1">€19</p>
+            <p class="text-sm text-zinc-500 mb-6">one-time</p>
+            <ul class="text-sm text-zinc-400 space-y-2">
+              <li>✓ 25 pages</li>
+              <li>✓ 10 opportunities</li>
+              <li>✓ 3 content briefs</li>
+              <li class="text-zinc-600">✗ Competitor analysis</li>
+            </ul>
+          </div>
+          
+          <!-- Standard -->
+          <div class="bg-zinc-900 border-2 border-emerald-500 rounded-xl p-6 relative">
+            <div class="absolute -top-3 left-4 bg-emerald-500 text-zinc-900 text-xs font-semibold px-2 py-1 rounded">Popular</div>
+            <h3 class="font-semibold mb-1">Standard</h3>
+            <p class="text-3xl font-bold mb-1">€49</p>
+            <p class="text-sm text-zinc-500 mb-6">one-time</p>
+            <ul class="text-sm text-zinc-400 space-y-2">
+              <li>✓ 100 pages</li>
+              <li>✓ 30 opportunities</li>
+              <li>✓ 10 content briefs</li>
+              <li>✓ 2 competitors</li>
+            </ul>
+          </div>
+          
+          <!-- Deep Dive -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 class="font-semibold mb-1">Deep Dive</h3>
+            <p class="text-3xl font-bold mb-1">€99</p>
+            <p class="text-sm text-zinc-500 mb-6">one-time</p>
+            <ul class="text-sm text-zinc-400 space-y-2">
+              <li>✓ 250+ pages</li>
+              <li>✓ 50 opportunities</li>
+              <li>✓ 20 content briefs</li>
+              <li>✓ 5 competitors</li>
+            </ul>
+          </div>
+          
+          <!-- Growth -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h3 class="font-semibold mb-1">Growth</h3>
+            <p class="text-3xl font-bold mb-1">€29</p>
+            <p class="text-sm text-zinc-500 mb-6">per month</p>
+            <ul class="text-sm text-zinc-400 space-y-2">
+              <li>✓ Everything in Standard</li>
+              <li>✓ Rank tracking</li>
+              <li>✓ Monthly refresh</li>
+              <li>✓ Alerts & reports</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent my-8"></div>
+  <div class="text-center py-8 text-zinc-600 text-sm">— Start Analysis Screen —</div>
+
+  <!-- ==================== START ANALYSIS ==================== -->
+  <section id="start" class="min-h-screen py-16">
+    <div class="max-w-xl mx-auto px-6">
+      <a href="#landing" class="text-sm text-zinc-500 hover:text-white mb-8 inline-block">← Back</a>
+      
+      <h1 class="text-3xl font-bold mb-2">Let's analyze your content</h1>
+      <p class="text-zinc-400 mb-10">Enter your website and we'll find all your content automatically.</p>
+      
+      <form class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium mb-2">Your website</label>
+          <input 
+            type="url" 
+            value="sendpigeon.dev"
+            class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-emerald-500"
+            placeholder="yourproduct.com"
+          >
+          <p class="text-xs text-zinc-500 mt-1">We'll find /docs, /blog, /guides and other content automatically.</p>
+        </div>
+        
+        <div class="pt-4">
+          <a href="#discovery" class="block w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-6 py-4 rounded-lg font-semibold text-center text-lg">
+            Find Content →
+          </a>
+        </div>
+      </form>
+      
+      <div class="mt-10 pt-10 border-t border-zinc-800">
+        <h3 class="font-medium mb-4">What we'll analyze:</h3>
+        <ul class="text-sm text-zinc-400 space-y-2">
+          <li class="flex items-center gap-2">
+            <span class="text-emerald-400">✓</span>
+            Find all content sections (docs, blog, guides, etc.)
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-emerald-400">✓</span>
+            Check which keywords you rank for
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-emerald-400">✓</span>
+            Find keyword opportunities you're missing
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-emerald-400">✓</span>
+            Compare with competitors
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-emerald-400">✓</span>
+            Generate content briefs
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent my-8"></div>
+  <div class="text-center py-8 text-zinc-600 text-sm">— Discovery Screen —</div>
+
+  <!-- ==================== DISCOVERY ==================== -->
+  <section id="discovery" class="min-h-screen py-16">
+    <div class="max-w-xl mx-auto px-6">
+      <a href="#start" class="text-sm text-zinc-500 hover:text-white mb-8 inline-block">← Back</a>
+      
+      <h1 class="text-3xl font-bold mb-2">Found content on sendpigeon.dev</h1>
+      <p class="text-zinc-400 mb-8">Select which sections to analyze.</p>
+      
+      <!-- Sitemap status -->
+      <div class="flex items-center gap-2 text-sm mb-6">
+        <span class="w-2 h-2 bg-emerald-400 rounded-full"></span>
+        <span class="text-zinc-400">Sitemap found</span>
+        <span class="text-zinc-600">•</span>
+        <span class="text-zinc-500">82 pages total</span>
+      </div>
+      
+      <!-- Sections -->
+      <div class="space-y-3 mb-8">
+        <label class="flex items-center justify-between bg-zinc-900 border border-zinc-700 rounded-lg p-4 cursor-pointer hover:border-zinc-600">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" checked class="w-5 h-5 rounded bg-zinc-800 border-zinc-600 text-emerald-500 focus:ring-emerald-500">
+            <div>
+              <span class="font-medium">/docs</span>
+              <span class="text-zinc-500 text-sm ml-2">API reference, setup guides</span>
+            </div>
+          </div>
+          <span class="text-zinc-400 text-sm">47 pages</span>
+        </label>
+        
+        <label class="flex items-center justify-between bg-zinc-900 border border-zinc-700 rounded-lg p-4 cursor-pointer hover:border-zinc-600">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" checked class="w-5 h-5 rounded bg-zinc-800 border-zinc-600 text-emerald-500 focus:ring-emerald-500">
+            <div>
+              <span class="font-medium">/blog</span>
+              <span class="text-zinc-500 text-sm ml-2">Articles, tutorials</span>
+            </div>
+          </div>
+          <span class="text-zinc-400 text-sm">23 pages</span>
+        </label>
+        
+        <label class="flex items-center justify-between bg-zinc-900 border border-zinc-700 rounded-lg p-4 cursor-pointer hover:border-zinc-600">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" checked class="w-5 h-5 rounded bg-zinc-800 border-zinc-600 text-emerald-500 focus:ring-emerald-500">
+            <div>
+              <span class="font-medium">/guides</span>
+              <span class="text-zinc-500 text-sm ml-2">How-to guides</span>
+            </div>
+          </div>
+          <span class="text-zinc-400 text-sm">12 pages</span>
+        </label>
+        
+        <label class="flex items-center justify-between bg-zinc-900 border border-zinc-700 rounded-lg p-4 cursor-pointer hover:border-zinc-600 opacity-60">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" class="w-5 h-5 rounded bg-zinc-800 border-zinc-600 text-emerald-500 focus:ring-emerald-500">
+            <div>
+              <span class="font-medium">/changelog</span>
+              <span class="text-zinc-500 text-sm ml-2">Release notes</span>
+            </div>
+          </div>
+          <span class="text-zinc-400 text-sm">8 pages</span>
+        </label>
+      </div>
+      
+      <div class="text-sm text-zinc-500 mb-8">
+        Selected: 82 pages across 3 sections
+      </div>
+      
+      <!-- Additional info -->
+      <div class="space-y-6 mb-8 pt-6 border-t border-zinc-800">
+        <div>
+          <label class="block text-sm font-medium mb-2">Your email (for the report)</label>
+          <input 
+            type="email" 
+            value="johan@sendpigeon.com"
+            class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
+          >
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">What does your product do? (1 sentence)</label>
+          <input 
+            type="text" 
+            value="Transactional email API for developers"
+            class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
+          >
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">Competitors (optional)</label>
+          <input 
+            type="text" 
+            placeholder="postmark.com, sendgrid.com"
+            class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500"
+          >
+          <p class="text-xs text-zinc-500 mt-1">We'll show what they rank for that you don't.</p>
+        </div>
+      </div>
+      
+      <a href="#progress" class="block w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-6 py-4 rounded-lg font-semibold text-center text-lg">
+        Start Analysis →
+      </a>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent my-8"></div>
+  <div class="text-center py-8 text-zinc-600 text-sm">— Progress Screen —</div>
+
+  <!-- ==================== PROGRESS SCREEN ==================== -->
+  <section id="progress" class="min-h-screen py-16">
+    <div class="max-w-2xl mx-auto px-6">
+      
+      <h1 class="text-2xl font-bold mb-2">Analyzing sendpigeon.dev</h1>
+      <p class="text-zinc-400 mb-2">3 sections • 82 pages</p>
+      <p class="text-zinc-500 text-sm mb-10">This takes about 5 minutes. We'll show results as they come in.</p>
+      
+      <!-- Progress Steps -->
+      <div class="space-y-4 mb-10">
+        <div class="flex items-center gap-4">
+          <div class="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-zinc-900 text-sm">✓</div>
+          <div class="flex-1">
+            <span class="font-medium">Crawling content</span>
+            <span class="text-zinc-500 ml-2">82 pages across 3 sections</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <div class="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-zinc-900 text-sm">✓</div>
+          <div class="flex-1">
+            <span class="font-medium">Finding opportunities</span>
+            <span class="text-zinc-500 ml-2">43 keywords identified</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <div class="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-zinc-900 text-sm animate-pulse">→</div>
+          <div class="flex-1">
+            <span class="font-medium">Checking current rankings</span>
+            <span class="text-zinc-500 ml-2">80%</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <div class="w-6 h-6 bg-zinc-700 rounded-full flex items-center justify-center text-zinc-500 text-sm">○</div>
+          <div class="flex-1">
+            <span class="text-zinc-500">Generating content briefs</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <div class="w-6 h-6 bg-zinc-700 rounded-full flex items-center justify-center text-zinc-500 text-sm">○</div>
+          <div class="flex-1">
+            <span class="text-zinc-500">Building your report</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="h-2 bg-zinc-800 rounded-full mb-10 overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full" style="width: 65%"></div>
+      </div>
+      
+      <!-- Live Preview -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+        <h3 class="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-4">Preview — Results by section</h3>
+        
+        <div class="space-y-6">
+          <!-- Section breakdown -->
+          <div>
+            <h4 class="text-emerald-400 font-medium mb-3">📊 Content breakdown</h4>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between bg-zinc-800 rounded-lg p-3">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">/docs</span>
+                  <span class="text-zinc-500 text-sm">47 pages</span>
+                </div>
+                <div class="text-sm">
+                  <span class="text-emerald-400">12 ranking</span>
+                  <span class="text-zinc-600 mx-1">•</span>
+                  <span class="text-yellow-400">20 opportunities</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between bg-zinc-800 rounded-lg p-3">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">/blog</span>
+                  <span class="text-zinc-500 text-sm">23 pages</span>
+                </div>
+                <div class="text-sm">
+                  <span class="text-emerald-400">8 ranking</span>
+                  <span class="text-zinc-600 mx-1">•</span>
+                  <span class="text-yellow-400">15 opportunities</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between bg-zinc-800 rounded-lg p-3">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">/guides</span>
+                  <span class="text-zinc-500 text-sm">12 pages</span>
+                </div>
+                <div class="text-sm">
+                  <span class="text-emerald-400">3 ranking</span>
+                  <span class="text-zinc-600 mx-1">•</span>
+                  <span class="text-yellow-400">8 opportunities</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 class="text-emerald-400 font-medium mb-2">🎯 Top opportunity found</h4>
+            <div class="bg-zinc-800 rounded-lg p-4">
+              <p class="font-semibold">"smtp relay nodejs"</p>
+              <p class="text-sm text-zinc-400">1,400 searches/mo • Medium difficulty</p>
+              <p class="text-sm text-zinc-500 mt-2">You don't have a page for this. Postmark ranks #2.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <p class="text-sm text-zinc-500 mt-6 text-center">
+        We'll also email the full report to johan@sendpigeon.com
+      </p>
+      
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent my-8"></div>
+  <div class="text-center py-8 text-zinc-600 text-sm">— Report Dashboard —</div>
+
+  <!-- ==================== REPORT DASHBOARD ==================== -->
+  <section id="dashboard" class="min-h-screen py-16">
+    <div class="max-w-6xl mx-auto px-6">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold">sendpigeon.dev</h1>
+          <p class="text-zinc-500">3 sections • 82 pages • Analysis completed Jan 2, 2026</p>
+        </div>
+        <div class="flex gap-3">
+          <button class="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg text-sm font-medium">Export PDF</button>
+          <button class="bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-4 py-2 rounded-lg text-sm font-medium">Upgrade to Track →</button>
+        </div>
+      </div>
+      
+      <!-- Section Overview -->
+      <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-semibold">/docs</span>
+            <span class="text-sm text-zinc-500">47 pages</span>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <div>
+              <span class="text-2xl font-bold">12</span>
+              <span class="text-zinc-500 ml-1">ranking</span>
+            </div>
+            <div>
+              <span class="text-2xl font-bold text-emerald-400">20</span>
+              <span class="text-zinc-500 ml-1">opportunities</span>
+            </div>
+          </div>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-semibold">/blog</span>
+            <span class="text-sm text-zinc-500">23 pages</span>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <div>
+              <span class="text-2xl font-bold">8</span>
+              <span class="text-zinc-500 ml-1">ranking</span>
+            </div>
+            <div>
+              <span class="text-2xl font-bold text-emerald-400">15</span>
+              <span class="text-zinc-500 ml-1">opportunities</span>
+            </div>
+          </div>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-semibold">/guides</span>
+            <span class="text-sm text-zinc-500">12 pages</span>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <div>
+              <span class="text-2xl font-bold">3</span>
+              <span class="text-zinc-500 ml-1">ranking</span>
+            </div>
+            <div>
+              <span class="text-2xl font-bold text-emerald-400">8</span>
+              <span class="text-zinc-500 ml-1">opportunities</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Total Stats -->
+      <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="bg-zinc-800/50 border border-zinc-800 rounded-xl p-4 text-center">
+          <p class="text-2xl font-bold">82</p>
+          <p class="text-sm text-zinc-500">Total pages</p>
+        </div>
+        <div class="bg-zinc-800/50 border border-zinc-800 rounded-xl p-4 text-center">
+          <p class="text-2xl font-bold">23</p>
+          <p class="text-sm text-zinc-500">Pages ranking</p>
+        </div>
+        <div class="bg-zinc-800/50 border border-zinc-800 rounded-xl p-4 text-center">
+          <p class="text-2xl font-bold text-emerald-400">43</p>
+          <p class="text-sm text-zinc-500">Opportunities</p>
+        </div>
+        <div class="bg-zinc-800/50 border border-zinc-800 rounded-xl p-4 text-center">
+          <p class="text-2xl font-bold">~2,400</p>
+          <p class="text-sm text-zinc-500">Monthly visits</p>
+        </div>
+      </div>
+      
+      <!-- Tabs -->
+      <div class="flex gap-1 border-b border-zinc-800 mb-8">
+        <button class="px-4 py-2 text-sm font-medium border-b-2 border-emerald-500 text-white">All Sections</button>
+        <button class="px-4 py-2 text-sm font-medium text-zinc-500 hover:text-white">/docs</button>
+        <button class="px-4 py-2 text-sm font-medium text-zinc-500 hover:text-white">/blog</button>
+        <button class="px-4 py-2 text-sm font-medium text-zinc-500 hover:text-white">/guides</button>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-6">
+        <!-- Main content -->
+        <div class="col-span-2 space-y-6">
+          
+          <!-- Quick Wins -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 class="font-semibold text-lg mb-4">🚀 Quick Wins</h2>
+            <p class="text-sm text-zinc-500 mb-4">Pages that rank but could do better</p>
+            
+            <div class="space-y-3">
+              <div class="bg-zinc-800 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/docs</span>
+                    <code class="text-sm text-emerald-400">/docs/authentication</code>
+                  </div>
+                  <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Ranking #34</span>
+                </div>
+                <p class="text-sm text-zinc-400 mb-2">Could reach #10 with improvements</p>
+                <ul class="text-sm text-zinc-500 space-y-1">
+                  <li>• Add section on "API key best practices"</li>
+                  <li>• Answer: "How to rotate API keys"</li>
+                </ul>
+              </div>
+              
+              <div class="bg-zinc-800 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/blog</span>
+                    <code class="text-sm text-emerald-400">/blog/email-deliverability</code>
+                  </div>
+                  <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Ranking #28</span>
+                </div>
+                <p class="text-sm text-zinc-400 mb-2">Could reach #8 with improvements</p>
+                <ul class="text-sm text-zinc-500 space-y-1">
+                  <li>• Add recent statistics (2024 data)</li>
+                  <li>• Include SPF/DKIM setup section</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Top Opportunities -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 class="font-semibold text-lg mb-4">🎯 Top Opportunities</h2>
+            <p class="text-sm text-zinc-500 mb-4">Keywords you should rank for but don't</p>
+            
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-zinc-500 border-b border-zinc-800">
+                  <th class="pb-3 font-medium">Section</th>
+                  <th class="pb-3 font-medium">Keyword</th>
+                  <th class="pb-3 font-medium">Volume</th>
+                  <th class="pb-3 font-medium">Difficulty</th>
+                  <th class="pb-3"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-800">
+                <tr>
+                  <td class="py-3"><span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/docs</span></td>
+                  <td class="py-3 font-medium">smtp relay nodejs</td>
+                  <td class="py-3 text-zinc-400">1,400</td>
+                  <td class="py-3"><span class="text-yellow-400">Medium</span></td>
+                  <td class="py-3"><a href="#brief" class="text-emerald-400 hover:text-emerald-300">Brief →</a></td>
+                </tr>
+                <tr>
+                  <td class="py-3"><span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/docs</span></td>
+                  <td class="py-3 font-medium">send email api python</td>
+                  <td class="py-3 text-zinc-400">2,100</td>
+                  <td class="py-3"><span class="text-yellow-400">Medium</span></td>
+                  <td class="py-3"><a href="#brief" class="text-emerald-400 hover:text-emerald-300">Brief →</a></td>
+                </tr>
+                <tr>
+                  <td class="py-3"><span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/blog</span></td>
+                  <td class="py-3 font-medium">email deliverability tips</td>
+                  <td class="py-3 text-zinc-400">890</td>
+                  <td class="py-3"><span class="text-emerald-400">Low</span></td>
+                  <td class="py-3"><a href="#brief" class="text-emerald-400 hover:text-emerald-300">Brief →</a></td>
+                </tr>
+                <tr>
+                  <td class="py-3"><span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/guides</span></td>
+                  <td class="py-3 font-medium">transactional email tutorial</td>
+                  <td class="py-3 text-zinc-400">650</td>
+                  <td class="py-3"><span class="text-emerald-400">Low</span></td>
+                  <td class="py-3"><a href="#brief" class="text-emerald-400 hover:text-emerald-300">Brief →</a></td>
+                </tr>
+                <tr>
+                  <td class="py-3"><span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">/docs</span></td>
+                  <td class="py-3 font-medium">smtp api vs http api</td>
+                  <td class="py-3 text-zinc-400">450</td>
+                  <td class="py-3"><span class="text-emerald-400">Low</span></td>
+                  <td class="py-3"><a href="#brief" class="text-emerald-400 hover:text-emerald-300">Brief →</a></td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <p class="text-sm text-zinc-500 mt-4">Showing 5 of 43 opportunities</p>
+          </div>
+          
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="space-y-6">
+          
+          <!-- Competitor Gap -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 class="font-semibold mb-4">🔍 Competitor Gap</h2>
+            <div class="space-y-4">
+              <div>
+                <div class="flex justify-between text-sm mb-1">
+                  <span>Postmark</span>
+                  <span class="text-zinc-500">34 keywords</span>
+                </div>
+                <div class="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-red-500/50 rounded-full" style="width: 51%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-sm mb-1">
+                  <span>SendGrid</span>
+                  <span class="text-zinc-500">67 keywords</span>
+                </div>
+                <div class="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-red-500/50 rounded-full" style="width: 100%"></div>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-zinc-500 mt-4">Keywords they rank for that you don't</p>
+          </div>
+          
+          <!-- Internal Linking -->
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 class="font-semibold mb-4">🔗 Internal Linking</h2>
+            <ul class="text-sm space-y-3">
+              <li class="text-zinc-400">
+                <code class="text-emerald-400">/docs/getting-started</code>
+                <br><span class="text-zinc-600">→ should link to</span> <code class="text-zinc-500">/guides/webhooks</code>
+              </li>
+              <li class="text-zinc-400">
+                <code class="text-emerald-400">/blog/email-tips</code>
+                <br><span class="text-zinc-600">→ should link to</span> <code class="text-zinc-500">/docs/authentication</code>
+              </li>
+              <li class="text-zinc-400">
+                <code class="text-emerald-400">/docs/error-codes</code>
+                <br><span class="text-zinc-600">is orphaned (no incoming links)</span>
+              </li>
+            </ul>
+          </div>
+          
+          <!-- Upsell -->
+          <div class="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 rounded-xl p-6">
+            <h2 class="font-semibold mb-2">📈 Track your progress</h2>
+            <p class="text-sm text-zinc-400 mb-4">Want to know if your new pages actually rank?</p>
+            <ul class="text-sm text-zinc-400 space-y-1 mb-4">
+              <li>✓ Weekly ranking updates</li>
+              <li>✓ New opportunity alerts</li>
+              <li>✓ Competitor monitoring</li>
+            </ul>
+            <button class="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-4 py-2 rounded-lg text-sm font-semibold">
+              Upgrade to Growth — €29/mo
+            </button>
+          </div>
+          
+        </div>
+      </div>
+      
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent my-8"></div>
+  <div class="text-center py-8 text-zinc-600 text-sm">— Content Brief Detail —</div>
+
+  <!-- ==================== CONTENT BRIEF ==================== -->
+  <section id="brief" class="min-h-screen py-16">
+    <div class="max-w-3xl mx-auto px-6">
+      
+      <a href="#dashboard" class="text-sm text-zinc-500 hover:text-white mb-6 inline-block">← Back to Report</a>
+      
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-8">
+        <div>
+          <p class="text-sm text-zinc-500 mb-1">Content Brief</p>
+          <h1 class="text-3xl font-bold">"smtp relay nodejs"</h1>
+        </div>
+        <button class="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-lg text-sm font-medium">
+          Copy All
+        </button>
+      </div>
+      
+      <!-- Stats -->
+      <div class="flex gap-6 mb-10 text-sm">
+        <div>
+          <span class="text-zinc-500">Volume</span>
+          <span class="ml-2 font-semibold">1,400/mo</span>
+        </div>
+        <div>
+          <span class="text-zinc-500">Difficulty</span>
+          <span class="ml-2 font-semibold text-yellow-400">Medium</span>
+        </div>
+        <div>
+          <span class="text-zinc-500">Top competitor</span>
+          <span class="ml-2 font-semibold">Postmark #2</span>
+        </div>
+      </div>
+      
+      <!-- Suggested Title -->
+      <div class="mb-8">
+        <h2 class="font-semibold mb-3">Suggested Title</h2>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+          <p class="text-lg">How to Set Up SMTP Relay with Node.js</p>
+        </div>
+      </div>
+      
+      <!-- Recommended Structure -->
+      <div class="mb-8">
+        <h2 class="font-semibold mb-3">Recommended Structure</h2>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 font-mono text-sm space-y-2">
+          <p class="text-zinc-300">H1: How to Set Up SMTP Relay with Node.js</p>
+          <p class="text-zinc-400 pl-4">H2: What is SMTP Relay?</p>
+          <p class="text-zinc-400 pl-4">H2: Setting Up SMTP with SendPigeon</p>
+          <p class="text-zinc-500 pl-8">H3: Installation</p>
+          <p class="text-zinc-500 pl-8">H3: Configuration</p>
+          <p class="text-zinc-500 pl-8">H3: Sending Your First Email</p>
+          <p class="text-zinc-400 pl-4">H2: Error Handling</p>
+          <p class="text-zinc-400 pl-4">H2: Best Practices</p>
+          <p class="text-zinc-400 pl-4">H2: SMTP vs HTTP API</p>
+        </div>
+      </div>
+      
+      <!-- Questions to Answer -->
+      <div class="mb-8">
+        <h2 class="font-semibold mb-3">Questions to Answer</h2>
+        <p class="text-sm text-zinc-500 mb-3">From "People Also Ask"</p>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+          <ul class="space-y-2 text-sm">
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 mt-0.5">?</span>
+              <span>How do I send email with Node.js?</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 mt-0.5">?</span>
+              <span>What is SMTP relay vs API?</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 mt-0.5">?</span>
+              <span>How to handle bounces in Node?</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 mt-0.5">?</span>
+              <span>Is SMTP relay secure?</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400 mt-0.5">?</span>
+              <span>What port does SMTP relay use?</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Related Keywords -->
+      <div class="mb-8">
+        <h2 class="font-semibold mb-3">Related Keywords to Include</h2>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+          <div class="flex flex-wrap gap-2">
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">nodemailer</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">smtp transport</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">email api</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">transactional email</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">mail server</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">smtp authentication</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">email delivery</span>
+            <span class="bg-zinc-800 px-3 py-1 rounded-full text-sm">node email</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Internal Linking -->
+      <div class="mb-8">
+        <h2 class="font-semibold mb-3">Link to These Existing Pages</h2>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+          <ul class="space-y-2 text-sm">
+            <li class="flex items-center gap-2">
+              <span class="text-emerald-400">→</span>
+              <code class="text-zinc-400">/docs/getting-started</code>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-emerald-400">→</span>
+              <code class="text-zinc-400">/docs/authentication</code>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-emerald-400">→</span>
+              <code class="text-zinc-400">/docs/error-codes</code>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-emerald-400">→</span>
+              <code class="text-zinc-400">/docs/webhooks</code>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Competitor Analysis -->
+      <div class="mb-8">
+        <h2 class="font-semibold mb-3">What Competitors Cover</h2>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-sm font-medium">Postmark</span>
+              <span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">#2</span>
+            </div>
+            <p class="text-sm text-zinc-400">Covers installation + error handling well. Good code examples. Missing TypeScript.</p>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-sm font-medium">SendGrid</span>
+              <span class="text-xs bg-zinc-700 px-2 py-0.5 rounded">#4</span>
+            </div>
+            <p class="text-sm text-zinc-400">Focuses on code examples. Less explanation. Covers multiple languages.</p>
+          </div>
+          <div class="pt-3 border-t border-zinc-800">
+            <p class="text-sm text-emerald-400">💡 Gap: Neither covers TypeScript setup or async/await patterns well.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- CTA -->
+      <div class="flex gap-4 pt-6 border-t border-zinc-800">
+        <a href="#dashboard" class="flex-1 bg-zinc-800 hover:bg-zinc-700 px-6 py-3 rounded-lg font-medium text-center">
+          ← Back to Report
+        </a>
+        <button class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-zinc-900 px-6 py-3 rounded-lg font-semibold">
+          Copy Brief to Clipboard
+        </button>
+      </div>
+      
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-zinc-800 py-12 mt-16">
+    <div class="max-w-6xl mx-auto px-6 text-center text-sm text-zinc-500">
+      <p>GrowDocs — SEO for documentation</p>
+      <p class="mt-2">These are mockups for design exploration</p>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Audit {
+  id          String      @id @default(cuid())
+  status      AuditStatus @default(PENDING)
+  siteUrl     String
+  productDesc String?
+  competitors String[]
+  sections    String[]
+  email       String
+
+  pagesFound       Int?
+  sitemapUrlCount  Int?
+  hasRobotsTxt     Boolean?
+  hasSitemap       Boolean?
+  opportunities    Json?
+  detectedSections Json?
+  healthScore      Json?
+  redirectChains   Json?
+
+  stripeSessionId       String?   @unique
+  tier                  AuditTier
+  reportToken           String?   @unique
+  reportTokenExpiresAt  DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  briefs       Brief[]
+  crawledPages CrawledPage[]
+}
+
+model Brief {
+  id      String @id @default(cuid())
+  auditId String
+  audit   Audit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  keyword                String
+  searchVolume           Int
+  difficulty             Int
+  title                  String
+  structure              Json
+  questions              String[]
+  relatedKw              String[]
+  competitors            Json?
+  suggestedInternalLinks String[]
+  clusteredKeywords      String[] @default([])
+  totalClusterVolume     Int      @default(0)
+  estimatedEffort        String?
+  intent                 String?
+
+  createdAt DateTime @default(now())
+
+  @@index([auditId])
+}
+
+model CrawledPage {
+  id      String @id @default(cuid())
+  auditId String
+  audit   Audit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  url              String
+  title            String?
+  h1               String?
+  content          String?
+  wordCount        Int?
+  section          String?
+  outboundLinks    String[]
+  readabilityScore Float?
+  codeBlockCount   Int      @default(0)
+  imageCount       Int      @default(0)
+  codeBlocks       String[]
+
+  // SEO meta fields
+  metaDescription  String?
+  canonicalUrl     String?
+  ogTitle          String?
+  ogDescription    String?
+  ogImage          String?
+  h1Count          Int      @default(1)
+  h2s              String[]
+  h3s              String[]
+  imagesWithoutAlt Int      @default(0)
+  hasSchemaOrg     Boolean  @default(false)
+  schemaTypes      String[]
+  hasViewport      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([auditId])
+}
+
+enum AuditStatus {
+  PENDING
+  CRAWLING
+  ANALYZING
+  GENERATING_BRIEFS
+  COMPLETED
+  FAILED
+}
+
+enum AuditTier {
+  FREE
+  SCAN
+  AUDIT
+  DEEP_DIVE
+}

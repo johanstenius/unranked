@@ -1,0 +1,17 @@
+{
+	"name": "docrank",
+	"private": true,
+	"scripts": {
+		"dev": "pnpm -r --parallel dev",
+		"build": "pnpm -r build",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"test": "pnpm -r test",
+		"test:run": "pnpm -r test:run"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"typescript": "^5.7.2"
+	},
+	"packageManager": "pnpm@9.15.0"
+}
