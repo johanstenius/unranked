@@ -60,8 +60,8 @@ async function createLemonSqueezyCheckout(
 					checkout_data: {
 						custom: customData,
 					},
-					checkout_options: {
-						success_url: successUrl,
+					product_options: {
+						redirect_url: successUrl,
 					},
 					...(customPrice !== undefined && { custom_price: customPrice }),
 				},
