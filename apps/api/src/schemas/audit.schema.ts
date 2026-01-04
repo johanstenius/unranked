@@ -100,7 +100,7 @@ export const currentRankingSchema = z.object({
 export type CurrentRankingResponse = z.infer<typeof currentRankingSchema>;
 
 export const auditResponseSchema = z.object({
-	id: z.string(),
+	accessToken: z.string(),
 	status: auditStatusSchema,
 	siteUrl: z.string(),
 	productDesc: z.string().nullable(),

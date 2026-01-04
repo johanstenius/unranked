@@ -37,7 +37,7 @@ function CheckForm() {
 			});
 
 			// FREE tier returns null checkoutUrl, go directly to audit
-			router.push(`/audit/${result.auditId}`);
+			router.push(`/audit/${result.accessToken}`);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong");
 			setLoading(false);

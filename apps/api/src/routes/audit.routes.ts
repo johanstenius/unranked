@@ -278,7 +278,7 @@ auditRoutes.openapi(createAuditRoute, async (c) => {
 
 	return c.json(
 		{
-			id: audit.id,
+			accessToken: audit.accessToken,
 			status: audit.status,
 			siteUrl: audit.siteUrl,
 			productDesc: audit.productDesc,
@@ -298,10 +298,10 @@ auditRoutes.openapi(createAuditRoute, async (c) => {
 
 const getAuditRoute = createRoute({
 	method: "get",
-	path: "/audits/{id}",
+	path: "/audits/{token}",
 	request: {
 		params: z.object({
-			id: z.string(),
+			token: z.string(),
 		}),
 	},
 	responses: {
@@ -319,25 +319,29 @@ const getAuditRoute = createRoute({
 					schema: z.object({ error: z.string() }),
 				},
 			},
-			description: "Audit not found",
+			description: "Audit not found or expired",
 		},
 	},
 });
 
 auditRoutes.openapi(getAuditRoute, async (c) => {
-	const { id } = c.req.valid("param");
+	const { token } = c.req.valid("param");
 
-	const audit = await auditRepo.getAuditById(id);
+	const audit = await auditRepo.getAuditByAccessToken(token);
 
 	if (!audit) {
 		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
 	}
 
 	const storedAnalysis = audit.opportunities as AnalysisResult | null;
 
 	return c.json(
 		{
-			id: audit.id,
+			accessToken: audit.accessToken,
 			status: audit.status,
 			siteUrl: audit.siteUrl,
 			productDesc: audit.productDesc,
@@ -357,10 +361,10 @@ auditRoutes.openapi(getAuditRoute, async (c) => {
 
 const getAuditAnalysisRoute = createRoute({
 	method: "get",
-	path: "/audits/{id}/analysis",
+	path: "/audits/{token}/analysis",
 	request: {
 		params: z.object({
-			id: z.string(),
+			token: z.string(),
 		}),
 	},
 	responses: {
@@ -378,18 +382,22 @@ const getAuditAnalysisRoute = createRoute({
 					schema: z.object({ error: z.string() }),
 				},
 			},
-			description: "Audit not found or analysis not complete",
+			description: "Audit not found, expired, or analysis not complete",
 		},
 	},
 });
 
 auditRoutes.openapi(getAuditAnalysisRoute, async (c) => {
-	const { id } = c.req.valid("param");
+	const { token } = c.req.valid("param");
 
-	const audit = await auditRepo.getAuditById(id);
+	const audit = await auditRepo.getAuditByAccessToken(token);
 
 	if (!audit) {
 		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
 	}
 
 	if (!audit.opportunities) {
@@ -415,10 +423,10 @@ auditRoutes.openapi(getAuditAnalysisRoute, async (c) => {
 
 const getAuditBriefsRoute = createRoute({
 	method: "get",
-	path: "/audits/{id}/briefs",
+	path: "/audits/{token}/briefs",
 	request: {
 		params: z.object({
-			id: z.string(),
+			token: z.string(),
 		}),
 	},
 	responses: {
@@ -430,13 +438,31 @@ const getAuditBriefsRoute = createRoute({
 			},
 			description: "List of briefs",
 		},
+		404: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Audit not found or expired",
+		},
 	},
 });
 
 auditRoutes.openapi(getAuditBriefsRoute, async (c) => {
-	const { id } = c.req.valid("param");
-	const briefs = await briefRepo.getBriefsByAuditId(id);
-	return c.json(briefs.map(mapBriefToResponse), 200);
+	const { token } = c.req.valid("param");
+
+	const audit = await auditRepo.getAuditByAccessToken(token);
+
+	if (!audit) {
+		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
+	}
+
+	return c.json(audit.briefs.map(mapBriefToResponse), 200);
 });
 
 const getBriefRoute = createRoute({
@@ -478,109 +504,13 @@ auditRoutes.openapi(getBriefRoute, async (c) => {
 	return c.json(mapBriefToResponse(brief), 200);
 });
 
-const reportTokenResponseSchema = z.object({
-	audit: auditResponseSchema,
-	analysis: analysisResponseSchema.nullable(),
-	briefs: z.array(briefResponseSchema),
-	expired: z.boolean(),
-});
-
-const getReportByTokenRoute = createRoute({
-	method: "get",
-	path: "/report/{token}",
-	request: {
-		params: z.object({
-			token: z.string(),
-		}),
-	},
-	responses: {
-		200: {
-			content: {
-				"application/json": {
-					schema: reportTokenResponseSchema,
-				},
-			},
-			description: "Full report data",
-		},
-		404: {
-			content: {
-				"application/json": {
-					schema: z.object({ error: z.string() }),
-				},
-			},
-			description: "Report not found or expired",
-		},
-	},
-});
-
-auditRoutes.openapi(getReportByTokenRoute, async (c) => {
-	const { token } = c.req.valid("param");
-
-	const audit = await auditRepo.getAuditByReportToken(token);
-
-	if (!audit) {
-		return c.json({ error: "Report not found" }, 404);
-	}
-
-	const isExpired =
-		audit.reportTokenExpiresAt && audit.reportTokenExpiresAt < new Date();
-
-	if (isExpired) {
-		return c.json({ error: "Report link has expired" }, 404);
-	}
-
-	const storedAnalysis = audit.opportunities as AnalysisResult | null;
-
-	const auditResponse = {
-		id: audit.id,
-		status: audit.status,
-		siteUrl: audit.siteUrl,
-		productDesc: audit.productDesc,
-		competitors: audit.competitors,
-		sections: audit.sections,
-		detectedSections: audit.detectedSections as SectionInfoResponse[] | null,
-		tier: audit.tier,
-		pagesFound: audit.pagesFound,
-		sitemapUrlCount: audit.sitemapUrlCount,
-		currentRankings: storedAnalysis?.currentRankings ?? null,
-		createdAt: audit.createdAt.toISOString(),
-		completedAt: audit.completedAt?.toISOString() ?? null,
-	};
-
-	let analysisResponse = null;
-	if (storedAnalysis) {
-		const detectedSections =
-			(audit.detectedSections as SectionInfoResponse[]) ?? [];
-		const healthScore = audit.healthScore as HealthScoreResponse | null;
-		analysisResponse = buildAnalysisResponse(
-			storedAnalysis,
-			detectedSections,
-			audit.siteUrl,
-			healthScore,
-			audit.tier,
-		);
-	}
-
-	const briefsResponse = audit.briefs.map(mapBriefToResponse);
-
-	return c.json(
-		{
-			audit: auditResponse,
-			analysis: analysisResponse,
-			briefs: briefsResponse,
-			expired: false,
-		},
-		200,
-	);
-});
-
 // Resend report email
 const resendEmailRoute = createRoute({
 	method: "post",
-	path: "/audits/{id}/resend-email",
+	path: "/audits/{token}/resend-email",
 	request: {
 		params: z.object({
-			id: z.string(),
+			token: z.string(),
 		}),
 	},
 	responses: {
@@ -598,7 +528,7 @@ const resendEmailRoute = createRoute({
 					schema: z.object({ error: z.string() }),
 				},
 			},
-			description: "Audit not found",
+			description: "Audit not found or expired",
 		},
 		400: {
 			content: {
@@ -612,11 +542,15 @@ const resendEmailRoute = createRoute({
 });
 
 auditRoutes.openapi(resendEmailRoute, async (c) => {
-	const { id } = c.req.valid("param");
+	const { token } = c.req.valid("param");
 
-	const audit = await auditRepo.getAuditById(id);
+	const audit = await auditRepo.getAuditByAccessToken(token);
 	if (!audit) {
 		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
 	}
 
 	if (audit.status !== "COMPLETED") {
@@ -627,17 +561,13 @@ auditRoutes.openapi(resendEmailRoute, async (c) => {
 		return c.json({ error: "No email address on audit" }, 400);
 	}
 
-	if (!audit.reportToken) {
-		return c.json({ error: "No report token" }, 400);
-	}
-
 	const storedAnalysis = audit.opportunities as AnalysisResult | null;
 	const healthScore = audit.healthScore as HealthScoreResponse | null;
 
 	await sendReportReadyEmail({
 		to: audit.email,
 		siteUrl: audit.siteUrl,
-		reportToken: audit.reportToken,
+		accessToken: audit.accessToken,
 		healthScore: healthScore?.score,
 		healthGrade: healthScore?.grade,
 		opportunitiesCount: storedAnalysis?.opportunities?.length ?? 0,

@@ -294,11 +294,6 @@ async function retryMissingReportEmails(): Promise<void> {
 			continue;
 		}
 
-		if (!audit.reportToken) {
-			auditLog.warn("Completed audit has no report token, skipping");
-			continue;
-		}
-
 		const healthScore = audit.healthScore as StoredHealthScore | null;
 		const analysisData = audit.opportunities as StoredAnalysisData | null;
 
@@ -306,7 +301,7 @@ async function retryMissingReportEmails(): Promise<void> {
 			await sendReportReadyEmail({
 				to: audit.email,
 				siteUrl: audit.siteUrl,
-				reportToken: audit.reportToken,
+				accessToken: audit.accessToken,
 				healthScore: healthScore?.score,
 				healthGrade: healthScore?.grade,
 				opportunitiesCount: analysisData?.opportunities?.length ?? 0,

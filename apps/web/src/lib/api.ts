@@ -6,7 +6,6 @@ import type {
 	CreateAuditInput,
 	DiscoverEvent,
 	DiscoverResponse,
-	ReportData,
 } from "./types";
 
 // Re-export all types for backward compatibility
@@ -103,16 +102,16 @@ export async function createCheckout(
 	});
 }
 
-export async function getAudit(id: string): Promise<Audit> {
-	return fetchApi<Audit>(`/audits/${id}`);
+export async function getAudit(token: string): Promise<Audit> {
+	return fetchApi<Audit>(`/audits/${token}`);
 }
 
-export async function getAuditAnalysis(auditId: string): Promise<Analysis> {
-	return fetchApi<Analysis>(`/audits/${auditId}/analysis`);
+export async function getAuditAnalysis(token: string): Promise<Analysis> {
+	return fetchApi<Analysis>(`/audits/${token}/analysis`);
 }
 
-export async function getAuditBriefs(auditId: string): Promise<Brief[]> {
-	return fetchApi<Brief[]>(`/audits/${auditId}/briefs`);
+export async function getAuditBriefs(token: string): Promise<Brief[]> {
+	return fetchApi<Brief[]>(`/audits/${token}/briefs`);
 }
 
 export async function getBrief(briefId: string): Promise<Brief> {
@@ -121,30 +120,26 @@ export async function getBrief(briefId: string): Promise<Brief> {
 
 export async function devStartAudit(
 	input: CreateAuditInput,
-): Promise<{ auditId: string }> {
-	return fetchApi<{ auditId: string }>("/dev/start-audit", {
+): Promise<{ accessToken: string }> {
+	return fetchApi<{ accessToken: string }>("/dev/start-audit", {
 		method: "POST",
 		body: JSON.stringify(input),
 	});
 }
 
-export async function getReportByToken(token: string): Promise<ReportData> {
-	return fetchApi<ReportData>(`/report/${token}`);
-}
-
 export async function resendReportEmail(
-	auditId: string,
+	token: string,
 ): Promise<{ success: boolean }> {
-	return fetchApi<{ success: boolean }>(`/audits/${auditId}/resend-email`, {
+	return fetchApi<{ success: boolean }>(`/audits/${token}/resend-email`, {
 		method: "POST",
 	});
 }
 
 export async function createUpgradeCheckout(
-	auditId: string,
+	token: string,
 	toTier: "SCAN" | "AUDIT" | "DEEP_DIVE",
 ): Promise<{ checkoutUrl: string }> {
-	return fetchApi<{ checkoutUrl: string }>(`/audits/${auditId}/upgrade`, {
+	return fetchApi<{ checkoutUrl: string }>(`/audits/${token}/upgrade`, {
 		method: "POST",
 		body: JSON.stringify({ toTier }),
 	});

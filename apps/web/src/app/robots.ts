@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
 		rules: {
 			userAgent: "*",
 			allow: "/",
-			disallow: ["/audit/", "/report/"],
+			disallow: ["/audit/"],
 		},
 		sitemap: "https://unranked.io/sitemap.xml",
 	};

@@ -187,7 +187,7 @@ function AnalyzeForm() {
 				window.location.href = result.checkoutUrl;
 			} else {
 				// Shouldn't happen for paid tiers, but handle gracefully
-				router.push(`/audit/${result.auditId}`);
+				router.push(`/audit/${result.accessToken}`);
 			}
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong");
@@ -218,7 +218,7 @@ function AnalyzeForm() {
 
 		try {
 			const result = await devStartAudit(getFormData());
-			router.push(`/audit/${result.auditId}`);
+			router.push(`/audit/${result.accessToken}`);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong");
 			setLoading(false);

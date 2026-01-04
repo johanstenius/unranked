@@ -51,7 +51,7 @@ export type CurrentRanking = {
 };
 
 export type Audit = {
-	id: string;
+	accessToken: string;
 	status: AuditStatus;
 	siteUrl: string;
 	productDesc: string | null;
@@ -313,17 +313,10 @@ export type CreateAuditInput = {
 
 export type CheckoutResponse = {
 	checkoutUrl: string | null;
-	auditId: string;
+	accessToken: string;
 };
 
 export type DiscoverResponse = {
 	sections: SectionInfo[];
 	totalUrls: number;
-};
-
-export type ReportData = {
-	audit: Audit;
-	analysis: Analysis | null;
-	briefs: Brief[];
-	expired: boolean;
 };

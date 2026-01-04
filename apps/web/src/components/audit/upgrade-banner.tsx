@@ -7,11 +7,11 @@ import type { Analysis } from "@/lib/types";
 import { useState } from "react";
 
 type UpgradeBannerProps = {
-	auditId: string;
+	auditToken: string;
 	analysis: Analysis | null;
 };
 
-export function UpgradeBanner({ auditId, analysis }: UpgradeBannerProps) {
+export function UpgradeBanner({ auditToken, analysis }: UpgradeBannerProps) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +27,7 @@ export function UpgradeBanner({ auditId, analysis }: UpgradeBannerProps) {
 		setError(null);
 
 		try {
-			const result = await createUpgradeCheckout(auditId, tier);
+			const result = await createUpgradeCheckout(auditToken, tier);
 			window.location.href = result.checkoutUrl;
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong");

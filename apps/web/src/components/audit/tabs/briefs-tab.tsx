@@ -21,10 +21,10 @@ import Link from "next/link";
 
 type BriefsTabProps = {
 	briefs: Brief[];
-	auditId: string;
+	auditToken: string;
 };
 
-export function BriefsTab({ briefs, auditId }: BriefsTabProps) {
+export function BriefsTab({ briefs, auditToken }: BriefsTabProps) {
 	return (
 		<Card>
 			<CardHeader>
@@ -60,7 +60,7 @@ export function BriefsTab({ briefs, auditId }: BriefsTabProps) {
 									</TableCell>
 									<TableCell className="text-right">
 										<Link
-											href={`/audit/${auditId}/brief/${brief.id}`}
+											href={`/audit/${auditToken}/brief/${brief.id}`}
 											className="text-accent hover:underline"
 										>
 											View Brief →

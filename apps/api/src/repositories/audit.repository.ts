@@ -1,5 +1,18 @@
+import { randomBytes } from "node:crypto";
 import type { AuditStatus, AuditTier, Prisma } from "@prisma/client";
 import { db } from "../lib/db.js";
+
+const ACCESS_TOKEN_EXPIRY_DAYS = 30;
+
+function generateAccessToken(): string {
+	return randomBytes(32).toString("hex");
+}
+
+function getAccessTokenExpiry(): Date {
+	const expiry = new Date();
+	expiry.setDate(expiry.getDate() + ACCESS_TOKEN_EXPIRY_DAYS);
+	return expiry;
+}
 
 export type CreateAuditInput = {
 	siteUrl: string;
@@ -28,15 +41,17 @@ export type UpdateAuditInput = {
 	delayEmailSentAt?: Date | null;
 	startedAt?: Date;
 	completedAt?: Date;
-	reportToken?: string;
-	reportTokenExpiresAt?: Date;
 	reportEmailSentAt?: Date | null;
 	supportAlertSentAt?: Date | null;
 };
 
 export function createAudit(input: CreateAuditInput) {
 	return db.audit.create({
-		data: input,
+		data: {
+			...input,
+			accessToken: generateAccessToken(),
+			expiresAt: getAccessTokenExpiry(),
+		},
 	});
 }
 
@@ -70,9 +85,9 @@ export function updateAuditStatus(id: string, status: AuditStatus) {
 	});
 }
 
-export function getAuditByReportToken(reportToken: string) {
+export function getAuditByAccessToken(accessToken: string) {
 	return db.audit.findUnique({
-		where: { reportToken },
+		where: { accessToken },
 		include: {
 			briefs: true,
 			crawledPages: true,
@@ -141,13 +156,12 @@ export function getStaleProcessingAudits(staleMinutes = 30) {
 }
 
 /**
- * Get audits that need report email sent (completed with token but email not sent).
+ * Get audits that need report email sent (completed but email not sent).
  */
 export function getAuditsMissingReportEmail() {
 	return db.audit.findMany({
 		where: {
 			status: "COMPLETED",
-			reportToken: { not: null },
 			reportEmailSentAt: null,
 		},
 		include: {

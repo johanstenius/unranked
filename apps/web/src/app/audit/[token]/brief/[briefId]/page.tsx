@@ -19,7 +19,7 @@ type BriefStructure = {
 
 export default function BriefPage() {
 	const params = useParams();
-	const auditId = params.id as string;
+	const auditToken = params.token as string;
 	const briefId = params.briefId as string;
 
 	const [brief, setBrief] = useState<Brief | null>(null);
@@ -104,7 +104,7 @@ ${brief.relatedKw?.join(", ") || ""}
 						{error || "Brief not found"}
 					</div>
 					<Link
-						href={`/audit/${auditId}`}
+						href={`/audit/${auditToken}`}
 						className="text-text-secondary hover:text-text-primary transition-colors"
 					>
 						← Back to audit
@@ -138,7 +138,7 @@ ${brief.relatedKw?.join(", ") || ""}
 					<div className="flex items-center gap-4">
 						<ThemeToggle />
 						<Link
-							href={`/audit/${auditId}`}
+							href={`/audit/${auditToken}`}
 							className="text-sm text-text-secondary hover:text-text-primary transition-colors"
 						>
 							← Back to Report
@@ -416,7 +416,7 @@ ${brief.relatedKw?.join(", ") || ""}
 					{/* CTA */}
 					<div className="flex gap-4 pt-6 border-t border-border">
 						<Link
-							href={`/audit/${auditId}`}
+							href={`/audit/${auditToken}`}
 							className="flex-1 h-11 bg-surface border border-border-active text-sm font-medium text-text-primary rounded flex items-center justify-center hover:border-border-focus hover:bg-subtle transition-colors"
 						>
 							← Back to Report

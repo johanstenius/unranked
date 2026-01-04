@@ -55,7 +55,7 @@ const TAB_LABELS: Record<TabType, string> = {
 function AuditContent() {
 	const params = useParams();
 	const searchParams = useSearchParams();
-	const id = params.id as string;
+	const token = params.token as string;
 	const success = searchParams.get("success") === "true";
 
 	const [audit, setAudit] = useState<Audit | null>(null);
@@ -82,10 +82,10 @@ function AuditContent() {
 	}, [audit, analysis, briefs]);
 
 	const handleResendEmail = useCallback(async () => {
-		if (!audit) return;
+		if (!token) return;
 		setEmailResending(true);
 		try {
-			await resendReportEmail(audit.id);
+			await resendReportEmail(token);
 			setEmailResent(true);
 			setTimeout(() => setEmailResent(false), 3000);
 		} catch (err) {
@@ -93,20 +93,20 @@ function AuditContent() {
 		} finally {
 			setEmailResending(false);
 		}
-	}, [audit]);
+	}, [token]);
 
 	useEffect(() => {
 		let interval: NodeJS.Timeout | null = null;
 
 		async function fetchData() {
 			try {
-				const auditData = await getAudit(id);
+				const auditData = await getAudit(token);
 				setAudit(auditData);
 
 				if (auditData.status === "COMPLETED") {
 					const [briefsData, analysisData] = await Promise.all([
-						getAuditBriefs(id),
-						getAuditAnalysis(id),
+						getAuditBriefs(token),
+						getAuditAnalysis(token),
 					]);
 					setBriefs(briefsData);
 					setAnalysis(analysisData);
@@ -129,7 +129,7 @@ function AuditContent() {
 		return () => {
 			if (interval) clearInterval(interval);
 		};
-	}, [id]);
+	}, [token]);
 
 	if (loading) {
 		return <LoadingScreen message="Loading audit..." />;
@@ -268,7 +268,7 @@ function AuditContent() {
 							)}
 
 							{isFreeTier && (
-								<UpgradeBanner auditId={audit.id} analysis={analysis} />
+								<UpgradeBanner auditToken={token} analysis={analysis} />
 							)}
 
 							{isFreeTier ? (
@@ -387,7 +387,7 @@ function AuditContent() {
 										<TechnicalTab analysis={analysis} />
 									)}
 									{activeTab === "briefs" && (
-										<BriefsTab briefs={briefs} auditId={id} />
+										<BriefsTab briefs={briefs} auditToken={token} />
 									)}
 								</div>
 

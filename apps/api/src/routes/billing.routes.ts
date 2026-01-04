@@ -71,7 +71,7 @@ const createCheckoutRoute = createRoute({
 				"application/json": {
 					schema: z.object({
 						checkoutUrl: z.string().nullable(),
-						auditId: z.string(),
+						accessToken: z.string(),
 					}),
 				},
 			},
@@ -132,7 +132,7 @@ billingRoutes.openapi(createCheckoutRoute, async (c) => {
 	if (body.tier === "FREE") {
 		const queue = await getQueue();
 		await queueCrawlJob(queue, audit.id);
-		return c.json({ checkoutUrl: null, auditId: audit.id }, 200);
+		return c.json({ checkoutUrl: null, accessToken: audit.accessToken }, 200);
 	}
 
 	// Paid tier: create checkout
@@ -143,7 +143,7 @@ billingRoutes.openapi(createCheckoutRoute, async (c) => {
 		email: audit.email,
 	});
 
-	return c.json({ checkoutUrl: url, auditId: audit.id }, 200);
+	return c.json({ checkoutUrl: url, accessToken: audit.accessToken }, 200);
 });
 
 // Webhook handler
@@ -228,7 +228,7 @@ const devStartAuditRoute = createRoute({
 		200: {
 			content: {
 				"application/json": {
-					schema: z.object({ auditId: z.string() }),
+					schema: z.object({ accessToken: z.string() }),
 				},
 			},
 			description: "Audit created and started",
@@ -251,16 +251,16 @@ billingRoutes.openapi(devStartAuditRoute, async (c) => {
 	const queue = await getQueue();
 	await queueCrawlJob(queue, audit.id);
 
-	return c.json({ auditId: audit.id }, 200);
+	return c.json({ accessToken: audit.accessToken }, 200);
 });
 
 // Upgrade endpoint
 const upgradeRoute = createRoute({
 	method: "post",
-	path: "/audits/{auditId}/upgrade",
+	path: "/audits/{token}/upgrade",
 	request: {
 		params: z.object({
-			auditId: z.string(),
+			token: z.string(),
 		}),
 		body: {
 			content: {
@@ -297,18 +297,22 @@ const upgradeRoute = createRoute({
 					schema: z.object({ error: z.string() }),
 				},
 			},
-			description: "Audit not found",
+			description: "Audit not found or expired",
 		},
 	},
 });
 
 billingRoutes.openapi(upgradeRoute, async (c) => {
-	const { auditId } = c.req.valid("param");
+	const { token } = c.req.valid("param");
 	const { toTier } = c.req.valid("json");
 
-	const audit = await auditRepo.getAuditById(auditId);
+	const audit = await auditRepo.getAuditByAccessToken(token);
 	if (!audit) {
 		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
 	}
 
 	if (!isValidUpgrade(audit.tier, toTier)) {

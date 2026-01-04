@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { SendPigeon } from "sendpigeon";
 import { env } from "../config/env.js";
 import { createLogger } from "../lib/logger.js";
@@ -14,8 +13,6 @@ import {
 
 const log = createLogger("email");
 
-const REPORT_TOKEN_EXPIRY_DAYS = 30;
-
 function getClient(): SendPigeon {
 	const apiKey = process.env.SENDPIGEON_API_KEY;
 	if (!apiKey) {
@@ -24,20 +21,10 @@ function getClient(): SendPigeon {
 	return new SendPigeon(apiKey);
 }
 
-export function generateReportToken(): string {
-	return randomBytes(32).toString("hex");
-}
-
-export function getReportTokenExpiry(): Date {
-	const expiry = new Date();
-	expiry.setDate(expiry.getDate() + REPORT_TOKEN_EXPIRY_DAYS);
-	return expiry;
-}
-
 export type SendReportEmailInput = {
 	to: string;
 	siteUrl: string;
-	reportToken: string;
+	accessToken: string;
 	healthScore?: number;
 	healthGrade?: string;
 	opportunitiesCount: number;
@@ -54,7 +41,7 @@ export async function sendReportReadyEmail(
 		throw new Error("SENDPIGEON_FROM_EMAIL not configured");
 	}
 
-	const reportUrl = `${env.FRONTEND_URL}/report/${input.reportToken}`;
+	const reportUrl = `${env.FRONTEND_URL}/audit/${input.accessToken}`;
 	const hostname = new URL(input.siteUrl).hostname;
 
 	const html = buildReportEmailHtml({

@@ -33,11 +33,7 @@ import {
 	markComponentRunning,
 } from "../types/audit-progress.js";
 import type { StoredAnalysisData } from "../types/stored-analysis.js";
-import {
-	generateReportToken,
-	getReportTokenExpiry,
-	sendReportReadyEmail,
-} from "./email.service.js";
+import { sendReportReadyEmail } from "./email.service.js";
 import {
 	runBriefs,
 	runCompetitorDiscovery,
@@ -206,20 +202,16 @@ export async function runPendingComponents(
 }
 
 /**
- * Complete an audit - generate token, update status, send email.
+ * Complete an audit - update status, send email.
  * Called when all components are done.
+ * Token is already generated at audit creation.
  */
 export async function completeAudit(auditId: string): Promise<void> {
 	const completeLog = createLogger("complete", { auditId });
 
-	const reportToken = generateReportToken();
-	const reportTokenExpiresAt = getReportTokenExpiry();
-
 	await auditRepo.updateAudit(auditId, {
 		status: "COMPLETED",
 		completedAt: new Date(),
-		reportToken,
-		reportTokenExpiresAt,
 		retryAfter: null,
 	});
 
@@ -240,7 +232,7 @@ export async function completeAudit(auditId: string): Promise<void> {
 			await sendReportReadyEmail({
 				to: audit.email,
 				siteUrl: audit.siteUrl,
-				reportToken,
+				accessToken: audit.accessToken,
 				healthScore: healthScore?.score,
 				healthGrade: healthScore?.grade,
 				opportunitiesCount,
