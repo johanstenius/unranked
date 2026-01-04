@@ -15,8 +15,16 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getRuleInfo } from "@/lib/rule-catalog";
 import type { Analysis } from "@/lib/types";
 import { stripOrigin } from "@/lib/utils";
+import { Info } from "lucide-react";
 
 type TechnicalTabProps = {
 	analysis: Analysis;
@@ -36,38 +44,72 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 					{analysis.technicalIssues.length === 0 ? (
 						<p className="text-muted-foreground">No technical issues found</p>
 					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Page</TableHead>
-									<TableHead>Issue</TableHead>
-									<TableHead>Severity</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{analysis.technicalIssues.map((issue) => (
-									<TableRow key={`${issue.url}-${issue.issue}`}>
-										<TableCell className="text-muted-foreground text-xs truncate max-w-[200px]">
-											{stripOrigin(issue.url)}
-										</TableCell>
-										<TableCell>{issue.issue}</TableCell>
-										<TableCell>
-											<span
-												className={
-													issue.severity === "high"
-														? "text-status-crit"
-														: issue.severity === "medium"
-															? "text-status-warn"
-															: "text-muted-foreground"
-												}
-											>
-												{issue.severity}
-											</span>
-										</TableCell>
+						<TooltipProvider>
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>Page</TableHead>
+										<TableHead>Issue</TableHead>
+										<TableHead>Severity</TableHead>
 									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+								</TableHeader>
+								<TableBody>
+									{analysis.technicalIssues.map((issue) => {
+										const ruleInfo = getRuleInfo(issue.issue);
+										return (
+											<TableRow key={`${issue.url}-${issue.issue}`}>
+												<TableCell className="text-muted-foreground text-xs truncate max-w-[200px]">
+													{stripOrigin(issue.url)}
+												</TableCell>
+												<TableCell>
+													<span className="inline-flex items-center gap-1.5">
+														{issue.issue}
+														{ruleInfo && (
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help shrink-0" />
+																</TooltipTrigger>
+																<TooltipContent
+																	side="top"
+																	className="max-w-[280px]"
+																>
+																	<p className="text-sm">
+																		{ruleInfo.description}
+																	</p>
+																	{ruleInfo.source && (
+																		<a
+																			href={ruleInfo.source.url}
+																			target="_blank"
+																			rel="noopener noreferrer"
+																			className="text-xs text-primary hover:underline mt-1.5 block"
+																		>
+																			Source: {ruleInfo.source.label} ↗
+																		</a>
+																	)}
+																</TooltipContent>
+															</Tooltip>
+														)}
+													</span>
+												</TableCell>
+												<TableCell>
+													<span
+														className={
+															issue.severity === "high"
+																? "text-status-crit"
+																: issue.severity === "medium"
+																	? "text-status-warn"
+																	: "text-muted-foreground"
+														}
+													>
+														{issue.severity}
+													</span>
+												</TableCell>
+											</TableRow>
+										);
+									})}
+								</TableBody>
+							</Table>
+						</TooltipProvider>
 					)}
 				</CardContent>
 			</Card>
