@@ -110,7 +110,7 @@ function CheckForm() {
 								htmlFor="email"
 								className="block text-sm font-medium text-foreground mb-2"
 							>
-								Your email
+								Where should we send your report?
 							</label>
 							<Input
 								id="email"
@@ -122,7 +122,7 @@ function CheckForm() {
 								className="h-12"
 							/>
 							<p className="text-xs text-muted-foreground mt-1">
-								Results ready in seconds.
+								We&apos;ll save your results and send a summary.
 							</p>
 						</SlideUp>
 
