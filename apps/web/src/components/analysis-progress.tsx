@@ -112,8 +112,8 @@ function getStatusIndex(status: AuditStatus, steps: StatusStep[]): number {
 function ActivityPulse() {
 	return (
 		<div className="relative flex items-center justify-center w-3 h-3">
-			<span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
-			<span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+			<span className="absolute inline-flex h-full w-full rounded-full bg-status-good opacity-75 animate-ping" />
+			<span className="relative inline-flex rounded-full h-2 w-2 bg-status-good" />
 		</div>
 	);
 }
@@ -143,21 +143,12 @@ function LiveCounter({ value, label }: { value: number; label: string }) {
 	}, [value]);
 
 	return (
-		<motion.div
-			initial={{ opacity: 0, scale: 0.9 }}
-			animate={{ opacity: 1, scale: 1 }}
-			className="bg-subtle/50 border border-border/50 rounded-lg p-4 text-center backdrop-blur-sm"
-		>
-			<motion.p
-				key={displayValue}
-				initial={{ y: 10, opacity: 0 }}
-				animate={{ y: 0, opacity: 1 }}
-				className="text-3xl font-bold text-text-primary font-mono tabular-nums"
-			>
+		<div className="bg-subtle border border-border rounded-lg p-4 text-center">
+			<p className="text-3xl font-bold text-text-primary font-mono tabular-nums">
 				{displayValue}
-			</motion.p>
+			</p>
 			<p className="text-xs text-text-tertiary mt-1">{label}</p>
-		</motion.div>
+		</div>
 	);
 }
 
@@ -178,7 +169,7 @@ function SitemapDiscoveryInfo({
 				className="mt-2 flex items-center gap-2"
 			>
 				<motion.div
-					className="w-1.5 h-1.5 rounded-full bg-emerald-500/60"
+					className="w-1.5 h-1.5 rounded-full bg-status-good/60"
 					animate={{ opacity: [0.4, 1, 0.4] }}
 					transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
 				/>
@@ -197,7 +188,7 @@ function SitemapDiscoveryInfo({
 				className="mt-2 space-y-1"
 			>
 				<div className="flex items-center gap-2">
-					<span className="text-xs text-amber-500/80">○</span>
+					<span className="text-xs text-status-warn/80">○</span>
 					<span className="text-xs text-text-tertiary">
 						No sitemap found, discovering pages...
 					</span>
@@ -222,7 +213,7 @@ function SitemapDiscoveryInfo({
 					initial={{ scale: 0 }}
 					animate={{ scale: 1 }}
 					transition={{ type: "spring", stiffness: 500, damping: 25 }}
-					className="text-xs text-emerald-500"
+					className="text-xs text-status-good"
 				>
 					✓
 				</motion.span>
@@ -233,7 +224,7 @@ function SitemapDiscoveryInfo({
 					className="text-xs text-text-secondary"
 				>
 					Found{" "}
-					<span className="font-mono text-emerald-500 font-medium">
+					<span className="font-mono text-status-good font-medium">
 						{sitemapUrlCount.toLocaleString()}
 					</span>{" "}
 					pages in sitemap
@@ -294,24 +285,16 @@ function ProgressStep({
 			transition={{ delay: index * 0.1, duration: 0.4 }}
 			className={`flex items-start gap-4 p-4 rounded-lg transition-all duration-500 ${
 				isCurrent
-					? "bg-emerald-500/5 border border-emerald-500/20"
+					? "bg-status-good-bg border border-status-good/30"
 					: "bg-transparent border border-transparent"
 			}`}
 		>
 			{/* Status indicator */}
 			<div className="flex-shrink-0 mt-0.5">
 				{isComplete ? (
-					<motion.div
-						initial={{ scale: 0 }}
-						animate={{ scale: 1 }}
-						transition={{ type: "spring", stiffness: 400, damping: 15 }}
-						className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center"
-					>
-						<motion.svg
-							initial={{ pathLength: 0 }}
-							animate={{ pathLength: 1 }}
-							transition={{ duration: 0.3, delay: 0.1 }}
-							className="w-3.5 h-3.5 text-emerald-500"
+					<div className="w-6 h-6 rounded-full bg-status-good/10 border border-status-good/30 flex items-center justify-center">
+						<svg
+							className="w-3.5 h-3.5 text-status-good"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -320,11 +303,11 @@ function ProgressStep({
 							strokeLinejoin="round"
 							aria-hidden="true"
 						>
-							<motion.path d="M5 13l4 4L19 7" />
-						</motion.svg>
-					</motion.div>
+							<path d="M5 13l4 4L19 7" />
+						</svg>
+					</div>
 				) : isCurrent ? (
-					<div className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+					<div className="w-6 h-6 rounded-full bg-status-good/10 border border-status-good/30 flex items-center justify-center">
 						<ActivityPulse />
 					</div>
 				) : (
@@ -348,7 +331,7 @@ function ProgressStep({
 						<motion.span
 							initial={{ opacity: 0, x: -10 }}
 							animate={{ opacity: 1, x: 0 }}
-							className="text-sm text-emerald-500 font-mono"
+							className="text-sm text-status-good font-mono"
 						>
 							{detail}
 						</motion.span>
@@ -380,7 +363,7 @@ function ProgressStep({
 					className="flex-shrink-0"
 				>
 					<svg
-						className="w-5 h-5 text-emerald-500 animate-spin"
+						className="w-5 h-5 text-status-good animate-spin"
 						viewBox="0 0 24 24"
 						fill="none"
 						aria-hidden="true"
@@ -427,47 +410,13 @@ function ElapsedTime({ startTime }: { startTime: Date }) {
 	);
 }
 
-const WAVEFORM_BARS = [
-	{ id: "bar-a", delay: 0 },
-	{ id: "bar-b", delay: 0.1 },
-	{ id: "bar-c", delay: 0.2 },
-	{ id: "bar-d", delay: 0.3 },
-	{ id: "bar-e", delay: 0.4 },
-];
-
-function WaveformIndicator() {
-	return (
-		<div className="flex items-center gap-0.5 h-4">
-			{WAVEFORM_BARS.map((bar) => (
-				<motion.div
-					key={bar.id}
-					className="w-1 bg-emerald-500/60 rounded-full"
-					animate={{
-						height: ["8px", "16px", "8px"],
-					}}
-					transition={{
-						duration: 0.8,
-						repeat: Number.POSITIVE_INFINITY,
-						delay: bar.delay,
-						ease: "easeInOut",
-					}}
-				/>
-			))}
-		</div>
-	);
-}
-
 function ComponentStatusIcon({ status }: { status: ComponentStatus }) {
 	switch (status) {
 		case "completed":
 			return (
-				<motion.div
-					initial={{ scale: 0 }}
-					animate={{ scale: 1 }}
-					className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center"
-				>
+				<div className="w-5 h-5 rounded-full bg-status-good/15 border border-status-good/30 flex items-center justify-center">
 					<svg
-						className="w-3 h-3 text-emerald-500"
+						className="w-3 h-3 text-status-good"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -477,13 +426,13 @@ function ComponentStatusIcon({ status }: { status: ComponentStatus }) {
 					>
 						<path d="M5 13l4 4L19 7" />
 					</svg>
-				</motion.div>
+				</div>
 			);
 		case "retrying":
 			return (
-				<div className="w-5 h-5 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+				<div className="w-5 h-5 rounded-full bg-status-warn/15 border border-status-warn/30 flex items-center justify-center">
 					<motion.svg
-						className="w-3 h-3 text-amber-500"
+						className="w-3 h-3 text-status-warn"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -506,9 +455,9 @@ function ComponentStatusIcon({ status }: { status: ComponentStatus }) {
 			);
 		case "running":
 			return (
-				<div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+				<div className="w-5 h-5 rounded-full bg-status-good/15 border border-status-good/30 flex items-center justify-center">
 					<motion.div
-						className="w-2 h-2 rounded-full bg-emerald-500"
+						className="w-2 h-2 rounded-full bg-status-good"
 						animate={{ opacity: [0.4, 1, 0.4] }}
 						transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY }}
 					/>
@@ -516,9 +465,9 @@ function ComponentStatusIcon({ status }: { status: ComponentStatus }) {
 			);
 		case "failed":
 			return (
-				<div className="w-5 h-5 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+				<div className="w-5 h-5 rounded-full bg-status-crit/15 border border-status-crit/30 flex items-center justify-center">
 					<svg
-						className="w-3 h-3 text-red-500"
+						className="w-3 h-3 text-status-crit"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -563,9 +512,9 @@ function ComponentProgressItem({
 			transition={{ delay: index * 0.03 }}
 			className={`flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
 				status === "retrying"
-					? "bg-amber-500/5 border border-amber-500/10"
+					? "bg-status-warn-bg border border-status-warn/20"
 					: status === "running"
-						? "bg-emerald-500/5 border border-emerald-500/10"
+						? "bg-status-good-bg border border-status-good/20"
 						: "border border-transparent"
 			}`}
 		>
@@ -576,7 +525,7 @@ function ComponentProgressItem({
 						status === "pending"
 							? "text-text-tertiary"
 							: status === "failed"
-								? "text-red-400"
+								? "text-status-crit"
 								: "text-text-primary"
 					}`}
 				>
@@ -586,13 +535,13 @@ function ComponentProgressItem({
 			<span
 				className={`text-xs font-medium ${
 					status === "completed"
-						? "text-emerald-500"
+						? "text-status-good"
 						: status === "retrying"
-							? "text-amber-500"
+							? "text-status-warn"
 							: status === "running"
-								? "text-emerald-400"
+								? "text-status-good"
 								: status === "failed"
-									? "text-red-400"
+									? "text-status-crit"
 									: "text-text-tertiary"
 				}`}
 			>
@@ -619,7 +568,7 @@ function ComponentProgressView({ progress }: { progress: AuditProgress }) {
 					{completedCount} of {PROGRESS_COMPONENTS.length} complete
 				</span>
 				{retryingCount > 0 && (
-					<span className="text-amber-500 flex items-center gap-1.5">
+					<span className="text-status-warn flex items-center gap-1.5">
 						<motion.span
 							animate={{ opacity: [0.5, 1, 0.5] }}
 							transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
@@ -634,7 +583,7 @@ function ComponentProgressView({ progress }: { progress: AuditProgress }) {
 			{/* Progress bar */}
 			<div className="h-1.5 bg-subtle rounded-full overflow-hidden">
 				<motion.div
-					className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full"
+					className="h-full bg-status-good rounded-full"
 					initial={{ width: 0 }}
 					animate={{ width: `${progressPercent}%` }}
 					transition={{ duration: 0.5 }}
@@ -675,25 +624,29 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				className="text-center mb-10"
 			>
 				<div
-					className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-4 ${
+					className={`inline-flex items-center gap-2 px-3 py-1.5 rounded mb-4 ${
 						isRetrying
-							? "bg-amber-500/10 border border-amber-500/20"
-							: "bg-emerald-500/10 border border-emerald-500/20"
+							? "bg-status-warn-bg border border-status-warn"
+							: "bg-status-good-bg border border-status-good"
 					}`}
 				>
 					{isRetrying ? (
 						<motion.div
-							className="w-2 h-2 rounded-full bg-amber-500"
+							className="w-1.5 h-1.5 rounded-full bg-status-warn"
 							animate={{ opacity: [0.5, 1, 0.5] }}
 							transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
 						/>
 					) : (
-						<ActivityPulse />
+						<motion.div
+							className="w-1.5 h-1.5 rounded-full bg-status-good"
+							animate={{ opacity: [0.5, 1, 0.5] }}
+							transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY }}
+						/>
 					)}
 					<span
-						className={`text-sm font-medium ${isRetrying ? "text-amber-500" : "text-emerald-500"}`}
+						className={`text-2xs font-semibold uppercase tracking-wider ${isRetrying ? "text-status-warn" : "text-status-good"}`}
 					>
-						{isRetrying ? "Retrying..." : "Analysis in progress"}
+						{isRetrying ? "Retrying" : "In Progress"}
 					</span>
 				</div>
 				<h1 className="font-display text-3xl font-semibold text-text-primary mb-2">
@@ -711,9 +664,9 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				<motion.div
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
-					className="mb-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg"
+					className="mb-6 p-4 bg-status-warn-bg border border-status-warn rounded-lg"
 				>
-					<p className="text-sm text-amber-600 dark:text-amber-400">
+					<p className="text-sm text-status-warn">
 						Some components are taking longer than expected. We&apos;re
 						automatically retrying
 						{!isFreeTier && " and will email you when complete"}.
@@ -732,8 +685,8 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				<div
 					className={`absolute inset-0 bg-gradient-to-b ${
 						isRetrying
-							? "from-amber-500/[0.02] to-transparent"
-							: "from-emerald-500/[0.02] to-transparent"
+							? "from-status-warn/[0.02] to-transparent"
+							: "from-status-good/[0.02] to-transparent"
 					}`}
 				/>
 
@@ -741,20 +694,10 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				{!isRetrying && (
 					<div className="relative h-1 bg-subtle">
 						<motion.div
-							className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 to-emerald-400"
+							className="absolute inset-y-0 left-0 bg-status-good"
 							initial={{ width: 0 }}
 							animate={{ width: `${progressPercent}%` }}
 							transition={{ duration: 0.8, ease: "easeOut" }}
-						/>
-						<motion.div
-							className="absolute inset-y-0 bg-gradient-to-r from-emerald-400/0 via-emerald-300/50 to-emerald-400/0"
-							style={{ width: "30%" }}
-							animate={{ left: ["0%", "100%"] }}
-							transition={{
-								duration: 1.5,
-								repeat: Number.POSITIVE_INFINITY,
-								ease: "linear",
-							}}
 						/>
 					</div>
 				)}
@@ -792,7 +735,7 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 									}}
 								>
 									<svg
-										className="w-4 h-4 text-amber-500"
+										className="w-4 h-4 text-status-warn"
 										viewBox="0 0 24 24"
 										fill="none"
 										stroke="currentColor"
@@ -803,11 +746,18 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 										<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
 										<path d="M3 3v5h5" />
 									</svg>
-									<span className="text-amber-500">Auto-retrying</span>
+									<span className="text-status-warn">Auto-retrying</span>
 								</motion.div>
 							) : (
 								<>
-									<WaveformIndicator />
+									<motion.div
+										className="w-2 h-2 rounded-full bg-status-good"
+										animate={{ opacity: [0.4, 1, 0.4] }}
+										transition={{
+											duration: 1.5,
+											repeat: Number.POSITIVE_INFINITY,
+										}}
+									/>
 									<span className="text-text-secondary">Processing...</span>
 								</>
 							)}
