@@ -24,7 +24,10 @@ async function main() {
 
 	// Graceful shutdown
 	async function shutdown(signal: string) {
-		log.info({ signal }, "Shutdown signal received");
+		log.info(
+			{ signal, uptime: process.uptime(), timestamp: new Date().toISOString() },
+			"Shutdown signal received",
+		);
 		server.close();
 		await stopQueue();
 		log.info("Graceful shutdown complete");
@@ -33,6 +36,13 @@ async function main() {
 
 	process.on("SIGTERM", () => shutdown("SIGTERM"));
 	process.on("SIGINT", () => shutdown("SIGINT"));
+	process.on("uncaughtException", (err) => {
+		log.error({ err }, "Uncaught exception");
+		process.exit(1);
+	});
+	process.on("unhandledRejection", (reason) => {
+		log.error({ reason }, "Unhandled rejection");
+	});
 }
 
 main().catch((error) => {
