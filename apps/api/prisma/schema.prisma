@@ -34,14 +34,15 @@ model Audit {
   // API usage tracking
   apiUsage Json? // ApiUsage object for cost monitoring
 
-  stripeSessionId       String?   @unique
-  tier                  AuditTier
-  reportToken           String?   @unique
-  reportTokenExpiresAt  DateTime?
-  reportEmailSentAt     DateTime?  // When report email was successfully sent
+  stripeSessionId  String?   @unique
+  tier             AuditTier
+  accessToken      String    @unique
+  expiresAt        DateTime
+  reportEmailSentAt DateTime? // When report email was successfully sent
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?  // When processing actually began
   completedAt DateTime?
 
   briefs       Brief[]

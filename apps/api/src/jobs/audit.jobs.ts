@@ -90,6 +90,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				await auditRepo.updateAudit(auditId, {
 					status: "CRAWLING",
 					progress,
+					startedAt: new Date(),
 				});
 
 				// ============================================================

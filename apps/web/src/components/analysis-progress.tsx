@@ -661,7 +661,9 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 	const steps = getStatusSteps(audit.tier);
 	const statusIndex = getStatusIndex(audit.status, steps);
 	const progressPercent = ((statusIndex + 0.5) / steps.length) * 100;
-	const [startTime] = useState(() => new Date(audit.createdAt));
+	const [startTime] = useState(
+		() => new Date(audit.startedAt ?? audit.createdAt),
+	);
 	const isRetrying = audit.status === "RETRYING";
 
 	return (

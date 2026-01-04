@@ -65,6 +65,7 @@ export type Audit = {
 	progress: AuditProgress | null;
 	retryAfter: string | null;
 	createdAt: string;
+	startedAt: string | null;
 	completedAt: string | null;
 };
 

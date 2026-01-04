@@ -26,6 +26,7 @@ export type UpdateAuditInput = {
 	apiUsage?: Prisma.InputJsonValue;
 	retryAfter?: Date | null;
 	delayEmailSentAt?: Date | null;
+	startedAt?: Date;
 	completedAt?: Date;
 	reportToken?: string;
 	reportTokenExpiresAt?: Date;
