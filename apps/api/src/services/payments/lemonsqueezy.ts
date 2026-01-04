@@ -42,6 +42,7 @@ type LemonSqueezyCheckoutResponse = {
 async function createLemonSqueezyCheckout(
 	variantId: string,
 	customData: Record<string, string>,
+	email: string,
 	customPrice?: number,
 ): Promise<string> {
 	const successUrl = `${env.FRONTEND_URL}/audit/${customData.audit_id}`;
@@ -58,6 +59,7 @@ async function createLemonSqueezyCheckout(
 				type: "checkouts",
 				attributes: {
 					checkout_data: {
+						email,
 						custom: customData,
 					},
 					product_options: {
@@ -119,10 +121,11 @@ export const lemonSqueezyProvider: BillingProvider = {
 			throw new Error("Cannot create checkout for FREE tier");
 		}
 		const variantId = getVariantIdForTier(input.tier);
-		const url = await createLemonSqueezyCheckout(variantId, {
-			audit_id: input.auditId,
-			tier: input.tier,
-		});
+		const url = await createLemonSqueezyCheckout(
+			variantId,
+			{ audit_id: input.auditId, tier: input.tier },
+			input.email,
+		);
 		return { url };
 	},
 
@@ -139,6 +142,7 @@ export const lemonSqueezyProvider: BillingProvider = {
 				tier: input.toTier,
 				upgrade_from: input.fromTier,
 			},
+			input.email,
 			upgradePrice,
 		);
 		return { url };
