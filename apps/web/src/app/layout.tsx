@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { JsonLd } from "@/components/json-ld";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -65,6 +66,7 @@ export default function RootLayout({
 			</head>
 			<body className="antialiased">
 				<ThemeProvider>{children}</ThemeProvider>
+				<Analytics />
 			</body>
 		</html>
 	);
