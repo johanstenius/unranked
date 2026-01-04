@@ -20,13 +20,13 @@ export const tierInfo: Record<AuditTier, TierInfo> = {
 	FREE: {
 		name: "Free",
 		price: 0,
-		pages: 25,
+		pages: 50,
 		opportunities: 0,
 		briefs: 0,
 		competitors: 0,
 		pdfExport: false,
 		features: [
-			"25 pages crawled",
+			"50 pages crawled",
 			"Technical SEO audit",
 			"Internal linking audit",
 			"Content quality checks",
