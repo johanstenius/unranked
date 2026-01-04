@@ -25,6 +25,7 @@ export type AuditProgress = {
 	internalLinking: ComponentStatus;
 	duplicateContent: ComponentStatus;
 	redirectChains: ComponentStatus;
+	coreWebVitals: ComponentStatus;
 	currentRankings: ComponentStatus;
 	competitorAnalysis: ComponentStatus;
 	keywordOpportunities: ComponentStatus;
@@ -320,3 +321,62 @@ export type DiscoverResponse = {
 	sections: SectionInfo[];
 	totalUrls: number;
 };
+
+// Core Web Vitals types
+export type CWVPageResult = {
+	url: string;
+	lcp: number | null;
+	cls: number | null;
+	inp: number | null;
+	performance: number | null;
+	status: "success" | "failed";
+	error?: string;
+};
+
+export type CoreWebVitalsData = {
+	pages: CWVPageResult[];
+	summary: {
+		good: number;
+		needsImprovement: number;
+		poor: number;
+		avgPerformance: number | null;
+	};
+};
+
+// SSE Audit Progress Events
+export type ComponentKey = keyof Omit<
+	AuditProgress,
+	"lastRetryAt" | "retryCount"
+>;
+
+export type AuditSSEEventStatus = { type: "status"; status: AuditStatus };
+export type AuditSSEEventComponent = {
+	type: "component";
+	key: ComponentKey;
+	status: "running" | "completed" | "failed";
+	error?: string;
+};
+export type AuditSSEEventCWV = { type: "cwv"; page: CWVPageResult };
+export type AuditSSEEventCWVComplete = {
+	type: "cwv-complete";
+	data: CoreWebVitalsData;
+};
+export type AuditSSEEventHealth = { type: "health"; score: HealthScore };
+export type AuditSSEEventComplete = { type: "complete" };
+export type AuditSSEEventError = { type: "error"; message: string };
+export type AuditSSEEventHeartbeat = { type: "heartbeat"; timestamp: number };
+export type AuditSSEEventProgress = {
+	type: "progress";
+	progress: AuditProgress;
+};
+
+export type AuditSSEEvent =
+	| AuditSSEEventStatus
+	| AuditSSEEventComponent
+	| AuditSSEEventCWV
+	| AuditSSEEventCWVComplete
+	| AuditSSEEventHealth
+	| AuditSSEEventComplete
+	| AuditSSEEventError
+	| AuditSSEEventHeartbeat
+	| AuditSSEEventProgress;

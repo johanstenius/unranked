@@ -115,6 +115,7 @@ export async function runPipeline(
 	if (results.technicalIssues) completedSet.add("technicalIssues");
 	if (results.internalLinkingIssues) completedSet.add("internalLinking");
 	if (results.duplicateGroups) completedSet.add("duplicateContent");
+	if (results.coreWebVitals) completedSet.add("coreWebVitals");
 	if (results.currentRankings) completedSet.add("currentRankings");
 	if (results.opportunities) {
 		completedSet.add("keywordOpportunities");
@@ -211,6 +212,7 @@ export async function runExternalComponents(
 	existingResults: ComponentResults,
 	existingUsage?: ApiUsage,
 ): Promise<PipelineResult> {
+	// Note: coreWebVitals is run separately in audit.jobs.ts with SSE streaming
 	const externalComponents: ComponentKey[] = [
 		"currentRankings",
 		"keywordOpportunities",

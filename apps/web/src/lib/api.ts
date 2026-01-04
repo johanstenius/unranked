@@ -1,6 +1,7 @@
 import type {
 	Analysis,
 	Audit,
+	AuditSSEEvent,
 	Brief,
 	CheckoutResponse,
 	CreateAuditInput,
@@ -127,14 +128,6 @@ export async function devStartAudit(
 	});
 }
 
-export async function resendReportEmail(
-	token: string,
-): Promise<{ success: boolean }> {
-	return fetchApi<{ success: boolean }>(`/audits/${token}/resend-email`, {
-		method: "POST",
-	});
-}
-
 export async function createUpgradeCheckout(
 	token: string,
 	toTier: "SCAN" | "AUDIT" | "DEEP_DIVE",
@@ -143,4 +136,52 @@ export async function createUpgradeCheckout(
 		method: "POST",
 		body: JSON.stringify({ toTier }),
 	});
+}
+
+/**
+ * Subscribe to audit progress via SSE.
+ * Returns an EventSource and unsubscribe function.
+ */
+export function subscribeToAudit(
+	token: string,
+	onEvent: (event: AuditSSEEvent) => void,
+	onError?: (error: Error) => void,
+): { close: () => void } {
+	const eventSource = new EventSource(`${API_URL}/audits/${token}/stream`);
+
+	function handleMessage(e: MessageEvent) {
+		try {
+			const event = JSON.parse(e.data) as AuditSSEEvent;
+			onEvent(event);
+		} catch {
+			// Skip invalid JSON
+		}
+	}
+
+	// Listen to all event types we care about
+	eventSource.addEventListener("status", handleMessage);
+	eventSource.addEventListener("component", handleMessage);
+	eventSource.addEventListener("cwv", handleMessage);
+	eventSource.addEventListener("cwv-complete", handleMessage);
+	eventSource.addEventListener("health", handleMessage);
+	eventSource.addEventListener("complete", handleMessage);
+	eventSource.addEventListener("error", (e) => {
+		try {
+			const event = JSON.parse((e as MessageEvent).data) as AuditSSEEvent;
+			onEvent(event);
+		} catch {
+			onError?.(new Error("SSE connection error"));
+		}
+	});
+	eventSource.addEventListener("progress", handleMessage);
+
+	eventSource.onerror = () => {
+		onError?.(new Error("SSE connection error"));
+	};
+
+	return {
+		close: () => {
+			eventSource.close();
+		},
+	};
 }

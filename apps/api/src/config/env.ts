@@ -31,6 +31,11 @@ const envSchema = z.object({
 	LEMONSQUEEZY_VARIANT_SCAN: z.string(),
 	LEMONSQUEEZY_VARIANT_AUDIT: z.string(),
 	LEMONSQUEEZY_VARIANT_DEEP_DIVE: z.string(),
+	// Better Auth
+	BETTER_AUTH_SECRET: z.string(),
+	BETTER_AUTH_URL: z.string().url(),
+	// PageSpeed Insights (optional - works without key with lower rate limits)
+	PAGESPEED_API_KEY: z.string().optional(),
 });
 
 type EnvSchema = z.infer<typeof envSchema>;

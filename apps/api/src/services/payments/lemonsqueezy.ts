@@ -25,6 +25,7 @@ const webhookPayloadSchema = z.object({
 			.optional(),
 	}),
 	data: z.object({
+		id: z.string(),
 		attributes: z.object({
 			status: z.string(),
 		}),
@@ -169,11 +170,13 @@ export const lemonSqueezyProvider: BillingProvider = {
 
 		if (meta.event_name === "order_created") {
 			const status = data.attributes.status;
+			const orderId = data.id;
 			if (status === "paid") {
 				return {
 					type: "checkout.completed" as const,
 					auditId: customData.audit_id,
 					tier: customData.tier,
+					orderId,
 				};
 			}
 			if (status === "failed" || status === "refunded") {
@@ -188,3 +191,70 @@ export const lemonSqueezyProvider: BillingProvider = {
 		return null;
 	},
 };
+
+export type RefundResult = {
+	success: boolean;
+	message: string;
+	refundedAmount?: number;
+};
+
+export async function issueRefund(orderId: string): Promise<RefundResult> {
+	try {
+		const response = await fetch(
+			`${LEMONSQUEEZY_API_URL}/orders/${orderId}/refund`,
+			{
+				method: "POST",
+				headers: {
+					Accept: "application/vnd.api+json",
+					"Content-Type": "application/vnd.api+json",
+					Authorization: `Bearer ${env.LEMONSQUEEZY_API_KEY}`,
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			log.error(
+				{ orderId, status: response.status, error: errorText },
+				"Refund failed",
+			);
+			return {
+				success: false,
+				message: `Refund failed: ${response.status} ${errorText}`,
+			};
+		}
+
+		const result = (await response.json()) as {
+			data: {
+				attributes: {
+					refunded: boolean;
+					refunded_amount: number;
+				};
+			};
+		};
+
+		const refunded = result.data.attributes.refunded;
+		const refundedAmount = result.data.attributes.refunded_amount;
+
+		if (refunded) {
+			log.info({ orderId, refundedAmount }, "Refund successful");
+			return {
+				success: true,
+				message: "Refund issued successfully",
+				refundedAmount,
+			};
+		}
+
+		return {
+			success: false,
+			message: "Refund was not processed",
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Unknown error";
+		log.error({ orderId, error: message }, "Refund exception");
+		return {
+			success: false,
+			message: `Refund error: ${message}`,
+		};
+	}
+}

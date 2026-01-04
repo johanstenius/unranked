@@ -3,7 +3,9 @@ import { cors } from "hono/cors";
 import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
+import { adminRoutes } from "./routes/admin.routes.js";
 import { auditRoutes } from "./routes/audit.routes.js";
+import { authRoutes } from "./routes/auth.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
 
 export type AppEnv = {
@@ -27,6 +29,8 @@ export function createApp() {
 		c.json({ status: "ok", timestamp: new Date().toISOString() }),
 	);
 
+	app.route("/", authRoutes);
+	app.route("/", adminRoutes);
 	app.route("/", auditRoutes);
 	app.route("/", billingRoutes);
 

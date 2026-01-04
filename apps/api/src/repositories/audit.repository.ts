@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { AuditStatus, AuditTier, Prisma } from "@prisma/client";
+import { type AuditStatus, type AuditTier, Prisma } from "@prisma/client";
 import { db } from "../lib/db.js";
 
 const ACCESS_TOKEN_EXPIRY_DAYS = 30;
@@ -167,5 +167,114 @@ export function getAuditsMissingReportEmail() {
 		include: {
 			briefs: true,
 		},
+	});
+}
+
+// Admin repository functions
+
+export type ListAuditsFilters = {
+	status?: AuditStatus;
+	tier?: AuditTier;
+	email?: string;
+	dateFrom?: Date;
+	dateTo?: Date;
+};
+
+export type ListAuditsOptions = {
+	page: number;
+	limit: number;
+	filters?: ListAuditsFilters;
+};
+
+function buildAuditWhereClause(
+	filters?: ListAuditsFilters,
+): Prisma.AuditWhereInput {
+	if (!filters) return {};
+
+	const where: Prisma.AuditWhereInput = {};
+
+	if (filters.status) {
+		where.status = filters.status;
+	}
+	if (filters.tier) {
+		where.tier = filters.tier;
+	}
+	if (filters.email) {
+		where.email = { contains: filters.email, mode: "insensitive" };
+	}
+	if (filters.dateFrom || filters.dateTo) {
+		where.createdAt = {};
+		if (filters.dateFrom) {
+			where.createdAt.gte = filters.dateFrom;
+		}
+		if (filters.dateTo) {
+			where.createdAt.lte = filters.dateTo;
+		}
+	}
+
+	return where;
+}
+
+export async function listAudits(options: ListAuditsOptions) {
+	const { page, limit, filters } = options;
+	const skip = (page - 1) * limit;
+	const where = buildAuditWhereClause(filters);
+
+	const [audits, total] = await Promise.all([
+		db.audit.findMany({
+			where,
+			orderBy: { createdAt: "desc" },
+			skip,
+			take: limit,
+			include: {
+				_count: {
+					select: { briefs: true, crawledPages: true },
+				},
+			},
+		}),
+		db.audit.count({ where }),
+	]);
+
+	return {
+		audits,
+		total,
+		page,
+		limit,
+		totalPages: Math.ceil(total / limit),
+	};
+}
+
+export function countAuditsByStatus() {
+	return db.audit.groupBy({
+		by: ["status"],
+		_count: { _all: true },
+	});
+}
+
+export function countAuditsByTier() {
+	return db.audit.groupBy({
+		by: ["tier"],
+		_count: { _all: true },
+	});
+}
+
+export function getAllAuditApiUsage() {
+	return db.audit.findMany({
+		where: {
+			NOT: { apiUsage: { equals: Prisma.DbNull } },
+		},
+		select: {
+			id: true,
+			tier: true,
+			apiUsage: true,
+			createdAt: true,
+		},
+	});
+}
+
+export function updateAuditLsOrderId(id: string, lsOrderId: string) {
+	return db.audit.update({
+		where: { id },
+		data: { lsOrderId },
 	});
 }

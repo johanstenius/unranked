@@ -10,6 +10,12 @@
  */
 
 import type PgBoss from "pg-boss";
+import {
+	emitCWVComplete,
+	emitCWVPage,
+	emitHealth,
+	emitStatus,
+} from "../lib/audit-events.js";
 import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
 import * as crawledPageRepo from "../repositories/crawled-page.repository.js";
@@ -20,6 +26,15 @@ import {
 } from "../services/audit-pipeline.service.js";
 import { crawlDocs } from "../services/crawler/crawler.js";
 import type { RedirectChain } from "../services/crawler/types.js";
+import {
+	selectPagesToAnalyze,
+	streamCWV,
+} from "../services/seo/components/cwv.js";
+import type {
+	CWVPageResult,
+	CoreWebVitalsData,
+	TierConfig,
+} from "../services/seo/components/types.js";
 import { clearSerpCache } from "../services/seo/dataforseo.js";
 import { calculateHealthScore } from "../services/seo/health-score.js";
 import {
@@ -35,6 +50,43 @@ import {
 } from "../types/audit-progress.js";
 
 const log = createLogger("queue");
+
+const CWV_CONCURRENCY = 15;
+
+function summarizeCWV(pages: CWVPageResult[]): CoreWebVitalsData["summary"] {
+	const validPages = pages.filter(
+		(p) => p.status === "success" && p.performance != null,
+	);
+
+	if (validPages.length === 0) {
+		return { good: 0, needsImprovement: 0, poor: 0, avgPerformance: null };
+	}
+
+	let good = 0;
+	let needsImprovement = 0;
+	let poor = 0;
+	let totalPerformance = 0;
+
+	for (const page of validPages) {
+		const perf = page.performance as number;
+		totalPerformance += perf;
+
+		if (perf >= 90) {
+			good++;
+		} else if (perf >= 50) {
+			needsImprovement++;
+		} else {
+			poor++;
+		}
+	}
+
+	return {
+		good,
+		needsImprovement,
+		poor,
+		avgPerformance: totalPerformance / validPages.length,
+	};
+}
 
 export type CrawlJobData = {
 	auditId: string;
@@ -92,6 +144,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					progress,
 					startedAt: new Date(),
 				});
+				emitStatus(auditId, "CRAWLING");
 
 				// ============================================================
 				// PHASE 1: Crawl pages
@@ -161,6 +214,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// PHASE 2: Run pipeline components
 				// ============================================================
 				await auditRepo.updateAudit(auditId, { status: "ANALYZING" });
+				emitStatus(auditId, "ANALYZING");
 
 				const isFreeTier = audit.tier === "FREE";
 				const redirectChains = (result.redirectChains ?? []) as RedirectChain[];
@@ -199,10 +253,64 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					"Local components complete",
 				);
 
+				// ============================================================
+				// PHASE 2.5: Run Core Web Vitals with streaming
+				// ============================================================
+				const tierConfig: TierConfig = {
+					tier: audit.tier as "FREE" | "SCAN" | "AUDIT" | "DEEP_DIVE",
+					maxCompetitors: limits.competitors,
+					maxSeeds: limits.seeds,
+					maxBriefs: limits.briefs === -1 ? 100 : limits.briefs,
+					maxSnippets: 10,
+				};
+
+				const cwvUrls = selectPagesToAnalyze(result.pages, tierConfig);
+				jobLog.info({ cwvPages: cwvUrls.length }, "Starting CWV analysis");
+
+				const cwvResults = await streamCWV(
+					cwvUrls,
+					CWV_CONCURRENCY,
+					async (pageResult) => {
+						// Save to DB
+						await crawledPageRepo.updateCWV(
+							auditId,
+							pageResult.url,
+							pageResult,
+						);
+						// Emit SSE event
+						emitCWVPage(auditId, pageResult);
+					},
+				);
+
+				// Build CWV summary
+				const coreWebVitals: CoreWebVitalsData = {
+					pages: cwvResults,
+					summary: summarizeCWV(cwvResults),
+				};
+
+				// Mark CWV completed and emit
+				progress = markComponentCompleted(progress, "coreWebVitals");
+				await auditRepo.updateAudit(auditId, { progress });
+				emitCWVComplete(auditId, coreWebVitals);
+
+				jobLog.info(
+					{
+						cwvPages: cwvResults.length,
+						avgPerformance: coreWebVitals.summary.avgPerformance,
+					},
+					"CWV complete",
+				);
+
+				// Add CWV to local results for pipeline
+				const resultsWithCWV = {
+					...localPipelineResult.results,
+					coreWebVitals,
+				};
+
 				// Run external components (may fail, retryable)
 				const pipelineResult = await runExternalComponents(
 					pipelineInput,
-					localPipelineResult.results,
+					resultsWithCWV,
 					localPipelineResult.usage,
 				);
 
@@ -226,10 +334,14 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 						opportunityClusters: finalResults.opportunityClusters ?? [],
 						discoveredCompetitors: finalResults.discoveredCompetitors ?? [],
 						actionPlan: finalResults.actionPlan ?? [],
+						coreWebVitals: finalResults.coreWebVitals,
 					},
 					result.pages.length,
 					{ isFreeTier },
 				);
+
+				// Emit health score via SSE
+				emitHealth(auditId, healthScore);
 
 				// Store results
 				await auditRepo.updateAudit(auditId, {

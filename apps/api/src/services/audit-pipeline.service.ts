@@ -10,6 +10,13 @@
  * 3. No stuck components - all failures are recoverable
  */
 
+import {
+	emitComplete,
+	emitComponentCompleted,
+	emitComponentFailed,
+	emitComponentRunning,
+	emitStatus,
+} from "../lib/audit-events.js";
 import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
 import * as briefRepo from "../repositories/brief.repository.js";
@@ -136,6 +143,7 @@ export async function runPendingComponents(
 		// ATOMIC: Mark as running BEFORE we start
 		progress = markComponentRunning(progress, component);
 		await saveProgress(audit.id, progress);
+		emitComponentRunning(audit.id, component);
 
 		try {
 			const result = await runComponent(
@@ -150,6 +158,7 @@ export async function runPendingComponents(
 				// ATOMIC: Mark as completed AFTER success
 				progress = markComponentCompleted(progress, component);
 				await saveProgress(audit.id, progress);
+				emitComponentCompleted(audit.id, component);
 
 				// Store component result if it has data
 				if (result.data !== undefined) {
@@ -167,6 +176,7 @@ export async function runPendingComponents(
 				// ATOMIC: Mark as failed AFTER failure
 				progress = markComponentFailed(progress, component, result.error);
 				await saveProgress(audit.id, progress);
+				emitComponentFailed(audit.id, component, result.error);
 
 				componentsFailed.push(component);
 				componentLog.warn({ error: result.error }, "Component failed");
@@ -176,6 +186,7 @@ export async function runPendingComponents(
 				error instanceof Error ? error.message : "Unknown error";
 			progress = markComponentFailed(progress, component, errorMessage);
 			await saveProgress(audit.id, progress);
+			emitComponentFailed(audit.id, component, errorMessage);
 
 			componentsFailed.push(component);
 			componentLog.error({ error: errorMessage }, "Component threw exception");
@@ -214,6 +225,10 @@ export async function completeAudit(auditId: string): Promise<void> {
 		completedAt: new Date(),
 		retryAfter: null,
 	});
+
+	// Emit completion event for SSE listeners
+	emitStatus(auditId, "COMPLETED");
+	emitComplete(auditId);
 
 	const audit = await auditRepo.getAuditById(auditId);
 	if (!audit) {

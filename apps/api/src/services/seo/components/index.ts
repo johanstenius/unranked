@@ -10,6 +10,7 @@ import {
 	keywordClusteringComponent,
 	quickWinsComponent,
 } from "./ai.js";
+import { coreWebVitalsComponent } from "./cwv.js";
 import {
 	cannibalizationComponent,
 	competitorAnalysisComponent,
@@ -40,6 +41,9 @@ export const COMPONENT_REGISTRY: ComponentRegistry = {
 	technicalIssues: technicalIssuesComponent as ComponentEntry<unknown>,
 	internalLinking: internalLinkingComponent as ComponentEntry<unknown>,
 	duplicateContent: duplicateContentComponent as ComponentEntry<unknown>,
+
+	// Core Web Vitals (PageSpeed Insights API)
+	coreWebVitals: coreWebVitalsComponent as ComponentEntry<unknown>,
 
 	// DataForSEO components
 	currentRankings: currentRankingsComponent as ComponentEntry<unknown>,

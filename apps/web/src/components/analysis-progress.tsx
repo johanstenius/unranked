@@ -74,34 +74,27 @@ function getStatusSteps(tier: string): StatusStep[] {
 type ProgressComponentConfig = {
 	key: keyof Omit<AuditProgress, "lastRetryAt" | "retryCount">;
 	label: string;
-	group: "local" | "dataforseo" | "claude";
+	group: "onsite" | "serp" | "ai";
 };
 
 const PROGRESS_COMPONENTS: ProgressComponentConfig[] = [
-	{ key: "crawl", label: "Site crawl", group: "local" },
-	{ key: "technicalIssues", label: "Technical analysis", group: "local" },
-	{ key: "internalLinking", label: "Internal linking", group: "local" },
-	{ key: "duplicateContent", label: "Duplicate content", group: "local" },
-	{ key: "redirectChains", label: "Redirect chains", group: "local" },
-	{ key: "currentRankings", label: "Current rankings", group: "dataforseo" },
-	{
-		key: "competitorAnalysis",
-		label: "Competitor analysis",
-		group: "dataforseo",
-	},
+	{ key: "crawl", label: "Site crawl", group: "onsite" },
+	{ key: "technicalIssues", label: "Technical analysis", group: "onsite" },
+	{ key: "internalLinking", label: "Internal linking", group: "onsite" },
+	{ key: "duplicateContent", label: "Duplicate content", group: "onsite" },
+	{ key: "redirectChains", label: "Redirect chains", group: "onsite" },
+	{ key: "coreWebVitals", label: "Core Web Vitals", group: "onsite" },
+	{ key: "currentRankings", label: "Current rankings", group: "serp" },
+	{ key: "competitorAnalysis", label: "Competitor analysis", group: "serp" },
 	{
 		key: "keywordOpportunities",
 		label: "Keyword opportunities",
-		group: "dataforseo",
+		group: "serp",
 	},
-	{
-		key: "intentClassification",
-		label: "Intent classification",
-		group: "claude",
-	},
-	{ key: "keywordClustering", label: "Keyword clustering", group: "claude" },
-	{ key: "quickWins", label: "Quick wins", group: "claude" },
-	{ key: "briefs", label: "Content briefs", group: "claude" },
+	{ key: "intentClassification", label: "Intent classification", group: "ai" },
+	{ key: "keywordClustering", label: "Keyword clustering", group: "ai" },
+	{ key: "quickWins", label: "Quick wins", group: "ai" },
+	{ key: "briefs", label: "Content briefs", group: "ai" },
 ];
 
 function getStatusIndex(status: AuditStatus, steps: StatusStep[]): number {

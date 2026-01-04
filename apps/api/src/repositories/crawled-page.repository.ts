@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "../lib/db.js";
 
 /**
@@ -121,5 +122,19 @@ export async function getPagesByAuditId(auditId: string): Promise<PageModel[]> {
 export function deleteCrawledPagesByAuditId(auditId: string) {
 	return db.crawledPage.deleteMany({
 		where: { auditId },
+	});
+}
+
+/**
+ * Update Core Web Vitals data for a crawled page.
+ */
+export function updateCWV(
+	auditId: string,
+	url: string,
+	cwvData: Prisma.InputJsonValue,
+) {
+	return db.crawledPage.updateMany({
+		where: { auditId, url },
+		data: { coreWebVitals: cwvData },
 	});
 }

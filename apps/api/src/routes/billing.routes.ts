@@ -164,7 +164,7 @@ billingRoutes.post("/webhooks/lemonsqueezy", async (c) => {
 
 		if (event.type === "checkout.completed") {
 			log.info(
-				{ auditId: event.auditId, tier: event.tier },
+				{ auditId: event.auditId, tier: event.tier, orderId: event.orderId },
 				"Payment completed",
 			);
 
@@ -183,14 +183,17 @@ billingRoutes.post("/webhooks/lemonsqueezy", async (c) => {
 					{ auditId: event.auditId, status: audit.status },
 					"Skipping job queue - audit already processing",
 				);
+				// Still save orderId for refund purposes
+				await auditRepo.updateAuditLsOrderId(event.auditId, event.orderId);
 				return c.json({ received: true }, 200);
 			}
 
-			// Update audit tier and reset status for processing
+			// Update audit tier, reset status, and save orderId for refunds
 			await auditRepo.updateAudit(event.auditId, {
 				tier: event.tier,
 				status: "PENDING",
 			});
+			await auditRepo.updateAuditLsOrderId(event.auditId, event.orderId);
 
 			// Start the crawl job
 			const queue = await getQueue();

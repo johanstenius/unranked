@@ -23,7 +23,12 @@ export type UpgradeCheckoutInput = {
 };
 
 export type WebhookEvent =
-	| { type: "checkout.completed"; auditId: string; tier: AuditTier }
+	| {
+			type: "checkout.completed";
+			auditId: string;
+			tier: AuditTier;
+			orderId: string;
+	  }
 	| { type: "checkout.failed"; auditId: string; reason: string };
 
 export type BillingProvider = {

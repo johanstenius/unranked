@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { z } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 import type { AppEnv } from "../app.js";
+import { type AuditSSEEvent, subscribe } from "../lib/audit-events.js";
 import * as auditRepo from "../repositories/audit.repository.js";
 import * as briefRepo from "../repositories/brief.repository.js";
 import {
@@ -24,7 +25,6 @@ import {
 	discoverSections,
 	discoverSectionsStream,
 } from "../services/crawler/crawler.js";
-import { sendReportReadyEmail } from "../services/email.service.js";
 import type { AnalysisResult } from "../services/seo/analysis.js";
 
 function getSectionFromUrl(url: string, baseUrl: string): string {
@@ -236,6 +236,87 @@ auditRoutes.post("/audits/discover/stream", async (c) => {
 				event: event.type,
 				data: JSON.stringify(event),
 			});
+		}
+	});
+});
+
+// SSE endpoint for real-time audit progress updates
+auditRoutes.get("/audits/:token/stream", async (c) => {
+	const token = c.req.param("token");
+
+	const audit = await auditRepo.getAuditByAccessToken(token);
+	if (!audit) {
+		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	// If already completed, send complete event immediately
+	if (audit.status === "COMPLETED") {
+		return streamSSE(c, async (stream) => {
+			await stream.writeSSE({
+				id: "0",
+				event: "complete",
+				data: JSON.stringify({ type: "complete" }),
+			});
+		});
+	}
+
+	return streamSSE(c, async (stream) => {
+		let eventId = 0;
+
+		// Send initial status
+		await stream.writeSSE({
+			id: String(eventId++),
+			event: "status",
+			data: JSON.stringify({ type: "status", status: audit.status }),
+		});
+
+		// Send current progress if available
+		if (audit.progress) {
+			await stream.writeSSE({
+				id: String(eventId++),
+				event: "progress",
+				data: JSON.stringify({ type: "progress", progress: audit.progress }),
+			});
+		}
+
+		// Subscribe to events for this audit
+		const unsubscribe = subscribe(audit.id, (event: AuditSSEEvent) => {
+			stream
+				.writeSSE({
+					id: String(eventId++),
+					event: event.type,
+					data: JSON.stringify(event),
+				})
+				.catch((err) => {
+					console.error("[audit-stream] Error writing SSE:", err);
+				});
+		});
+
+		// Keep connection alive with heartbeat
+		const heartbeat = setInterval(() => {
+			stream
+				.writeSSE({
+					id: String(eventId++),
+					event: "heartbeat",
+					data: JSON.stringify({ type: "heartbeat", timestamp: Date.now() }),
+				})
+				.catch(() => {
+					// Connection closed, clean up
+					clearInterval(heartbeat);
+					unsubscribe();
+				});
+		}, 15000); // Every 15 seconds
+
+		// Wait for abort signal (client disconnect)
+		try {
+			await new Promise<void>((resolve) => {
+				c.req.raw.signal.addEventListener("abort", () => {
+					resolve();
+				});
+			});
+		} finally {
+			clearInterval(heartbeat);
+			unsubscribe();
 		}
 	});
 });
@@ -502,77 +583,4 @@ auditRoutes.openapi(getBriefRoute, async (c) => {
 	}
 
 	return c.json(mapBriefToResponse(brief), 200);
-});
-
-// Resend report email
-const resendEmailRoute = createRoute({
-	method: "post",
-	path: "/audits/{token}/resend-email",
-	request: {
-		params: z.object({
-			token: z.string(),
-		}),
-	},
-	responses: {
-		200: {
-			content: {
-				"application/json": {
-					schema: z.object({ success: z.boolean() }),
-				},
-			},
-			description: "Email sent",
-		},
-		404: {
-			content: {
-				"application/json": {
-					schema: z.object({ error: z.string() }),
-				},
-			},
-			description: "Audit not found or expired",
-		},
-		400: {
-			content: {
-				"application/json": {
-					schema: z.object({ error: z.string() }),
-				},
-			},
-			description: "Cannot resend email",
-		},
-	},
-});
-
-auditRoutes.openapi(resendEmailRoute, async (c) => {
-	const { token } = c.req.valid("param");
-
-	const audit = await auditRepo.getAuditByAccessToken(token);
-	if (!audit) {
-		return c.json({ error: "Audit not found" }, 404);
-	}
-
-	if (audit.expiresAt < new Date()) {
-		return c.json({ error: "Audit link has expired" }, 404);
-	}
-
-	if (audit.status !== "COMPLETED") {
-		return c.json({ error: "Audit not completed" }, 400);
-	}
-
-	if (!audit.email) {
-		return c.json({ error: "No email address on audit" }, 400);
-	}
-
-	const storedAnalysis = audit.opportunities as AnalysisResult | null;
-	const healthScore = audit.healthScore as HealthScoreResponse | null;
-
-	await sendReportReadyEmail({
-		to: audit.email,
-		siteUrl: audit.siteUrl,
-		accessToken: audit.accessToken,
-		healthScore: healthScore?.score,
-		healthGrade: healthScore?.grade,
-		opportunitiesCount: storedAnalysis?.opportunities?.length ?? 0,
-		briefsCount: audit.briefs.length,
-	});
-
-	return c.json({ success: true }, 200);
 });

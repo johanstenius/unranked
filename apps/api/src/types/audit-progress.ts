@@ -24,6 +24,7 @@ export type ComponentKey =
 	| "internalLinking"
 	| "duplicateContent"
 	| "redirectChains"
+	| "coreWebVitals"
 	| "currentRankings"
 	| "competitorAnalysis"
 	| "keywordOpportunities"
@@ -49,6 +50,9 @@ export type AuditProgress = {
 	internalLinking: ComponentProgress;
 	duplicateContent: ComponentProgress;
 	redirectChains: ComponentProgress;
+
+	// PageSpeed Insights API
+	coreWebVitals: ComponentProgress;
 
 	// DataForSEO dependent components
 	currentRankings: ComponentProgress;
@@ -106,6 +110,7 @@ export const LOCAL_COMPONENTS: readonly ComponentKey[] = [
  * Retryable component keys (those with external dependencies)
  */
 export const RETRYABLE_COMPONENTS: readonly ComponentKey[] = [
+	"coreWebVitals",
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
@@ -126,6 +131,7 @@ export const ALL_COMPONENTS: readonly ComponentKey[] = [
 	"internalLinking",
 	"duplicateContent",
 	"redirectChains",
+	"coreWebVitals",
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
@@ -162,6 +168,7 @@ export function createInitialProgress(): AuditProgress {
 		internalLinking: pendingProgress(),
 		duplicateContent: pendingProgress(),
 		redirectChains: pendingProgress(),
+		coreWebVitals: pendingProgress(),
 		currentRankings: pendingProgress(),
 		competitorAnalysis: pendingProgress(),
 		keywordOpportunities: pendingProgress(),

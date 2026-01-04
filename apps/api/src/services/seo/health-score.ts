@@ -1,8 +1,15 @@
 import type { AnalysisResult, TechnicalIssue } from "./analysis.js";
+import type { CoreWebVitalsData } from "./components/types.js";
 
 const THRESHOLDS = {
 	HIGH_IMPACT_SCORE: 50,
 	OPPORTUNITY_SCALE: 10,
+} as const;
+
+// CWV thresholds (based on Google's Core Web Vitals assessment)
+const CWV_THRESHOLDS = {
+	GOOD: 90, // Performance score >= 90 is "good"
+	NEEDS_IMPROVEMENT: 50, // 50-89 is "needs improvement"
 } as const;
 
 const SEVERITY_WEIGHTS = { high: 3, medium: 1, low: 0.5 } as const;
@@ -122,21 +129,60 @@ function countSeverityWeight(issues: TechnicalIssue[]): number {
 	);
 }
 
+/**
+ * Calculate CWV score contribution (0-5 points)
+ */
+function calculateCWVScore(cwv: CoreWebVitalsData | undefined): {
+	score: number;
+	detail: string;
+} {
+	if (!cwv || cwv.pages.length === 0) {
+		return { score: 0, detail: "" };
+	}
+
+	const avgPerformance = cwv.summary.avgPerformance;
+	if (avgPerformance == null) {
+		return { score: 0, detail: "CWV: no data" };
+	}
+
+	// 5 points max for CWV
+	if (avgPerformance >= CWV_THRESHOLDS.GOOD) {
+		return { score: 5, detail: `CWV: ${Math.round(avgPerformance)} (good)` };
+	}
+	if (avgPerformance >= CWV_THRESHOLDS.NEEDS_IMPROVEMENT) {
+		return {
+			score: 2.5,
+			detail: `CWV: ${Math.round(avgPerformance)} (needs work)`,
+		};
+	}
+	return { score: 0, detail: `CWV: ${Math.round(avgPerformance)} (poor)` };
+}
+
 function calculateTechnicalHealth(
 	analysis: AnalysisResult,
 	pagesFound: number,
 ): HealthScoreComponent & { max: 15 } {
 	const MAX = 15;
+	const ISSUES_MAX = 10; // 10 points for technical issues
+	const CWV_MAX = 5; // 5 points for Core Web Vitals
 
 	if (pagesFound === 0) {
 		return { score: 0, max: MAX, detail: "No pages crawled" };
 	}
 
+	// Calculate issues score (0-10 points)
 	const issueWeight = countSeverityWeight(analysis.technicalIssues);
 	const maxPossibleWeight = pagesFound * 3;
 	const healthRatio = Math.max(0, 1 - issueWeight / maxPossibleWeight);
-	const score = Math.round(healthRatio * MAX);
+	const issuesScore = Math.round(healthRatio * ISSUES_MAX);
 
+	// Calculate CWV score (0-5 points)
+	const cwvResult = calculateCWVScore(analysis.coreWebVitals);
+	const cwvScore = cwvResult.score;
+
+	const totalScore = Math.round(issuesScore + cwvScore);
+
+	// Build detail string
 	const highCount = analysis.technicalIssues.filter(
 		(i) => i.severity === "high",
 	).length;
@@ -144,20 +190,24 @@ function calculateTechnicalHealth(
 		(i) => i.severity === "medium",
 	).length;
 
-	let detail: string;
+	let issueDetail: string;
 	if (analysis.technicalIssues.length === 0) {
-		detail = "No issues found";
+		issueDetail = "No issues";
 	} else if (highCount > 0 && mediumCount > 0) {
-		detail = `${highCount} critical, ${mediumCount} warnings`;
+		issueDetail = `${highCount} critical, ${mediumCount} warnings`;
 	} else if (highCount > 0) {
-		detail = `${highCount} critical issue${highCount > 1 ? "s" : ""}`;
+		issueDetail = `${highCount} critical`;
 	} else if (mediumCount > 0) {
-		detail = `${mediumCount} warning${mediumCount > 1 ? "s" : ""}`;
+		issueDetail = `${mediumCount} warning${mediumCount > 1 ? "s" : ""}`;
 	} else {
-		detail = `${analysis.technicalIssues.length} minor issue${analysis.technicalIssues.length > 1 ? "s" : ""}`;
+		issueDetail = `${analysis.technicalIssues.length} minor`;
 	}
 
-	return { score, max: MAX, detail };
+	const detail = cwvResult.detail
+		? `${issueDetail}; ${cwvResult.detail}`
+		: issueDetail;
+
+	return { score: totalScore, max: MAX, detail };
 }
 
 function calculateInternalLinking(

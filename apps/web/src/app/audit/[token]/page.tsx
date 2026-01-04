@@ -29,10 +29,18 @@ import {
 	getAudit,
 	getAuditAnalysis,
 	getAuditBriefs,
-	resendReportEmail,
+	subscribeToAudit,
 	tierInfo,
 } from "@/lib/api";
-import type { Analysis, Audit, Brief } from "@/lib/types";
+import type {
+	Analysis,
+	Audit,
+	AuditSSEEvent,
+	Brief,
+	CWVPageResult,
+	CoreWebVitalsData,
+	HealthScore,
+} from "@/lib/types";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -66,8 +74,9 @@ function AuditContent() {
 	const [activeTab, setActiveTab] = useState<TabType>("overview");
 	const [healthScoreExpanded, setHealthScoreExpanded] = useState(false);
 	const [pdfExporting, setPdfExporting] = useState(false);
-	const [emailResending, setEmailResending] = useState(false);
-	const [emailResent, setEmailResent] = useState(false);
+	const [cwvPages, setCwvPages] = useState<CWVPageResult[]>([]);
+	const [cwvData, setCwvData] = useState<CoreWebVitalsData | null>(null);
+	const [healthScore, setHealthScore] = useState<HealthScore | null>(null);
 
 	const handleExportPdf = useCallback(async () => {
 		if (!audit || !analysis) return;
@@ -81,24 +90,10 @@ function AuditContent() {
 		}
 	}, [audit, analysis, briefs]);
 
-	const handleResendEmail = useCallback(async () => {
-		if (!token) return;
-		setEmailResending(true);
-		try {
-			await resendReportEmail(token);
-			setEmailResent(true);
-			setTimeout(() => setEmailResent(false), 3000);
-		} catch (err) {
-			console.error("Resend email failed:", err);
-		} finally {
-			setEmailResending(false);
-		}
-	}, [token]);
-
 	useEffect(() => {
-		let interval: NodeJS.Timeout | null = null;
+		let sseConnection: { close: () => void } | null = null;
 
-		async function fetchData() {
+		async function fetchInitialData() {
 			try {
 				const auditData = await getAudit(token);
 				setAudit(auditData);
@@ -110,24 +105,77 @@ function AuditContent() {
 					]);
 					setBriefs(briefsData);
 					setAnalysis(analysisData);
-					if (interval) clearInterval(interval);
-				} else if (auditData.status === "FAILED") {
-					if (interval) clearInterval(interval);
+					setHealthScore(analysisData.healthScore);
+				} else if (auditData.status !== "FAILED") {
+					// Subscribe to SSE for real-time updates
+					sseConnection = subscribeToAudit(
+						token,
+						(event: AuditSSEEvent) => {
+							switch (event.type) {
+								case "status":
+									setAudit((prev) =>
+										prev ? { ...prev, status: event.status } : prev,
+									);
+									break;
+								case "component":
+									setAudit((prev) => {
+										if (!prev || !prev.progress) return prev;
+										return {
+											...prev,
+											progress: {
+												...prev.progress,
+												[event.key]: event.status,
+											},
+										};
+									});
+									break;
+								case "cwv":
+									setCwvPages((prev) => [...prev, event.page]);
+									break;
+								case "cwv-complete":
+									setCwvData(event.data);
+									break;
+								case "health":
+									setHealthScore(event.score);
+									break;
+								case "complete":
+									// Fetch full data on completion
+									Promise.all([
+										getAuditBriefs(token),
+										getAuditAnalysis(token),
+										getAudit(token),
+									]).then(([briefsData, analysisData, auditData]) => {
+										setBriefs(briefsData);
+										setAnalysis(analysisData);
+										setAudit(auditData);
+										setHealthScore(analysisData.healthScore);
+									});
+									sseConnection?.close();
+									break;
+								case "progress":
+									setAudit((prev) =>
+										prev ? { ...prev, progress: event.progress } : prev,
+									);
+									break;
+							}
+						},
+						(err) => {
+							console.error("SSE error:", err);
+						},
+					);
 				}
 
 				setLoading(false);
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to load audit");
 				setLoading(false);
-				if (interval) clearInterval(interval);
 			}
 		}
 
-		fetchData();
-		interval = setInterval(fetchData, 3000);
+		fetchInitialData();
 
 		return () => {
-			if (interval) clearInterval(interval);
+			sseConnection?.close();
 		};
 	}, [token]);
 
@@ -242,19 +290,6 @@ function AuditContent() {
 											{pdfExporting ? "Exporting..." : "Export PDF"}
 										</button>
 									)}
-									<button
-										type="button"
-										onClick={handleResendEmail}
-										disabled={emailResending || emailResent}
-										className="h-10 px-5 bg-surface border border-border text-sm font-medium text-text-primary rounded-lg hover:border-border-active hover:bg-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-									>
-										{emailResending && <Spinner className="w-4 h-4" />}
-										{emailResent
-											? "Email sent!"
-											: emailResending
-												? "Sending..."
-												: "Resend Email"}
-									</button>
 								</div>
 							</div>
 

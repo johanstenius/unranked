@@ -6,6 +6,7 @@
  */
 
 import type { QuickWinSuggestions, SearchIntent } from "../ai/anthropic.js";
+import type { CoreWebVitalsData } from "./components/types.js";
 import type { DiscoveredCompetitor } from "./dataforseo.js";
 import type { InternalLinkingIssues } from "./internal-linking.js";
 
@@ -141,4 +142,5 @@ export type AnalysisResult = {
 	snippetOpportunities: SnippetOpportunity[];
 	discoveredCompetitors: DiscoveredCompetitor[];
 	actionPlan: PrioritizedAction[];
+	coreWebVitals?: CoreWebVitalsData;
 };

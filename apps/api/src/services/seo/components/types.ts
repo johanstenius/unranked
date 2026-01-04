@@ -33,6 +33,7 @@ export type ComponentKey =
 	| "technicalIssues"
 	| "internalLinking"
 	| "duplicateContent"
+	| "coreWebVitals"
 	| "currentRankings"
 	| "keywordOpportunities"
 	| "competitorAnalysis"
@@ -54,7 +55,8 @@ export const COMPONENT_DEPENDENCIES: Record<ComponentKey, ComponentKey[]> = {
 	internalLinking: [],
 	duplicateContent: [],
 
-	// DataForSEO - may depend on local
+	// External APIs - no deps on other components
+	coreWebVitals: [],
 	currentRankings: [],
 	keywordOpportunities: ["currentRankings"],
 	competitorAnalysis: ["currentRankings"],
@@ -82,6 +84,7 @@ export const COMPONENT_DEPENDENCIES: Record<ComponentKey, ComponentKey[]> = {
  * Components that require external APIs (retryable on failure)
  */
 export const EXTERNAL_COMPONENTS: readonly ComponentKey[] = [
+	"coreWebVitals",
 	"currentRankings",
 	"keywordOpportunities",
 	"competitorAnalysis",
@@ -137,6 +140,30 @@ export type ComponentContext = {
 };
 
 // ============================================================================
+// Core Web Vitals Types
+// ============================================================================
+
+export type CWVPageResult = {
+	url: string;
+	lcp: number | null; // Largest Contentful Paint (ms)
+	cls: number | null; // Cumulative Layout Shift (score)
+	inp: number | null; // Interaction to Next Paint (ms)
+	performance: number | null; // Overall performance score (0-100)
+	status: "success" | "failed";
+	error?: string;
+};
+
+export type CoreWebVitalsData = {
+	pages: CWVPageResult[];
+	summary: {
+		good: number;
+		needsImprovement: number;
+		poor: number;
+		avgPerformance: number | null;
+	};
+};
+
+// ============================================================================
 // Component Results (accumulated state)
 // ============================================================================
 
@@ -149,6 +176,9 @@ export type ComponentResults = {
 	technicalIssues?: TechnicalIssue[];
 	internalLinkingIssues?: InternalLinkingIssues;
 	duplicateGroups?: Array<{ urls: string[]; type: "exact" | "near" }>;
+
+	// Core Web Vitals (PageSpeed Insights)
+	coreWebVitals?: CoreWebVitalsData;
 
 	// DataForSEO
 	currentRankings?: CurrentRanking[];
