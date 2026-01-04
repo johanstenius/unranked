@@ -44,9 +44,9 @@ export default function PrivacyPage() {
 							<p>
 								When you use Unranked, we collect your email address and the
 								website URL you submit for analysis. We use third-party services
-								(Stripe for payments, DataForSEO for keyword data) that may
-								collect additional information as described in their respective
-								privacy policies.
+								for payments, keyword research, AI content generation, and email
+								delivery. These providers may collect additional information as
+								described in their respective privacy policies.
 							</p>
 						</section>
 
@@ -66,18 +66,18 @@ export default function PrivacyPage() {
 								Data retention
 							</h2>
 							<p>
-								Audit reports are retained for 30 days after generation. You can
-								request deletion of your data at any time by contacting us.
+								Report links expire 30 days after generation. You can request
+								deletion of your data at any time by contacting us.
 							</p>
 						</section>
 
 						<section className="space-y-3">
 							<h2 className="text-lg font-semibold text-text-primary">
-								Cookies
+								Local storage
 							</h2>
 							<p>
-								We use essential cookies for authentication and payment
-								processing. We do not use tracking or advertising cookies.
+								We use browser local storage to save your theme preference. We
+								do not use tracking or advertising cookies.
 							</p>
 						</section>
 
@@ -86,7 +86,13 @@ export default function PrivacyPage() {
 								Contact
 							</h2>
 							<p>
-								Questions about this policy? Email us at privacy@rankaudit.com
+								Questions about this policy? Email us at{" "}
+								<a
+									href="mailto:privacy@unranked.io"
+									className="text-text-primary hover:underline"
+								>
+									privacy@unranked.io
+								</a>
 							</p>
 						</section>
 					</div>

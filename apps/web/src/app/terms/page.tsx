@@ -53,9 +53,9 @@ export default function TermsPage() {
 								Payment
 							</h2>
 							<p>
-								All purchases are one-time payments processed through Stripe.
-								Prices are in EUR and include applicable taxes. Refunds are
-								available within 7 days if no report has been generated.
+								All purchases are one-time payments. Prices are in EUR and
+								include applicable taxes. Refunds are available within 7 days if
+								no report has been generated.
 							</p>
 						</section>
 
@@ -95,7 +95,15 @@ export default function TermsPage() {
 							<h2 className="text-lg font-semibold text-text-primary">
 								Contact
 							</h2>
-							<p>Questions? Email us at support@rankaudit.com</p>
+							<p>
+								Questions? Email us at{" "}
+								<a
+									href="mailto:support@unranked.io"
+									className="text-text-primary hover:underline"
+								>
+									support@unranked.io
+								</a>
+							</p>
 						</section>
 					</div>
 
