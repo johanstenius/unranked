@@ -116,7 +116,7 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 				issues.push({
 					url: page.url,
 					issue: `Meta description too long (over ${THRESHOLDS.metaDesc.error} characters)`,
-					severity: SEVERITY.MEDIUM,
+					severity: SEVERITY.LOW,
 				});
 			} else if (page.metaDescription.length > THRESHOLDS.metaDesc.warning) {
 				issues.push({
@@ -195,7 +195,7 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 			issues.push({
 				url: page.url,
 				issue: "No structured data (Schema.org/JSON-LD)",
-				severity: SEVERITY.MEDIUM,
+				severity: SEVERITY.LOW,
 			});
 		}
 
@@ -227,7 +227,7 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 			issues.push({
 				url: page.url,
 				issue: `Multiple H1 tags (${page.h1Count} found, should be 1)`,
-				severity: SEVERITY.MEDIUM,
+				severity: SEVERITY.LOW,
 			});
 		}
 
@@ -278,7 +278,7 @@ async function runTechnicalIssues(
 			issues.push({
 				url: siteUrl,
 				issue: "Missing robots.txt file",
-				severity: SEVERITY.MEDIUM,
+				severity: SEVERITY.LOW,
 			});
 		}
 		if (!ctx.crawlMetadata.hasSitemap) {
@@ -299,28 +299,32 @@ async function runTechnicalIssues(
 		});
 	}
 
-	// Broken internal link detection
-	const crawledUrls = new Set(ctx.pages.map((p) => p.url));
-	const linkCounts = new Map<string, { count: number; sources: string[] }>();
-	for (const page of ctx.pages) {
-		for (const link of page.outboundLinks) {
-			if (!crawledUrls.has(link)) {
-				const existing = linkCounts.get(link) ?? { count: 0, sources: [] };
-				existing.count++;
-				if (existing.sources.length < 3) existing.sources.push(page.url);
-				linkCounts.set(link, existing);
-			}
-		}
-	}
-
-	for (const [brokenLink, { count, sources }] of linkCounts) {
-		if (count >= 2) {
-			issues.push({
-				url: sources[0] ?? "",
-				issue: `Potentially broken link: ${brokenLink} (linked from ${count} pages)`,
-				severity: SEVERITY.MEDIUM,
+	// Broken links from crawler (already verified with HTTP HEAD) - group by target
+	const brokenByTarget = new Map<
+		string,
+		{ sourceUrl: string; statusCode?: number; count: number }
+	>();
+	for (const bl of ctx.crawlMetadata.brokenLinks) {
+		const existing = brokenByTarget.get(bl.targetUrl);
+		if (existing) {
+			existing.count++;
+		} else {
+			brokenByTarget.set(bl.targetUrl, {
+				sourceUrl: bl.sourceUrl,
+				statusCode: bl.statusCode,
+				count: 1,
 			});
 		}
+	}
+	for (const [targetUrl, { sourceUrl, statusCode, count }] of brokenByTarget) {
+		const statusText = statusCode ? ` (${statusCode})` : "";
+		const countText = count > 1 ? ` (linked from ${count} pages)` : "";
+		issues.push({
+			url: sourceUrl,
+			issue: `Broken link${statusText}: ${targetUrl}${countText}`,
+			severity:
+				statusCode && statusCode >= 500 ? SEVERITY.HIGH : SEVERITY.MEDIUM,
+		});
 	}
 
 	return { ok: true, data: issues };

@@ -6,7 +6,11 @@
  */
 
 import type { ApiUsage } from "../../../types/api-usage.js";
-import type { CrawledPage, RedirectChain } from "../../crawler/types.js";
+import type {
+	BrokenLink,
+	CrawledPage,
+	RedirectChain,
+} from "../../crawler/types.js";
 import type {
 	CannibalizationIssue,
 	CompetitorGap,
@@ -106,6 +110,7 @@ export type CrawlMetadata = {
 	hasRobotsTxt: boolean;
 	hasSitemap: boolean;
 	redirectChains: RedirectChain[];
+	brokenLinks: BrokenLink[];
 };
 
 export type TierConfig = {

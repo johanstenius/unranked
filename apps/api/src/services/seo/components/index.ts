@@ -21,7 +21,7 @@ import {
 	duplicateContentComponent,
 	internalLinkingComponent,
 	technicalIssuesComponent,
-} from "./local.js";
+} from "./technical-analysis.js";
 import type {
 	ComponentEntry,
 	ComponentKey,
@@ -36,7 +36,7 @@ export * from "./types.js";
  * Cast to unknown to allow mixed component types in the registry.
  */
 export const COMPONENT_REGISTRY: ComponentRegistry = {
-	// Local components (no external deps)
+	// Technical analysis components (no external deps)
 	technicalIssues: technicalIssuesComponent as ComponentEntry<unknown>,
 	internalLinking: internalLinkingComponent as ComponentEntry<unknown>,
 	duplicateContent: duplicateContentComponent as ComponentEntry<unknown>,

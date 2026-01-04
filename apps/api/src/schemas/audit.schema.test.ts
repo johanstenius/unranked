@@ -7,7 +7,7 @@ describe("audit schema", () => {
 	});
 
 	it("should have correct FREE limits", () => {
-		expect(tierLimits.FREE.pages).toBe(25);
+		expect(tierLimits.FREE.pages).toBe(50);
 		expect(tierLimits.FREE.briefs).toBe(0);
 		expect(tierLimits.FREE.competitors).toBe(0);
 		expect(tierLimits.FREE.pdfExport).toBe(false);

@@ -8,7 +8,11 @@
 import { createLogger } from "../../lib/logger.js";
 import { UNLIMITED, tierLimits } from "../../schemas/audit.schema.js";
 import { type ApiUsage, createEmptyUsage } from "../../types/api-usage.js";
-import type { CrawledPage, RedirectChain } from "../crawler/types.js";
+import type {
+	BrokenLink,
+	CrawledPage,
+	RedirectChain,
+} from "../crawler/types.js";
 import type {
 	ComponentContext,
 	ComponentKey,
@@ -34,6 +38,7 @@ export type PipelineInput = {
 		hasRobotsTxt: boolean;
 		hasSitemap: boolean;
 		redirectChains: RedirectChain[];
+		brokenLinks: BrokenLink[];
 	};
 };
 

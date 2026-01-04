@@ -371,7 +371,7 @@ export type TierLimits = {
 
 export const tierLimits: Record<AuditTier, TierLimits> = {
 	FREE: {
-		pages: 25,
+		pages: 50,
 		keywords: 10,
 		briefs: 0,
 		competitors: 0,

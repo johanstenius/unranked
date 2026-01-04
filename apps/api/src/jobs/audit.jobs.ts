@@ -176,6 +176,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 						hasRobotsTxt: result.hasRobotsTxt,
 						hasSitemap: result.hasSitemap,
 						redirectChains,
+						brokenLinks: result.brokenLinks,
 					},
 				};
 

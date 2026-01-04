@@ -143,43 +143,6 @@ function getSection(url: string, baseUrl: string): string {
 	}
 }
 
-const IGNORED_SECTIONS = new Set([
-	"/login",
-	"/logout",
-	"/signin",
-	"/signout",
-	"/signup",
-	"/register",
-	"/auth",
-	"/oauth",
-	"/sso",
-	"/settings",
-	"/account",
-	"/profile",
-	"/dashboard",
-	"/admin",
-	"/cart",
-	"/checkout",
-	"/404",
-	"/500",
-	"/error",
-	"/privacy",
-	"/terms",
-	"/legal",
-	"/cookies",
-	"/unsubscribe",
-	"/confirm",
-	"/verify",
-	"/reset",
-	"/forgot",
-	"/invite",
-]);
-
-function shouldSkipUrl(url: string, baseUrl: string): boolean {
-	const section = getSection(url, baseUrl);
-	return IGNORED_SECTIONS.has(section);
-}
-
 function groupBySection(urls: string[], baseUrl: string): RawSection[] {
 	const sectionCounts = new Map<string, number>();
 
@@ -191,7 +154,6 @@ function groupBySection(urls: string[], baseUrl: string): RawSection[] {
 	}
 
 	return [...sectionCounts.entries()]
-		.filter(([path]) => !IGNORED_SECTIONS.has(path))
 		.map(([path, pageCount]) => ({ path, pageCount }))
 		.sort((a, b) => b.pageCount - a.pageCount);
 }
@@ -558,7 +520,7 @@ export async function* discoverSectionsStream(
 	const sectionUrlMap = new Map<string, string[]>();
 	for (const url of allUrls) {
 		const section = getSection(url, baseUrl);
-		if (section && !IGNORED_SECTIONS.has(section)) {
+		if (section) {
 			const urls = sectionUrlMap.get(section) || [];
 			urls.push(url);
 			sectionUrlMap.set(section, urls);
@@ -620,9 +582,7 @@ export async function crawlDocs(
 
 	if (sitemapUrls.length > 0) {
 		log.info({ urlCount: sitemapUrls.length }, "Found URLs in sitemap");
-		const filteredUrls = sitemapUrls
-			.filter((url) => !shouldSkipUrl(url, baseUrl))
-			.filter(matchesFilter);
+		const filteredUrls = sitemapUrls.filter(matchesFilter);
 		log.info({ urlCount: filteredUrls.length }, "URLs after filtering");
 		toVisit.push(...filteredUrls);
 	} else {
@@ -663,7 +623,6 @@ export async function crawlDocs(
 					if (
 						!visited.has(link) &&
 						link.startsWith(siteUrl) &&
-						!shouldSkipUrl(link, baseUrl) &&
 						matchesFilter(link)
 					) {
 						toVisit.push(link);
