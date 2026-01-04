@@ -3,9 +3,10 @@
  *
  * Flow:
  * 1. Crawl pages
- * 2. Run local analysis (technical issues, health score)
- * 3. Call pipeline service for external components (DataForSEO/Claude)
- * 4. If all done → complete, else → RETRYING (retry job picks up)
+ * 2. Run local components (technical issues, internal linking, duplicates)
+ * 3. Run external components (DataForSEO + AI)
+ * 4. Calculate health score
+ * 5. If all done → complete, else → RETRYING (retry job picks up)
  */
 
 import type PgBoss from "pg-boss";
@@ -19,9 +20,14 @@ import {
 } from "../services/audit-pipeline.service.js";
 import { crawlDocs } from "../services/crawler/crawler.js";
 import type { RedirectChain } from "../services/crawler/types.js";
-import { analyzeSite } from "../services/seo/analysis.js";
 import { clearSerpCache } from "../services/seo/dataforseo.js";
 import { calculateHealthScore } from "../services/seo/health-score.js";
+import {
+	type PipelineInput,
+	finalizeOpportunities,
+	runExternalComponents,
+	runLocalComponents,
+} from "../services/seo/pipeline-runner.js";
 import {
 	type AuditProgress,
 	createInitialProgress,
@@ -50,6 +56,8 @@ async function markAuditFailed(auditId: string, error: unknown): Promise<void> {
 		await auditRepo.updateAudit(auditId, {
 			status: "FAILED",
 		});
+		// Cleanup crawled pages - no longer needed after failure
+		await crawledPageRepo.deleteCrawledPagesByAuditId(auditId);
 	} catch (updateError) {
 		auditLog.error({ error: updateError }, "Failed to update status");
 	}
@@ -149,55 +157,30 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				jobLog.info({ pagesFound: result.pages.length }, "Crawl complete");
 
 				// ============================================================
-				// PHASE 2: Local analysis (always succeeds - no external deps)
+				// PHASE 2: Run pipeline components
 				// ============================================================
 				await auditRepo.updateAudit(auditId, { status: "ANALYZING" });
 
-				const pages = result.pages.map((p) => ({
-					url: p.url,
-					title: p.title,
-					h1: p.h1,
-					content: p.content,
-					wordCount: p.wordCount,
-					section: p.section,
-					outboundLinks: p.outboundLinks,
-					readabilityScore: p.readabilityScore,
-					codeBlockCount: p.codeBlockCount,
-					imageCount: p.imageCount,
-					codeBlocks: p.codeBlocks,
-					metaDescription: p.metaDescription,
-					canonicalUrl: p.canonicalUrl,
-					ogTitle: p.ogTitle,
-					ogDescription: p.ogDescription,
-					ogImage: p.ogImage,
-					h1Count: p.h1Count ?? 1,
-					h2s: p.h2s ?? [],
-					h3s: p.h3s ?? [],
-					imagesWithoutAlt: p.imagesWithoutAlt ?? 0,
-					hasSchemaOrg: p.hasSchemaOrg ?? false,
-					schemaTypes: p.schemaTypes ?? [],
-					hasViewport: p.hasViewport ?? false,
-				}));
-
 				const isFreeTier = audit.tier === "FREE";
-				const redirectChains = (audit.redirectChains ?? []) as RedirectChain[];
-				const analysis = await analyzeSite(pages, audit.competitors, {
-					maxCompetitors: limits.competitors,
-					maxSeeds: limits.seeds,
-					isFreeTier,
-					hasRobotsTxt: audit.hasRobotsTxt ?? undefined,
-					hasSitemap: audit.hasSitemap ?? undefined,
-					redirectChains,
-				});
+				const redirectChains = (result.redirectChains ?? []) as RedirectChain[];
 
-				const healthScore = calculateHealthScore(analysis, pages.length, {
-					isFreeTier,
-				});
+				// Build pipeline input
+				const pipelineInput: PipelineInput = {
+					auditId,
+					siteUrl: audit.siteUrl,
+					pages: result.pages,
+					competitors: audit.competitors,
+					productDesc: audit.productDesc,
+					tier: audit.tier as "FREE" | "SCAN" | "AUDIT" | "DEEP_DIVE",
+					crawlMetadata: {
+						hasRobotsTxt: result.hasRobotsTxt,
+						hasSitemap: result.hasSitemap,
+						redirectChains,
+					},
+				};
 
-				await auditRepo.updateAudit(auditId, {
-					opportunities: analysis,
-					healthScore,
-				});
+				// Run local components (always succeed)
+				const localResults = await runLocalComponents(pipelineInput);
 
 				// Mark local components completed
 				progress = markComponentCompleted(progress, "technicalIssues");
@@ -207,41 +190,78 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				await auditRepo.updateAudit(auditId, { progress });
 
 				jobLog.info(
+					{ technicalIssues: localResults.technicalIssues?.length ?? 0 },
+					"Local components complete",
+				);
+
+				// Run external components (may fail, retryable)
+				const pipelineResult = await runExternalComponents(
+					pipelineInput,
+					localResults,
+				);
+
+				// Finalize opportunities
+				const finalResults = finalizeOpportunities(pipelineResult.results);
+
+				// Calculate health score
+				const healthScore = calculateHealthScore(
+					{
+						technicalIssues: finalResults.technicalIssues ?? [],
+						internalLinkingIssues: finalResults.internalLinkingIssues ?? {
+							orphanPages: [],
+							underlinkedPages: [],
+						},
+						opportunities: finalResults.opportunities ?? [],
+						currentRankings: finalResults.currentRankings ?? [],
+						quickWins: finalResults.quickWins ?? [],
+						competitorGaps: finalResults.competitorGaps ?? [],
+						cannibalizationIssues: finalResults.cannibalizationIssues ?? [],
+						snippetOpportunities: finalResults.snippetOpportunities ?? [],
+						opportunityClusters: finalResults.opportunityClusters ?? [],
+						discoveredCompetitors: finalResults.discoveredCompetitors ?? [],
+						actionPlan: finalResults.actionPlan ?? [],
+					},
+					result.pages.length,
+					{ isFreeTier },
+				);
+
+				// Store results
+				await auditRepo.updateAudit(auditId, {
+					opportunities: {
+						...finalResults,
+						healthScore,
+					},
+					healthScore,
+				});
+
+				// Update progress for completed external components
+				for (const completed of pipelineResult.completed) {
+					progress = markComponentCompleted(progress, completed);
+				}
+				await auditRepo.updateAudit(auditId, { progress });
+
+				jobLog.info(
 					{
 						healthScore: healthScore.score,
-						opportunities: analysis.opportunities.length,
+						opportunities: finalResults.opportunities?.length ?? 0,
+						completed: pipelineResult.completed.length,
+						failed: pipelineResult.failed.length,
 					},
-					"Local analysis complete",
+					"Analysis complete",
 				);
 
 				// ============================================================
-				// PHASE 3: External components (DataForSEO/Claude)
+				// PHASE 3: Complete or retry
 				// ============================================================
-				const freshAudit = await auditRepo.getAuditById(auditId);
-				if (!freshAudit) {
-					throw new Error(`Audit ${auditId} not found after analysis`);
-				}
-
-				const pipelineResult = await runPendingComponents({
-					id: freshAudit.id,
-					siteUrl: freshAudit.siteUrl,
-					competitors: freshAudit.competitors,
-					tier: freshAudit.tier,
-					productDesc: freshAudit.productDesc,
-					email: freshAudit.email,
-					progress: freshAudit.progress as AuditProgress,
-					opportunities: freshAudit.opportunities,
-				});
-
-				if (pipelineResult.allDone) {
+				if (pipelineResult.failed.length === 0) {
 					jobLog.info("All components done, completing audit");
 					await completeAudit(auditId);
 				} else {
 					// Some components failed - set RETRYING for retry job to pick up
 					jobLog.info(
 						{
-							ran: pipelineResult.componentsRun.length,
-							failed: pipelineResult.componentsFailed.length,
+							completed: pipelineResult.completed.length,
+							failed: pipelineResult.failed.map((f) => f.key),
 						},
 						"Some components failed, setting RETRYING",
 					);

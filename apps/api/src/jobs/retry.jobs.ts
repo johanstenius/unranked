@@ -11,6 +11,7 @@
 import type PgBoss from "pg-boss";
 import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
+import { deleteCrawledPagesByAuditId } from "../repositories/crawled-page.repository.js";
 import {
 	completeAudit,
 	runPendingComponents,
@@ -261,6 +262,9 @@ async function handleAuditTimeout(
 		status: "FAILED",
 		retryAfter: null,
 	});
+
+	// Cleanup crawled pages - no longer needed after failure
+	await deleteCrawledPagesByAuditId(auditId);
 
 	if (isPaid) {
 		auditLog.warn("Paid audit failed after 24h - needs refund review");

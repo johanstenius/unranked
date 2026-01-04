@@ -17,10 +17,12 @@ import {
 } from "@/components/ui/table";
 import type { Analysis } from "@/lib/types";
 import { stripOrigin } from "@/lib/utils";
+import { ActionPlanCard } from "../action-plan-card";
 
 type OverviewTabProps = {
 	analysis: Analysis;
 	onViewAllOpportunities: () => void;
+	isFreeTier?: boolean;
 };
 
 function IntentBadge({ intent }: { intent: string }) {
@@ -46,9 +48,15 @@ function IntentBadge({ intent }: { intent: string }) {
 export function OverviewTab({
 	analysis,
 	onViewAllOpportunities,
+	isFreeTier = false,
 }: OverviewTabProps) {
 	return (
 		<>
+			{/* Action Plan - prioritized recommendations */}
+			{analysis.actionPlan && analysis.actionPlan.length > 0 && (
+				<ActionPlanCard actions={analysis.actionPlan} isFreeTier={isFreeTier} />
+			)}
+
 			{analysis.sectionStats.length > 0 && (
 				<Card className="border-border rounded-xl">
 					<CardHeader className="pb-4">

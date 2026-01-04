@@ -95,19 +95,6 @@ export async function generateQuickWinSuggestions(
 	};
 }
 
-export async function clusterKeywordsWithAI(
-	keywords: KeywordWithVolume[],
-): Promise<Array<{ keywords: string[] }>> {
-	console.log(
-		`[mock-ai] clusterKeywordsWithAI for ${keywords.length} keywords`,
-	);
-	await simulateDelay(50);
-
-	return clusterByCommonWords(keywords).map((cluster) => ({
-		keywords: cluster.keywords,
-	}));
-}
-
 export async function clusterKeywordsSemantic(
 	keywords: KeywordWithVolume[],
 ): Promise<SemanticCluster[]> {

@@ -30,7 +30,10 @@ export type ComponentKey =
 	| "intentClassification"
 	| "keywordClustering"
 	| "quickWins"
-	| "briefs";
+	| "briefs"
+	| "cannibalization"
+	| "snippetOpportunities"
+	| "actionPlan";
 
 /**
  * Tracks the status of each component/section in an audit.
@@ -51,12 +54,17 @@ export type AuditProgress = {
 	currentRankings: ComponentProgress;
 	competitorAnalysis: ComponentProgress;
 	keywordOpportunities: ComponentProgress;
+	cannibalization: ComponentProgress;
+	snippetOpportunities: ComponentProgress;
 
 	// Claude dependent components
 	intentClassification: ComponentProgress;
 	keywordClustering: ComponentProgress;
 	quickWins: ComponentProgress;
 	briefs: ComponentProgress;
+
+	// Aggregation components (local, runs last)
+	actionPlan: ComponentProgress;
 
 	// Retry metadata
 	retryCount: number;
@@ -69,6 +77,8 @@ export const DATAFORSEO_COMPONENTS: readonly ComponentKey[] = [
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
+	"cannibalization",
+	"snippetOpportunities",
 ] as const;
 
 /**
@@ -89,6 +99,7 @@ export const LOCAL_COMPONENTS: readonly ComponentKey[] = [
 	"internalLinking",
 	"duplicateContent",
 	"redirectChains",
+	"actionPlan",
 ] as const;
 
 /**
@@ -98,6 +109,8 @@ export const RETRYABLE_COMPONENTS: readonly ComponentKey[] = [
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
+	"cannibalization",
+	"snippetOpportunities",
 	"intentClassification",
 	"keywordClustering",
 	"quickWins",
@@ -116,10 +129,13 @@ export const ALL_COMPONENTS: readonly ComponentKey[] = [
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
+	"cannibalization",
+	"snippetOpportunities",
 	"intentClassification",
 	"keywordClustering",
 	"quickWins",
 	"briefs",
+	"actionPlan",
 ] as const;
 
 /**
@@ -149,10 +165,13 @@ export function createInitialProgress(): AuditProgress {
 		currentRankings: pendingProgress(),
 		competitorAnalysis: pendingProgress(),
 		keywordOpportunities: pendingProgress(),
+		cannibalization: pendingProgress(),
+		snippetOpportunities: pendingProgress(),
 		intentClassification: pendingProgress(),
 		keywordClustering: pendingProgress(),
 		quickWins: pendingProgress(),
 		briefs: pendingProgress(),
+		actionPlan: pendingProgress(),
 		retryCount: 0,
 	};
 }

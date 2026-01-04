@@ -108,6 +108,96 @@ export function clearSerpCache(): void {
 	serpCache.clear();
 }
 
+// Related keywords cache (same pattern as serpCache)
+type RelatedKwCacheEntry = {
+	keywords: RelatedKeyword[];
+	timestamp: number;
+};
+
+const relatedKeywordsCache = createRelatedKeywordsCache();
+
+function createRelatedKeywordsCache() {
+	const entries = new Map<string, RelatedKwCacheEntry>();
+	let hits = 0;
+	let misses = 0;
+
+	function getKey(keyword: string, location: string, language: string): string {
+		return JSON.stringify({
+			keyword: keyword.toLowerCase(),
+			location,
+			language,
+		});
+	}
+
+	function prune(): void {
+		if (entries.size <= CACHE_CONFIG.maxSize) return;
+
+		const now = Date.now();
+		for (const [key, entry] of entries) {
+			if (now - entry.timestamp > CACHE_CONFIG.ttlMs) {
+				entries.delete(key);
+			}
+		}
+
+		if (entries.size > CACHE_CONFIG.maxSize) {
+			const sorted = [...entries.entries()].sort(
+				(a, b) => a[1].timestamp - b[1].timestamp,
+			);
+			const toRemove = sorted.slice(0, entries.size - CACHE_CONFIG.maxSize);
+			for (const [key] of toRemove) {
+				entries.delete(key);
+			}
+		}
+	}
+
+	return {
+		get(
+			keyword: string,
+			location: string,
+			language: string,
+		): RelatedKeyword[] | undefined {
+			const cached = entries.get(getKey(keyword, location, language));
+			if (cached && Date.now() - cached.timestamp < CACHE_CONFIG.ttlMs) {
+				hits++;
+				return cached.keywords;
+			}
+			misses++;
+			return undefined;
+		},
+
+		set(
+			keyword: string,
+			location: string,
+			language: string,
+			keywords: RelatedKeyword[],
+		): void {
+			prune();
+			entries.set(getKey(keyword, location, language), {
+				keywords,
+				timestamp: Date.now(),
+			});
+		},
+
+		clear(): void {
+			log.debug(
+				{ hits, misses, entries: entries.size },
+				"Clearing related keywords cache",
+			);
+			entries.clear();
+			hits = 0;
+			misses = 0;
+		},
+	};
+}
+
+export function clearRelatedKeywordsCache(): void {
+	if (env.TEST_MODE) {
+		mockDataforseo.clearRelatedKeywordsCache();
+		return;
+	}
+	relatedKeywordsCache.clear();
+}
+
 function getAuthHeader(): string {
 	const credentials = Buffer.from(
 		`${env.DATAFORSEO_LOGIN}:${env.DATAFORSEO_PASSWORD}`,
@@ -517,6 +607,12 @@ export async function getRelatedKeywords(
 		return mockDataforseo.getRelatedKeywords(keyword, location, language);
 	}
 
+	// Check cache first
+	const cached = relatedKeywordsCache.get(keyword, location, language);
+	if (cached) {
+		return cached;
+	}
+
 	const response = await apiRequestLegacy<
 		DataForSeoResponse<RelatedKeywordResult>
 	>("/keywords_data/google_ads/keywords_for_keywords/live", [
@@ -529,7 +625,7 @@ export async function getRelatedKeywords(
 
 	if (!response?.tasks?.[0]?.result?.[0]?.items) return [];
 
-	return response.tasks[0].result[0].items
+	const result = response.tasks[0].result[0].items
 		.filter((item) => item.keyword)
 		.map((item) => ({
 			keyword: item.keyword ?? "",
@@ -537,6 +633,11 @@ export async function getRelatedKeywords(
 			difficulty: item.keyword_info?.keyword_difficulty ?? 0,
 		}))
 		.slice(0, 20);
+
+	// Cache the result
+	relatedKeywordsCache.set(keyword, location, language, result);
+
+	return result;
 }
 
 export async function getPeopleAlsoAsk(

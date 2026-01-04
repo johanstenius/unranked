@@ -304,62 +304,6 @@ type KeywordWithVolume = {
 	searchVolume: number;
 };
 
-const clusterResponseSchema = z.object({
-	clusters: z.array(z.object({ keywords: z.array(z.string()) })),
-});
-
-export async function clusterKeywordsWithAI(
-	keywords: KeywordWithVolume[],
-): Promise<Array<{ keywords: string[] }>> {
-	if (env.TEST_MODE) {
-		return mockAi.clusterKeywordsWithAI(keywords);
-	}
-
-	const keywordList = keywords
-		.map((k) => `- "${k.keyword}" (vol: ${k.searchVolume})`)
-		.join("\n");
-
-	const prompt = `You are an SEO expert grouping keywords into topical clusters.
-
-Each cluster represents ONE content piece (a single page). Keywords in the same cluster should be semantically related and targetable with a single page.
-
-Group these keywords:
-${keywordList}
-
-Rules:
-- Keywords about the same topic/concept = same cluster
-- Max 10 keywords per cluster
-- Some keywords may be standalone (cluster of 1)
-- Include ALL keywords exactly as written
-
-Respond in JSON format:
-{
-  "clusters": [
-    { "keywords": ["keyword1", "keyword2"] },
-    { "keywords": ["keyword3"] }
-  ]
-}`;
-
-	const response = await getClient().messages.create({
-		model: getModel("fast"),
-		max_tokens: 2048,
-		messages: [{ role: "user", content: prompt }],
-	});
-
-	const textContent = response.content.find((c) => c.type === "text");
-	if (!textContent || textContent.type !== "text") {
-		throw new Error("No text response from AI");
-	}
-
-	const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-	if (!jsonMatch) {
-		throw new Error("No JSON found in AI response");
-	}
-
-	const parsed = clusterResponseSchema.parse(JSON.parse(jsonMatch[0]));
-	return parsed.clusters;
-}
-
 // Semantic clustering with topic names
 export type SemanticCluster = {
 	topic: string;

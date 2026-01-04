@@ -230,6 +230,36 @@ export type OpportunityCluster = {
 	existingPage?: string;
 };
 
+export type ActionType =
+	| "fix_technical"
+	| "add_internal_links"
+	| "optimize_existing"
+	| "create_content"
+	| "fix_cannibalization"
+	| "steal_snippet";
+
+export type ActionCategory =
+	| "technical"
+	| "content"
+	| "linking"
+	| "optimization";
+
+export type PrioritizedAction = {
+	id: string;
+	priority: number;
+	type: ActionType;
+	title: string;
+	description: string;
+	url?: string;
+	keyword?: string;
+	estimatedImpact: {
+		trafficGain?: number;
+		searchVolume?: number;
+	};
+	effort: "low" | "medium" | "high";
+	category: ActionCategory;
+};
+
 // Health Score types
 export type HealthScoreGrade = "excellent" | "good" | "needs_work" | "poor";
 
@@ -267,6 +297,7 @@ export type Analysis = {
 	sectionStats: SectionStats[];
 	healthScore: HealthScore | null;
 	discoveredCompetitors: DiscoveredCompetitor[];
+	actionPlan?: PrioritizedAction[];
 };
 
 // API input/output types

@@ -388,7 +388,7 @@ function parsePage(
 
 	const mainContent =
 		$("main").text() || $("article").text() || $("body").text();
-	const content = mainContent.replace(/\s+/g, " ").trim().slice(0, 10000);
+	const content = mainContent.replace(/\s+/g, " ").trim();
 	const wordCount = content.split(/\s+/).filter(Boolean).length;
 
 	// Calculate readability score (Flesch-Kincaid Grade Level)

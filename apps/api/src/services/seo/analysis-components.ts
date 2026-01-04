@@ -49,6 +49,8 @@ export type {
 	OpportunityCluster,
 } from "./analysis.js";
 
+import type { OpportunityCluster } from "./analysis.js";
+
 export type ComponentResult<T> =
 	| { ok: true; data: T }
 	| { ok: false; error: string; retriable: boolean };
@@ -456,6 +458,7 @@ export async function runBriefs(
 	productDesc: string | null,
 	pages: CrawledPage[],
 	maxBriefs: number,
+	existingClusters?: OpportunityCluster[],
 ): Promise<ComponentResult<GenerateBriefsResult>> {
 	log.info(
 		{ opportunities: opportunities.length, maxBriefs },
@@ -487,6 +490,7 @@ export async function runBriefs(
 			productDesc,
 			pages,
 			maxBriefs,
+			existingClusters,
 		);
 
 		// If all briefs failed, return error

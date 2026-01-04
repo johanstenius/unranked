@@ -15,6 +15,7 @@ import * as auditRepo from "../repositories/audit.repository.js";
 import * as briefRepo from "../repositories/brief.repository.js";
 import {
 	type PageModel,
+	deleteCrawledPagesByAuditId,
 	getPagesByAuditId,
 } from "../repositories/crawled-page.repository.js";
 import { tierLimits } from "../schemas/audit.schema.js";
@@ -255,6 +256,10 @@ export async function completeAudit(auditId: string): Promise<void> {
 			"Failed to send report email - retry job will handle",
 		);
 	}
+
+	// Cleanup crawled pages - no longer needed after completion
+	await deleteCrawledPagesByAuditId(auditId);
+	completeLog.debug("Cleaned up crawled pages");
 }
 
 // ============================================================================
@@ -344,6 +349,7 @@ async function runComponent(
 				audit.productDesc,
 				pages,
 				limits.briefs,
+				analysisData.opportunityClusters, // Reuse existing clusters
 			);
 
 			if (result.ok) {
@@ -386,6 +392,7 @@ async function storeComponentResult(
 		currentRankings: "currentRankings",
 		competitorAnalysis: "competitorGaps",
 		quickWins: "quickWins",
+		actionPlan: "actionPlan",
 	};
 
 	const field = fieldMap[component];

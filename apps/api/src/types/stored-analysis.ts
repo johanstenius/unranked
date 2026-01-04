@@ -5,6 +5,8 @@
 
 import type {
 	CompetitorGap,
+	OpportunityCluster,
+	PrioritizedAction,
 	QuickWin,
 	TechnicalIssue,
 } from "../services/seo/analysis.js";
@@ -35,8 +37,10 @@ export type StoredHealthScore = {
 export type StoredAnalysisData = {
 	currentRankings?: StoredRanking[];
 	opportunities?: StoredOpportunity[];
+	opportunityClusters?: OpportunityCluster[];
 	quickWins?: QuickWin[];
 	competitorGaps?: CompetitorGap[];
 	technicalIssues?: TechnicalIssue[];
 	healthScore?: StoredHealthScore;
+	actionPlan?: PrioritizedAction[];
 };

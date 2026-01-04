@@ -15,6 +15,10 @@ export function clearSerpCache(): void {
 	console.log("[mock-dataforseo] clearSerpCache (no-op)");
 }
 
+export function clearRelatedKeywordsCache(): void {
+	console.log("[mock-dataforseo] clearRelatedKeywordsCache (no-op)");
+}
+
 export async function getKeywordData(
 	keywords: string[],
 	_location = "United States",

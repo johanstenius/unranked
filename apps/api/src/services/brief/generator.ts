@@ -2,15 +2,38 @@ import { createLogger } from "../../lib/logger.js";
 import {
 	type BriefStructure,
 	type SearchIntent,
+	clusterKeywordsSemantic,
 	generateBriefStructure,
 } from "../ai/anthropic.js";
 import type { CrawledPage } from "../crawler/types.js";
-import type { Opportunity } from "../seo/analysis.js";
-import { type KeywordCluster, clusterKeywords } from "../seo/clustering.js";
+import type { Opportunity, OpportunityCluster } from "../seo/analysis.js";
 import * as dataForSeo from "../seo/dataforseo.js";
 import { findLinkingSuggestions } from "../seo/internal-linking.js";
 
 const log = createLogger("briefs");
+
+// Internal cluster type for brief generation
+type KeywordCluster = {
+	primaryKeyword: string;
+	keywords: string[];
+	totalVolume: number;
+	opportunities: Opportunity[];
+};
+
+// Convert OpportunityCluster (from analysis) to KeywordCluster (for briefs)
+function opportunityClusterToKeywordCluster(
+	oc: OpportunityCluster,
+): KeywordCluster {
+	const primaryOpp = oc.opportunities.reduce((max, o) =>
+		o.searchVolume > max.searchVolume ? o : max,
+	);
+	return {
+		primaryKeyword: primaryOpp.keyword,
+		keywords: oc.opportunities.map((o) => o.keyword),
+		totalVolume: oc.totalVolume,
+		opportunities: oc.opportunities,
+	};
+}
 
 export type GeneratedBrief = {
 	keyword: string;
@@ -73,11 +96,12 @@ async function generateBriefFromCluster(
 ): Promise<GeneratedBrief> {
 	const keyword = cluster.primaryKeyword;
 
-	const [serpResults, relatedKeywords, questions] = await Promise.all([
-		dataForSeo.getSerpResults(keyword),
-		dataForSeo.getRelatedKeywords(keyword),
-		dataForSeo.getPeopleAlsoAsk(keyword),
-	]);
+	// Single API call for SERP+PAA, separate call for related keywords
+	const [{ serp: serpResults, paa: questions }, relatedKeywords] =
+		await Promise.all([
+			dataForSeo.getSerpWithPaa(keyword),
+			dataForSeo.getRelatedKeywords(keyword),
+		]);
 
 	const { title, structure } = await generateBriefStructure({
 		keyword,
@@ -161,6 +185,7 @@ export async function generateBriefs(
 	productDesc: string | null,
 	existingPages: CrawledPage[],
 	maxBriefs: number,
+	existingClusters?: OpportunityCluster[],
 ): Promise<GenerateBriefsResult> {
 	const limit = maxBriefs < 0 ? Number.POSITIVE_INFINITY : maxBriefs;
 	const limitLabel = maxBriefs === -1 ? "unlimited" : String(maxBriefs);
@@ -170,11 +195,51 @@ export async function generateBriefs(
 		"Generating briefs",
 	);
 
-	log.debug("Clustering keywords");
-	const clusters = await clusterKeywords(opportunities);
+	let clusters: KeywordCluster[];
+
+	if (existingClusters && existingClusters.length > 0) {
+		// Reuse clusters from analysis (avoids duplicate AI call)
+		log.debug(
+			{ clusters: existingClusters.length },
+			"Using existing clusters from analysis",
+		);
+		clusters = existingClusters.map(opportunityClusterToKeywordCluster);
+	} else {
+		// Fallback: cluster with AI (only if no clusters provided)
+		log.debug("No existing clusters, clustering with AI");
+		const semanticClusters = await clusterKeywordsSemantic(
+			opportunities.map((o) => ({
+				keyword: o.keyword,
+				searchVolume: o.searchVolume,
+			})),
+		);
+
+		// Convert semantic clusters to keyword clusters
+		const oppsByKeyword = new Map(
+			opportunities.map((o) => [o.keyword.toLowerCase(), o]),
+		);
+		clusters = semanticClusters.map((sc) => {
+			const clusterOpps = sc.keywords
+				.map((kw) => oppsByKeyword.get(kw.toLowerCase()))
+				.filter((o): o is Opportunity => o !== undefined);
+			const primaryOpp =
+				clusterOpps.length > 0
+					? clusterOpps.reduce((max, o) =>
+							o.searchVolume > max.searchVolume ? o : max,
+						)
+					: null;
+			return {
+				primaryKeyword: primaryOpp?.keyword ?? sc.keywords[0] ?? "",
+				keywords: sc.keywords,
+				totalVolume: clusterOpps.reduce((sum, o) => sum + o.searchVolume, 0),
+				opportunities: clusterOpps,
+			};
+		});
+	}
+
 	log.debug(
 		{ clusters: clusters.length, keywords: opportunities.length },
-		"Created clusters",
+		"Clusters ready",
 	);
 
 	const clustersToProcess = clusters.slice(0, limit);
