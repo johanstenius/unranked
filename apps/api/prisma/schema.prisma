@@ -31,6 +31,9 @@ model Audit {
   delayEmailSentAt   DateTime?  // When we sent "taking longer" notification
   supportAlertSentAt DateTime?  // When we alerted support about struggling audit
 
+  // API usage tracking
+  apiUsage Json? // ApiUsage object for cost monitoring
+
   stripeSessionId       String?   @unique
   tier                  AuditTier
   reportToken           String?   @unique

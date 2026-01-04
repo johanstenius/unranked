@@ -5,11 +5,16 @@ import { AnimatePresence, SlideUp, motion } from "@/components/motion";
 import { Input } from "@/components/ui/input";
 import { LoadingScreen, Spinner } from "@/components/ui/spinner";
 import type { AuditTier } from "@/lib/api";
-import { createCheckout, devStartAudit, tierInfo } from "@/lib/api";
+import {
+	createCheckout,
+	devStartAudit,
+	tierInfo,
+	validateUrl,
+} from "@/lib/api";
 import { normalizeUrl } from "@/lib/url";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useId, useState } from "react";
+import { Suspense, useCallback, useId, useState } from "react";
 
 const TIERS = ["SCAN", "AUDIT", "DEEP_DIVE"] as const;
 
@@ -82,6 +87,41 @@ function AnalyzeForm() {
 	const [error, setError] = useState<string | null>(null);
 	const [nextId, setNextId] = useState(1);
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [siteError, setSiteError] = useState<string | null>(null);
+	const [validatingSite, setValidatingSite] = useState(false);
+	const [siteValidated, setSiteValidated] = useState(false);
+
+	const handleSiteBlur = useCallback(async () => {
+		const trimmed = site.trim();
+		if (!trimmed) {
+			setSiteError(null);
+			setSiteValidated(false);
+			return;
+		}
+
+		setValidatingSite(true);
+		setSiteError(null);
+		setSiteValidated(false);
+
+		try {
+			const result = await validateUrl(normalizeUrl(trimmed));
+			if (!result.valid) {
+				setSiteError(result.error ?? "Site unreachable");
+			} else {
+				setSiteValidated(true);
+			}
+		} catch {
+			setSiteError("Failed to validate URL");
+		} finally {
+			setValidatingSite(false);
+		}
+	}, [site]);
+
+	function handleSiteChange(value: string) {
+		setSite(value);
+		setSiteValidated(false);
+		setSiteError(null);
+	}
 
 	const selectedTier = tierInfo[tier];
 
@@ -124,6 +164,23 @@ function AnalyzeForm() {
 		setLoading(true);
 		setError(null);
 
+		// Validate URL if not yet validated
+		if (!siteValidated) {
+			try {
+				const result = await validateUrl(normalizeUrl(site.trim()));
+				if (!result.valid) {
+					setSiteError(result.error ?? "Site unreachable");
+					setLoading(false);
+					return;
+				}
+				setSiteValidated(true);
+			} catch {
+				setSiteError("Failed to validate URL");
+				setLoading(false);
+				return;
+			}
+		}
+
 		try {
 			const result = await createCheckout(getFormData());
 			if (result.checkoutUrl) {
@@ -142,6 +199,23 @@ function AnalyzeForm() {
 		setLoading(true);
 		setError(null);
 
+		// Validate URL if not yet validated
+		if (!siteValidated) {
+			try {
+				const result = await validateUrl(normalizeUrl(site.trim()));
+				if (!result.valid) {
+					setSiteError(result.error ?? "Site unreachable");
+					setLoading(false);
+					return;
+				}
+				setSiteValidated(true);
+			} catch {
+				setSiteError("Failed to validate URL");
+				setLoading(false);
+				return;
+			}
+		}
+
 		try {
 			const result = await devStartAudit(getFormData());
 			router.push(`/audit/${result.auditId}`);
@@ -151,7 +225,8 @@ function AnalyzeForm() {
 		}
 	}
 
-	const canSubmit = site.trim() && email.trim();
+	const canSubmit =
+		site.trim() && email.trim() && !siteError && !validatingSite;
 
 	return (
 		<div className="min-h-screen bg-canvas">
@@ -179,15 +254,44 @@ function AnalyzeForm() {
 							>
 								Website to analyze
 							</label>
-							<Input
-								id="site"
-								type="text"
-								required
-								value={site}
-								onChange={(e) => setSite(e.target.value)}
-								placeholder="yourproduct.com"
-								className="h-12"
-							/>
+							<div className="relative">
+								<Input
+									id="site"
+									type="text"
+									required
+									value={site}
+									onChange={(e) => handleSiteChange(e.target.value)}
+									onBlur={handleSiteBlur}
+									placeholder="yourproduct.com"
+									className={`h-12 ${siteError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+								/>
+								{validatingSite && (
+									<div className="absolute right-3 top-1/2 -translate-y-1/2">
+										<Spinner size="sm" />
+									</div>
+								)}
+								{siteValidated && !validatingSite && (
+									<div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600">
+										<svg
+											className="w-5 h-5"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											aria-hidden="true"
+										>
+											<path
+												strokeLinecap="round"
+												strokeLinejoin="round"
+												strokeWidth={2}
+												d="M5 13l4 4L19 7"
+											/>
+										</svg>
+									</div>
+								)}
+							</div>
+							{siteError && (
+								<p className="text-xs text-destructive mt-1">{siteError}</p>
+							)}
 						</SlideUp>
 
 						{/* Email */}

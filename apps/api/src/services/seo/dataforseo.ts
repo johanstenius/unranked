@@ -1,5 +1,10 @@
 import { env } from "../../config/env.js";
 import { createLogger } from "../../lib/logger.js";
+import {
+	type ApiUsage,
+	trackDataforseoCacheHit,
+	trackDataforseoRequest,
+} from "../../types/api-usage.js";
 import * as mockDataforseo from "./dataforseo.mock.js";
 
 const log = createLogger("dataforseo");
@@ -292,6 +297,7 @@ export function isApiAvailable(): boolean {
 async function apiRequest<T>(
 	endpoint: string,
 	body: unknown,
+	usage?: ApiUsage,
 ): Promise<ApiResult<T>> {
 	// Check circuit breaker first
 	const circuitCheck = checkCircuitBreaker();
@@ -315,6 +321,9 @@ async function apiRequest<T>(
 
 			if (response.ok) {
 				recordSuccess();
+				if (usage) {
+					trackDataforseoRequest(usage, endpoint);
+				}
 				const data = (await response.json()) as T;
 				return { ok: true, data };
 			}
@@ -373,19 +382,6 @@ async function apiRequest<T>(
 		lastError instanceof Error ? lastError.message : "Unknown error";
 	log.error({ error: message }, "DataForSEO API request failed after retries");
 	return { ok: false, error: lastErrorType, message };
-}
-
-/**
- * Legacy wrapper for backward compatibility
- * @deprecated Use typed result functions instead
- */
-async function apiRequestLegacy<T>(
-	endpoint: string,
-	body: unknown,
-): Promise<T | null> {
-	const result = await apiRequest<T>(endpoint, body);
-	if (result.ok) return result.data;
-	return null;
 }
 
 export type KeywordData = {
@@ -448,24 +444,27 @@ export async function getKeywordData(
 	keywords: string[],
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<KeywordData[]> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getKeywordData(keywords, location, language);
 	}
 
-	const response = await apiRequestLegacy<
-		DataForSeoResponse<KeywordDataResult>
-	>("/keywords_data/google_ads/search_volume/live", [
-		{
-			keywords,
-			location_name: location,
-			language_name: language,
-		},
-	]);
+	const response = await apiRequest<DataForSeoResponse<KeywordDataResult>>(
+		"/keywords_data/google_ads/search_volume/live",
+		[
+			{
+				keywords,
+				location_name: location,
+				language_name: language,
+			},
+		],
+		usage,
+	);
 
-	if (!response?.tasks?.[0]?.result) return [];
+	if (!response.ok || !response.data?.tasks?.[0]?.result) return [];
 
-	return response.tasks[0].result.map((item) => ({
+	return response.data.tasks[0].result.map((item) => ({
 		keyword: item.keyword,
 		searchVolume: item.keyword_info?.search_volume ?? 0,
 		difficulty: item.keyword_info?.keyword_difficulty ?? 0,
@@ -489,9 +488,13 @@ async function fetchSerpWithFeatures(
 	keyword: string,
 	location: string,
 	language: string,
+	usage?: ApiUsage,
 ): Promise<SerpWithFeatures> {
 	const cached = serpCache.get(keyword, location, language);
 	if (cached) {
+		if (usage) {
+			trackDataforseoCacheHit(usage);
+		}
 		return {
 			serp: cached.serp,
 			paa: cached.paa,
@@ -499,7 +502,7 @@ async function fetchSerpWithFeatures(
 		};
 	}
 
-	const response = await apiRequestLegacy<DataForSeoResponse<SerpDataResult>>(
+	const response = await apiRequest<DataForSeoResponse<SerpDataResult>>(
 		"/serp/google/organic/live/regular",
 		[
 			{
@@ -509,9 +512,14 @@ async function fetchSerpWithFeatures(
 				depth: 10,
 			},
 		],
+		usage,
 	);
 
-	const items = response?.tasks?.[0]?.result?.[0]?.items ?? [];
+	if (!response.ok) {
+		return { serp: [], paa: [], featuredSnippet: null };
+	}
+
+	const items = response.data?.tasks?.[0]?.result?.[0]?.items ?? [];
 
 	// Filter by url presence only (not by type) to match original behavior
 	const serp: SerpResult[] = items
@@ -560,12 +568,18 @@ export async function getSerpResults(
 	keyword: string,
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<SerpResult[]> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getSerpResults(keyword, location, language);
 	}
 
-	const { serp } = await fetchSerpWithFeatures(keyword, location, language);
+	const { serp } = await fetchSerpWithFeatures(
+		keyword,
+		location,
+		language,
+		usage,
+	);
 	return serp;
 }
 
@@ -573,6 +587,7 @@ export async function getSerpWithPaa(
 	keyword: string,
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<SerpWithPaa> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getSerpWithPaa(keyword, location, language);
@@ -582,6 +597,7 @@ export async function getSerpWithPaa(
 		keyword,
 		location,
 		language,
+		usage,
 	);
 	return { serp, paa };
 }
@@ -590,18 +606,20 @@ export async function getSerpWithFeatures(
 	keyword: string,
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<SerpWithFeatures> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getSerpWithFeatures(keyword, location, language);
 	}
 
-	return fetchSerpWithFeatures(keyword, location, language);
+	return fetchSerpWithFeatures(keyword, location, language, usage);
 }
 
 export async function getRelatedKeywords(
 	keyword: string,
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<RelatedKeyword[]> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getRelatedKeywords(keyword, location, language);
@@ -610,22 +628,27 @@ export async function getRelatedKeywords(
 	// Check cache first
 	const cached = relatedKeywordsCache.get(keyword, location, language);
 	if (cached) {
+		if (usage) {
+			trackDataforseoCacheHit(usage);
+		}
 		return cached;
 	}
 
-	const response = await apiRequestLegacy<
-		DataForSeoResponse<RelatedKeywordResult>
-	>("/keywords_data/google_ads/keywords_for_keywords/live", [
-		{
-			keywords: [keyword],
-			location_name: location,
-			language_name: language,
-		},
-	]);
+	const response = await apiRequest<DataForSeoResponse<RelatedKeywordResult>>(
+		"/keywords_data/google_ads/keywords_for_keywords/live",
+		[
+			{
+				keywords: [keyword],
+				location_name: location,
+				language_name: language,
+			},
+		],
+		usage,
+	);
 
-	if (!response?.tasks?.[0]?.result?.[0]?.items) return [];
+	if (!response.ok || !response.data?.tasks?.[0]?.result?.[0]?.items) return [];
 
-	const result = response.tasks[0].result[0].items
+	const result = response.data.tasks[0].result[0].items
 		.filter((item) => item.keyword)
 		.map((item) => ({
 			keyword: item.keyword ?? "",
@@ -644,12 +667,18 @@ export async function getPeopleAlsoAsk(
 	keyword: string,
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<string[]> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getPeopleAlsoAsk(keyword, location, language);
 	}
 
-	const { paa } = await fetchSerpWithFeatures(keyword, location, language);
+	const { paa } = await fetchSerpWithFeatures(
+		keyword,
+		location,
+		language,
+		usage,
+	);
 	return paa;
 }
 
@@ -699,6 +728,7 @@ export type DomainKeywordOptions = {
 export async function getDomainRankedKeywords(
 	domain: string,
 	options: DomainKeywordOptions = {},
+	usage?: ApiUsage,
 ): Promise<DomainKeyword[]> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.getDomainRankedKeywords(domain, options);
@@ -730,25 +760,27 @@ export async function getDomainRankedKeywords(
 		]);
 	}
 
-	const response = await apiRequestLegacy<
-		DataForSeoResponse<RankedKeywordResult>
-	>("/dataforseo_labs/google/ranked_keywords/live", [
-		{
-			target: domain,
-			location_name: location,
-			language_name: language,
-			limit,
-			order_by: ["keyword_data.keyword_info.search_volume,desc"],
-			filters,
-		},
-	]);
+	const response = await apiRequest<DataForSeoResponse<RankedKeywordResult>>(
+		"/dataforseo_labs/google/ranked_keywords/live",
+		[
+			{
+				target: domain,
+				location_name: location,
+				language_name: language,
+				limit,
+				order_by: ["keyword_data.keyword_info.search_volume,desc"],
+				filters,
+			},
+		],
+		usage,
+	);
 
-	if (!response?.tasks?.[0]?.result?.[0]?.items) {
+	if (!response.ok || !response.data?.tasks?.[0]?.result?.[0]?.items) {
 		log.debug({ domain }, "No ranked keywords found");
 		return [];
 	}
 
-	const items = response.tasks[0].result[0].items;
+	const items = response.data.tasks[0].result[0].items;
 	log.debug({ domain, count: items.length }, "Found ranked keywords");
 
 	return items
@@ -785,6 +817,7 @@ export type DiscoverCompetitorsOptions = {
 export async function discoverCompetitors(
 	domain: string,
 	options: DiscoverCompetitorsOptions = {},
+	usage?: ApiUsage,
 ): Promise<DiscoveredCompetitor[]> {
 	if (env.TEST_MODE) {
 		return mockDataforseo.discoverCompetitors(domain, options);
@@ -794,26 +827,28 @@ export async function discoverCompetitors(
 
 	log.debug({ domain }, "Discovering competitors");
 
-	const response = await apiRequestLegacy<
-		DataForSeoResponse<CompetitorDomainResult>
-	>("/dataforseo_labs/google/competitors_domain/live", [
-		{
-			target: domain,
-			location_name: location,
-			language_name: language,
-			limit,
-			exclude_top_domains: true,
-			filters: [["intersections", ">", 10]],
-			order_by: ["intersections,desc"],
-		},
-	]);
+	const response = await apiRequest<DataForSeoResponse<CompetitorDomainResult>>(
+		"/dataforseo_labs/google/competitors_domain/live",
+		[
+			{
+				target: domain,
+				location_name: location,
+				language_name: language,
+				limit,
+				exclude_top_domains: true,
+				filters: [["intersections", ">", 10]],
+				order_by: ["intersections,desc"],
+			},
+		],
+		usage,
+	);
 
-	if (!response?.tasks?.[0]?.result?.[0]?.items) {
+	if (!response.ok || !response.data?.tasks?.[0]?.result?.[0]?.items) {
 		log.debug({ domain }, "No competitors found");
 		return [];
 	}
 
-	const items = response.tasks[0].result[0].items;
+	const items = response.data.tasks[0].result[0].items;
 	log.debug({ domain, count: items.length }, "Found competitors");
 
 	return items
@@ -836,6 +871,7 @@ export async function discoverCompetitors(
 export async function getDomainRankedKeywordsTyped(
 	domain: string,
 	options: DomainKeywordOptions = {},
+	usage?: ApiUsage,
 ): Promise<ApiResult<DomainKeyword[]>> {
 	if (env.TEST_MODE) {
 		const data = await mockDataforseo.getDomainRankedKeywords(domain, options);
@@ -877,6 +913,7 @@ export async function getDomainRankedKeywordsTyped(
 				filters,
 			},
 		],
+		usage,
 	);
 
 	if (!result.ok) return result;
@@ -902,6 +939,7 @@ export async function getDomainRankedKeywordsTyped(
 export async function discoverCompetitorsTyped(
 	domain: string,
 	options: DiscoverCompetitorsOptions = {},
+	usage?: ApiUsage,
 ): Promise<ApiResult<DiscoveredCompetitor[]>> {
 	if (env.TEST_MODE) {
 		const data = await mockDataforseo.discoverCompetitors(domain, options);
@@ -923,6 +961,7 @@ export async function discoverCompetitorsTyped(
 				order_by: ["intersections,desc"],
 			},
 		],
+		usage,
 	);
 
 	if (!result.ok) return result;
@@ -948,6 +987,7 @@ export async function getKeywordDataTyped(
 	keywords: string[],
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<ApiResult<KeywordData[]>> {
 	if (env.TEST_MODE) {
 		const data = await mockDataforseo.getKeywordData(
@@ -967,6 +1007,7 @@ export async function getKeywordDataTyped(
 				language_name: language,
 			},
 		],
+		usage,
 	);
 
 	if (!result.ok) return result;
@@ -991,6 +1032,7 @@ export async function getSerpResultsTyped(
 	keyword: string,
 	location = "United States",
 	language = "en",
+	usage?: ApiUsage,
 ): Promise<ApiResult<SerpResult[]>> {
 	if (env.TEST_MODE) {
 		const data = await mockDataforseo.getSerpResults(
@@ -1003,6 +1045,9 @@ export async function getSerpResultsTyped(
 
 	const cached = serpCache.get(keyword, location, language);
 	if (cached) {
+		if (usage) {
+			trackDataforseoCacheHit(usage);
+		}
 		return { ok: true, data: cached.serp };
 	}
 
@@ -1016,6 +1061,7 @@ export async function getSerpResultsTyped(
 				depth: 10,
 			},
 		],
+		usage,
 	);
 
 	if (!result.ok) return result;

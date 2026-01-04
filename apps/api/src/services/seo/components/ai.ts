@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from "../../../lib/logger.js";
+import type { ApiUsage } from "../../../types/api-usage.js";
 import {
 	type QuickWinSuggestions,
 	type SemanticCluster,
@@ -73,6 +74,7 @@ async function runIntentClassification(
 
 		const intentMap = await classifyKeywordIntents(
 			opportunities.map((o) => o.keyword),
+			ctx.usage,
 		);
 
 		// Apply intents to opportunities in-place
@@ -163,7 +165,7 @@ async function runKeywordClustering(
 			searchVolume: o.searchVolume,
 		}));
 
-		const semanticClusters = await clusterKeywordsSemantic(keywords);
+		const semanticClusters = await clusterKeywordsSemantic(keywords, ctx.usage);
 
 		// Map opportunities by keyword for quick lookup
 		const oppsByKeyword = new Map<string, Opportunity>();
@@ -245,29 +247,38 @@ async function generateAiSuggestionsForQuickWin(
 	candidate: CurrentRanking,
 	page: CrawledPage,
 	allPages: CrawledPage[],
+	usage?: ApiUsage,
 ): Promise<QuickWinSuggestions | null> {
 	try {
 		// Single API call for both SERP and PAA
 		const { serp: serpResults, paa: questions } =
-			await dataForSeo.getSerpWithPaa(candidate.keyword);
+			await dataForSeo.getSerpWithPaa(
+				candidate.keyword,
+				"United States",
+				"en",
+				usage,
+			);
 
-		return await generateQuickWinSuggestions({
-			pageUrl: candidate.url,
-			pageTitle: page.title,
-			pageContent: page.content,
-			keyword: candidate.keyword,
-			currentPosition: candidate.position,
-			topCompetitors: serpResults
-				.filter((s) => s.position < candidate.position)
-				.slice(0, LIMITS.TOP_COMPETITORS_FOR_AI)
-				.map((s) => ({
-					title: s.title,
-					url: s.url,
-					description: s.description,
-				})),
-			relatedQuestions: questions,
-			existingPages: allPages.map((p) => ({ title: p.title, url: p.url })),
-		});
+		return await generateQuickWinSuggestions(
+			{
+				pageUrl: candidate.url,
+				pageTitle: page.title,
+				pageContent: page.content,
+				keyword: candidate.keyword,
+				currentPosition: candidate.position,
+				topCompetitors: serpResults
+					.filter((s) => s.position < candidate.position)
+					.slice(0, LIMITS.TOP_COMPETITORS_FOR_AI)
+					.map((s) => ({
+						title: s.title,
+						url: s.url,
+						description: s.description,
+					})),
+				relatedQuestions: questions,
+				existingPages: allPages.map((p) => ({ title: p.title, url: p.url })),
+			},
+			usage,
+		);
 	} catch (error) {
 		log.error({ error, url: candidate.url }, "AI suggestion failed");
 		return null;
@@ -323,6 +334,7 @@ async function runQuickWins(
 					candidate,
 					page,
 					ctx.pages,
+					ctx.usage,
 				);
 				return { candidate, suggestions };
 			}),

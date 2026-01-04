@@ -234,27 +234,32 @@ export async function completeAudit(auditId: string): Promise<void> {
 	const opportunitiesCount = analysisData?.opportunities?.length ?? 0;
 	const briefsCount = audit.briefs?.length ?? 0;
 
-	try {
-		await sendReportReadyEmail({
-			to: audit.email,
-			siteUrl: audit.siteUrl,
-			reportToken,
-			healthScore: healthScore?.score,
-			healthGrade: healthScore?.grade,
-			opportunitiesCount,
-			briefsCount,
-		});
+	// Skip email for FREE tier - it's fast enough to wait
+	if (audit.tier !== "FREE") {
+		try {
+			await sendReportReadyEmail({
+				to: audit.email,
+				siteUrl: audit.siteUrl,
+				reportToken,
+				healthScore: healthScore?.score,
+				healthGrade: healthScore?.grade,
+				opportunitiesCount,
+				briefsCount,
+			});
 
-		await auditRepo.updateAudit(auditId, {
-			reportEmailSentAt: new Date(),
-		});
+			await auditRepo.updateAudit(auditId, {
+				reportEmailSentAt: new Date(),
+			});
 
-		completeLog.info("Audit completed and email sent");
-	} catch (emailError) {
-		completeLog.error(
-			{ error: emailError },
-			"Failed to send report email - retry job will handle",
-		);
+			completeLog.info("Audit completed and email sent");
+		} catch (emailError) {
+			completeLog.error(
+				{ error: emailError },
+				"Failed to send report email - retry job will handle",
+			);
+		}
+	} else {
+		completeLog.info("Audit completed (FREE tier - no email)");
 	}
 
 	// Cleanup crawled pages - no longer needed after completion

@@ -5,9 +5,15 @@ import { queueCrawlJob } from "../jobs/audit.jobs.js";
 import { createLogger } from "../lib/logger.js";
 import { getQueue } from "../lib/queue.js";
 import * as auditRepo from "../repositories/audit.repository.js";
-import { auditTierSchema, createAuditSchema } from "../schemas/audit.schema.js";
+import {
+	auditTierSchema,
+	createAuditSchema,
+	validateUrlRequestSchema,
+	validateUrlResponseSchema,
+} from "../schemas/audit.schema.js";
 import { isValidUpgrade } from "../services/payments/billing.js";
 import { lemonSqueezyProvider } from "../services/payments/lemonsqueezy.js";
+import { validateSiteUrl } from "../services/url-validation.service.js";
 
 const log = createLogger("billing");
 
@@ -15,6 +21,37 @@ export const billingRoutes = new OpenAPIHono<AppEnv>();
 
 const FREE_TIER_RATE_LIMIT = 30;
 const FREE_TIER_WINDOW_HOURS = 24;
+
+// Validate URL endpoint
+const validateUrlRoute = createRoute({
+	method: "post",
+	path: "/validate-url",
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: validateUrlRequestSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: validateUrlResponseSchema,
+				},
+			},
+			description: "URL validation result",
+		},
+	},
+});
+
+billingRoutes.openapi(validateUrlRoute, async (c) => {
+	const { url } = c.req.valid("json");
+	const result = await validateSiteUrl(url);
+	return c.json(result, 200);
+});
 
 const createCheckoutRoute = createRoute({
 	method: "post",
@@ -40,6 +77,14 @@ const createCheckoutRoute = createRoute({
 			},
 			description: "Checkout session created or free audit started",
 		},
+		400: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Invalid or unreachable site URL",
+		},
 		429: {
 			content: {
 				"application/json": {
@@ -53,6 +98,12 @@ const createCheckoutRoute = createRoute({
 
 billingRoutes.openapi(createCheckoutRoute, async (c) => {
 	const body = c.req.valid("json");
+
+	// Validate site URL is reachable
+	const urlValidation = await validateSiteUrl(body.siteUrl);
+	if (!urlValidation.valid) {
+		return c.json({ error: urlValidation.error ?? "Site unreachable" }, 400);
+	}
 
 	// Rate limit FREE tier
 	if (body.tier === "FREE") {

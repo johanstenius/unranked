@@ -122,7 +122,7 @@ function CheckForm() {
 								className="h-12"
 							/>
 							<p className="text-xs text-muted-foreground mt-1">
-								We&apos;ll email you when the report is ready.
+								Results ready in seconds.
 							</p>
 						</SlideUp>
 

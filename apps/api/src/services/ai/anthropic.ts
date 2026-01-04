@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "@hono/zod-openapi";
 import { env } from "../../config/env.js";
 import { createLogger } from "../../lib/logger.js";
+import { type ApiUsage, trackClaudeUsage } from "../../types/api-usage.js";
 import * as mockAi from "./anthropic.mock.js";
 
 const log = createLogger("ai");
@@ -234,6 +235,7 @@ type QuickWinInput = {
 
 export async function generateQuickWinSuggestions(
 	input: QuickWinInput,
+	usage?: ApiUsage,
 ): Promise<QuickWinSuggestions> {
 	if (env.TEST_MODE) {
 		return mockAi.generateQuickWinSuggestions(input);
@@ -286,6 +288,14 @@ Be specific. Don't give generic advice like "add more content" - instead say exa
 		messages: [{ role: "user", content: prompt }],
 	});
 
+	if (usage) {
+		trackClaudeUsage(
+			usage,
+			response.usage.input_tokens,
+			response.usage.output_tokens,
+		);
+	}
+
 	const textContent = response.content.find((c) => c.type === "text");
 	if (!textContent || textContent.type !== "text") {
 		throw new Error("No text response from AI");
@@ -321,6 +331,7 @@ const semanticClusterSchema = z.object({
 
 export async function clusterKeywordsSemantic(
 	keywords: KeywordWithVolume[],
+	usage?: ApiUsage,
 ): Promise<SemanticCluster[]> {
 	if (keywords.length === 0) return [];
 
@@ -360,6 +371,14 @@ Respond ONLY with JSON:
 			max_tokens: 2048,
 			messages: [{ role: "user", content: prompt }],
 		});
+
+		if (usage) {
+			trackClaudeUsage(
+				usage,
+				response.usage.input_tokens,
+				response.usage.output_tokens,
+			);
+		}
 
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {
@@ -419,6 +438,7 @@ const INTENT_BATCH_SIZE = 50;
 
 async function classifyIntentBatch(
 	keywords: string[],
+	usage?: ApiUsage,
 ): Promise<Map<string, SearchIntent>> {
 	const keywordList = keywords.map((k, i) => `${i + 1}. ${k}`).join("\n");
 	const intentDefs = Object.entries(SEARCH_INTENTS)
@@ -439,6 +459,14 @@ Respond ONLY with JSON mapping number to intent:
 		max_tokens: 1024,
 		messages: [{ role: "user", content: prompt }],
 	});
+
+	if (usage) {
+		trackClaudeUsage(
+			usage,
+			response.usage.input_tokens,
+			response.usage.output_tokens,
+		);
+	}
 
 	const textContent = response.content.find((c) => c.type === "text");
 	if (!textContent || textContent.type !== "text") {
@@ -468,6 +496,7 @@ Respond ONLY with JSON mapping number to intent:
 
 export async function classifyKeywordIntents(
 	keywords: string[],
+	usage?: ApiUsage,
 ): Promise<Map<string, SearchIntent>> {
 	if (keywords.length === 0) {
 		return new Map();
@@ -482,7 +511,7 @@ export async function classifyKeywordIntents(
 	for (let i = 0; i < keywords.length; i += INTENT_BATCH_SIZE) {
 		const batch = keywords.slice(i, i + INTENT_BATCH_SIZE);
 		try {
-			const batchResult = await classifyIntentBatch(batch);
+			const batchResult = await classifyIntentBatch(batch, usage);
 			for (const [k, v] of batchResult) {
 				result.set(k, v);
 			}
@@ -506,6 +535,7 @@ export async function classifyKeywordIntents(
  */
 export async function classifyKeywordIntentsTyped(
 	keywords: string[],
+	usage?: ApiUsage,
 ): Promise<AiResult<Map<string, SearchIntent>>> {
 	if (keywords.length === 0) {
 		return { ok: true, data: new Map() };
@@ -524,7 +554,7 @@ export async function classifyKeywordIntentsTyped(
 	try {
 		for (let i = 0; i < keywords.length; i += INTENT_BATCH_SIZE) {
 			const batch = keywords.slice(i, i + INTENT_BATCH_SIZE);
-			const batchResult = await classifyIntentBatch(batch);
+			const batchResult = await classifyIntentBatch(batch, usage);
 			for (const [k, v] of batchResult) {
 				result.set(k, v);
 			}
@@ -545,6 +575,7 @@ export async function classifyKeywordIntentsTyped(
  */
 export async function clusterKeywordsSemanticTyped(
 	keywords: KeywordWithVolume[],
+	usage?: ApiUsage,
 ): Promise<AiResult<SemanticCluster[]>> {
 	if (keywords.length === 0) {
 		return { ok: true, data: [] };
@@ -591,6 +622,14 @@ Respond ONLY with JSON:
 			messages: [{ role: "user", content: prompt }],
 		});
 
+		if (usage) {
+			trackClaudeUsage(
+				usage,
+				response.usage.input_tokens,
+				response.usage.output_tokens,
+			);
+		}
+
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {
 			recordFailure();
@@ -624,6 +663,7 @@ Respond ONLY with JSON:
  */
 export async function generateQuickWinSuggestionsTyped(
 	input: QuickWinInput,
+	usage?: ApiUsage,
 ): Promise<AiResult<QuickWinSuggestions>> {
 	const circuitCheck = checkCircuitBreaker();
 	if (circuitCheck) return circuitCheck;
@@ -681,6 +721,14 @@ Be specific. Don't give generic advice like "add more content" - instead say exa
 			messages: [{ role: "user", content: prompt }],
 		});
 
+		if (usage) {
+			trackClaudeUsage(
+				usage,
+				response.usage.input_tokens,
+				response.usage.output_tokens,
+			);
+		}
+
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {
 			recordFailure();
@@ -713,6 +761,7 @@ Be specific. Don't give generic advice like "add more content" - instead say exa
  */
 export async function generateBriefStructureTyped(
 	input: GenerateStructureInput,
+	usage?: ApiUsage,
 ): Promise<AiResult<{ title: string; structure: BriefStructure }>> {
 	const circuitCheck = checkCircuitBreaker();
 	if (circuitCheck) return circuitCheck;
@@ -777,6 +826,14 @@ Respond in JSON format:
 			max_tokens: 1024,
 			messages: [{ role: "user", content: prompt }],
 		});
+
+		if (usage) {
+			trackClaudeUsage(
+				usage,
+				response.usage.input_tokens,
+				response.usage.output_tokens,
+			);
+		}
 
 		const textContent = response.content.find((c) => c.type === "text");
 		if (!textContent || textContent.type !== "text") {

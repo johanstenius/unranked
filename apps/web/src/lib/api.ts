@@ -82,6 +82,18 @@ export async function discoverSectionsStream(
 	}
 }
 
+export type ValidateUrlResponse = {
+	valid: boolean;
+	error?: string;
+};
+
+export async function validateUrl(url: string): Promise<ValidateUrlResponse> {
+	return fetchApi<ValidateUrlResponse>("/validate-url", {
+		method: "POST",
+		body: JSON.stringify({ url }),
+	});
+}
+
 export async function createCheckout(
 	input: CreateAuditInput,
 ): Promise<CheckoutResponse> {

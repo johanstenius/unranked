@@ -180,7 +180,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				};
 
 				// Run local components (always succeed)
-				const localResults = await runLocalComponents(pipelineInput);
+				const localPipelineResult = await runLocalComponents(pipelineInput);
 
 				// Mark local components completed
 				progress = markComponentCompleted(progress, "technicalIssues");
@@ -190,14 +190,18 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				await auditRepo.updateAudit(auditId, { progress });
 
 				jobLog.info(
-					{ technicalIssues: localResults.technicalIssues?.length ?? 0 },
+					{
+						technicalIssues:
+							localPipelineResult.results.technicalIssues?.length ?? 0,
+					},
 					"Local components complete",
 				);
 
 				// Run external components (may fail, retryable)
 				const pipelineResult = await runExternalComponents(
 					pipelineInput,
-					localResults,
+					localPipelineResult.results,
+					localPipelineResult.usage,
 				);
 
 				// Finalize opportunities
@@ -232,6 +236,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 						healthScore,
 					},
 					healthScore,
+					apiUsage: pipelineResult.usage,
 				});
 
 				// Update progress for completed external components

@@ -23,6 +23,7 @@ export type UpdateAuditInput = {
 	healthScore?: Prisma.InputJsonValue;
 	redirectChains?: Prisma.InputJsonValue;
 	progress?: Prisma.InputJsonValue;
+	apiUsage?: Prisma.InputJsonValue;
 	retryAfter?: Date | null;
 	delayEmailSentAt?: Date | null;
 	completedAt?: Date;

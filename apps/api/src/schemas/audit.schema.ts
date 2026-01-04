@@ -26,6 +26,17 @@ export const discoverRequestSchema = z.object({
 });
 export type DiscoverRequest = z.infer<typeof discoverRequestSchema>;
 
+export const validateUrlRequestSchema = z.object({
+	url: z.string().url(),
+});
+export type ValidateUrlRequest = z.infer<typeof validateUrlRequestSchema>;
+
+export const validateUrlResponseSchema = z.object({
+	valid: z.boolean(),
+	error: z.string().optional(),
+});
+export type ValidateUrlResponse = z.infer<typeof validateUrlResponseSchema>;
+
 export const discoverResponseSchema = z.object({
 	sections: z.array(sectionInfoSchema),
 	totalUrls: z.number(),

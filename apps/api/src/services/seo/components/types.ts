@@ -5,6 +5,7 @@
  * Dependencies are declared and resolved by the pipeline.
  */
 
+import type { ApiUsage } from "../../../types/api-usage.js";
 import type { CrawledPage, RedirectChain } from "../../crawler/types.js";
 import type {
 	CannibalizationIssue,
@@ -127,6 +128,7 @@ export type ComponentContext = {
 	competitors: string[];
 	productDesc: string | null;
 	tier: TierConfig;
+	usage: ApiUsage;
 };
 
 // ============================================================================

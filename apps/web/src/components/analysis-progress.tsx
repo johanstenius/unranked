@@ -11,12 +11,35 @@ type AnalysisProgressProps = {
 	hostname: string;
 };
 
-const STATUS_STEPS: {
+type StatusStep = {
 	status: AuditStatus;
 	label: string;
 	activeLabel: string;
 	description: string;
-}[] = [
+};
+
+const FREE_STATUS_STEPS: StatusStep[] = [
+	{
+		status: "PENDING",
+		label: "Starting",
+		activeLabel: "Initializing...",
+		description: "Setting up analysis",
+	},
+	{
+		status: "CRAWLING",
+		label: "Scanning pages",
+		activeLabel: "Scanning your pages",
+		description: "Discovering pages on your site",
+	},
+	{
+		status: "ANALYZING",
+		label: "Technical analysis",
+		activeLabel: "Analyzing technical SEO",
+		description: "Checking for issues",
+	},
+];
+
+const PAID_STATUS_STEPS: StatusStep[] = [
 	{
 		status: "PENDING",
 		label: "Starting",
@@ -42,6 +65,10 @@ const STATUS_STEPS: {
 		description: "AI-powered content recommendations",
 	},
 ];
+
+function getStatusSteps(tier: string): StatusStep[] {
+	return tier === "FREE" ? FREE_STATUS_STEPS : PAID_STATUS_STEPS;
+}
 
 // Component-level progress configuration
 type ProgressComponentConfig = {
@@ -77,8 +104,8 @@ const PROGRESS_COMPONENTS: ProgressComponentConfig[] = [
 	{ key: "briefs", label: "Content briefs", group: "claude" },
 ];
 
-function getStatusIndex(status: AuditStatus): number {
-	const idx = STATUS_STEPS.findIndex((s) => s.status === status);
+function getStatusIndex(status: AuditStatus, steps: StatusStep[]): number {
+	const idx = steps.findIndex((s) => s.status === status);
 	return idx === -1 ? 0 : idx;
 }
 
@@ -239,7 +266,7 @@ function ProgressStep({
 	currentIndex,
 	audit,
 }: {
-	step: (typeof STATUS_STEPS)[0];
+	step: StatusStep;
 	index: number;
 	currentIndex: number;
 	audit: Audit;
@@ -630,8 +657,10 @@ function ComponentProgressView({ progress }: { progress: AuditProgress }) {
 }
 
 export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
-	const statusIndex = getStatusIndex(audit.status);
-	const progressPercent = ((statusIndex + 0.5) / STATUS_STEPS.length) * 100;
+	const isFreeTier = audit.tier === "FREE";
+	const steps = getStatusSteps(audit.tier);
+	const statusIndex = getStatusIndex(audit.status, steps);
+	const progressPercent = ((statusIndex + 0.5) / steps.length) * 100;
 	const [startTime] = useState(() => new Date(audit.createdAt));
 	const isRetrying = audit.status === "RETRYING";
 
@@ -684,7 +713,8 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 				>
 					<p className="text-sm text-amber-600 dark:text-amber-400">
 						Some components are taking longer than expected. We&apos;re
-						automatically retrying and will email you when complete.
+						automatically retrying
+						{!isFreeTier && " and will email you when complete"}.
 					</p>
 				</motion.div>
 			)}
@@ -733,7 +763,7 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 						<ComponentProgressView progress={audit.progress} />
 					) : (
 						<div className="space-y-2">
-							{STATUS_STEPS.map((step, idx) => (
+							{steps.map((step, idx) => (
 								<ProgressStep
 									key={step.status}
 									step={step}
@@ -801,30 +831,46 @@ export function AnalysisProgress({ audit, hostname }: AnalysisProgressProps) {
 						<p className="text-xs font-medium uppercase tracking-wider text-text-tertiary mb-3 text-center">
 							Live results
 						</p>
-						<div className="grid grid-cols-3 gap-3">
-							<LiveCounter value={audit.pagesFound} label="Pages discovered" />
-							<div className="bg-subtle/50 border border-border/50 rounded-lg p-4 text-center backdrop-blur-sm">
-								<p className="text-3xl font-bold text-text-tertiary">—</p>
-								<p className="text-xs text-text-tertiary mt-1">Opportunities</p>
+						{isFreeTier ? (
+							<div className="flex justify-center">
+								<LiveCounter
+									value={audit.pagesFound}
+									label="Pages discovered"
+								/>
 							</div>
-							<div className="bg-subtle/50 border border-border/50 rounded-lg p-4 text-center backdrop-blur-sm">
-								<p className="text-3xl font-bold text-text-tertiary">—</p>
-								<p className="text-xs text-text-tertiary mt-1">Briefs</p>
+						) : (
+							<div className="grid grid-cols-3 gap-3">
+								<LiveCounter
+									value={audit.pagesFound}
+									label="Pages discovered"
+								/>
+								<div className="bg-subtle/50 border border-border/50 rounded-lg p-4 text-center backdrop-blur-sm">
+									<p className="text-3xl font-bold text-text-tertiary">—</p>
+									<p className="text-xs text-text-tertiary mt-1">
+										Opportunities
+									</p>
+								</div>
+								<div className="bg-subtle/50 border border-border/50 rounded-lg p-4 text-center backdrop-blur-sm">
+									<p className="text-3xl font-bold text-text-tertiary">—</p>
+									<p className="text-xs text-text-tertiary mt-1">Briefs</p>
+								</div>
 							</div>
-						</div>
+						)}
 					</motion.div>
 				)}
 			</AnimatePresence>
 
-			{/* Email notice */}
-			<motion.p
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-				transition={{ delay: 0.4 }}
-				className="text-sm text-text-tertiary mt-8 text-center"
-			>
-				We&apos;ll email you the full report when it&apos;s ready.
-			</motion.p>
+			{/* Email notice - only for paid tiers */}
+			{!isFreeTier && (
+				<motion.p
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ delay: 0.4 }}
+					className="text-sm text-text-tertiary mt-8 text-center"
+				>
+					We&apos;ll email you the full report when it&apos;s ready.
+				</motion.p>
+			)}
 		</div>
 	);
 }

@@ -173,6 +173,7 @@ async function runCurrentRankings(
 				maxPosition: 100,
 				minVolume: 10,
 			},
+			ctx.usage,
 		);
 
 		log.info({ count: domainRankings.length }, "Found ranked keywords");
@@ -228,7 +229,12 @@ async function runKeywordOpportunities(
 		log.info({ count: extractedKeywords.length }, "Extracted keywords");
 
 		// Fetch keyword data
-		const keywordData = await dataForSeo.getKeywordData(extractedKeywords);
+		const keywordData = await dataForSeo.getKeywordData(
+			extractedKeywords,
+			"United States",
+			"en",
+			ctx.usage,
+		);
 		log.info({ count: keywordData.length }, "Got keyword data");
 
 		// Build initial opportunities
@@ -268,7 +274,12 @@ async function runKeywordOpportunities(
 				const expansionResults = await Promise.all(
 					seeds.map(async (seed) => {
 						try {
-							const related = await dataForSeo.getRelatedKeywords(seed);
+							const related = await dataForSeo.getRelatedKeywords(
+								seed,
+								"United States",
+								"en",
+								ctx.usage,
+							);
 							return { seed, related };
 						} catch (error) {
 							log.error({ error, seed }, "Seed expansion failed");
@@ -365,6 +376,7 @@ async function runCompetitorAnalysis(
 			discoveredCompetitors = await dataForSeo.discoverCompetitors(
 				ctx.hostname,
 				{ limit: 5 },
+				ctx.usage,
 			);
 
 			if (discoveredCompetitors.length > 0) {
@@ -397,12 +409,16 @@ async function runCompetitorAnalysis(
 			normalizedUrls.map(async (competitorUrl) => {
 				try {
 					const domain = new URL(competitorUrl).hostname;
-					const keywords = await dataForSeo.getDomainRankedKeywords(domain, {
-						limit: 200,
-						maxPosition: 30,
-						minVolume: LIMITS.MIN_SEARCH_VOLUME,
-						maxDifficulty: LIMITS.REALISTIC_DIFFICULTY,
-					});
+					const keywords = await dataForSeo.getDomainRankedKeywords(
+						domain,
+						{
+							limit: 200,
+							maxPosition: 30,
+							minVolume: LIMITS.MIN_SEARCH_VOLUME,
+							maxDifficulty: LIMITS.REALISTIC_DIFFICULTY,
+						},
+						ctx.usage,
+					);
 					return { domain, keywords };
 				} catch (error) {
 					log.error({ error, competitorUrl }, "Failed to analyze competitor");
@@ -681,6 +697,9 @@ async function runSnippetOpportunities(
 			topRankings.map(async (ranking) => {
 				const { featuredSnippet } = await dataForSeo.getSerpWithFeatures(
 					ranking.keyword,
+					"United States",
+					"en",
+					ctx.usage,
 				);
 				return { ranking, featuredSnippet };
 			}),
@@ -721,6 +740,9 @@ async function runSnippetOpportunities(
 				gapKeywords.map(async (gap) => {
 					const { featuredSnippet } = await dataForSeo.getSerpWithFeatures(
 						gap.keyword,
+						"United States",
+						"en",
+						ctx.usage,
 					);
 					return { gap, featuredSnippet };
 				}),

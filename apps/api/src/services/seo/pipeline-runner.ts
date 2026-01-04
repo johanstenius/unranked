@@ -7,6 +7,7 @@
 
 import { createLogger } from "../../lib/logger.js";
 import { UNLIMITED, tierLimits } from "../../schemas/audit.schema.js";
+import { type ApiUsage, createEmptyUsage } from "../../types/api-usage.js";
 import type { CrawledPage, RedirectChain } from "../crawler/types.js";
 import type {
 	ComponentContext,
@@ -40,6 +41,7 @@ export type PipelineResult = {
 	results: ComponentResults;
 	completed: ComponentKey[];
 	failed: Array<{ key: ComponentKey; error: string }>;
+	usage: ApiUsage;
 };
 
 /**
@@ -68,7 +70,7 @@ function buildTierConfig(tier: PipelineInput["tier"]): TierConfig {
 /**
  * Build the component context from pipeline input
  */
-function buildContext(input: PipelineInput): ComponentContext {
+function buildContext(input: PipelineInput, usage: ApiUsage): ComponentContext {
 	const hostname = new URL(input.siteUrl).hostname;
 
 	return {
@@ -80,6 +82,7 @@ function buildContext(input: PipelineInput): ComponentContext {
 		competitors: input.competitors,
 		productDesc: input.productDesc,
 		tier: buildTierConfig(input.tier),
+		usage,
 	};
 }
 
@@ -90,8 +93,10 @@ export async function runPipeline(
 	input: PipelineInput,
 	componentsToRun: ComponentKey[],
 	existingResults: ComponentResults = {},
+	existingUsage?: ApiUsage,
 ): Promise<PipelineResult> {
-	const ctx = buildContext(input);
+	const usage = existingUsage ?? createEmptyUsage();
+	const ctx = buildContext(input, usage);
 	let results = { ...existingResults };
 
 	const completed: ComponentKey[] = [];
@@ -175,7 +180,7 @@ export async function runPipeline(
 		"Pipeline complete",
 	);
 
-	return { results, completed, failed };
+	return { results, completed, failed, usage };
 }
 
 /**
@@ -183,15 +188,14 @@ export async function runPipeline(
  */
 export async function runLocalComponents(
 	input: PipelineInput,
-): Promise<ComponentResults> {
+): Promise<PipelineResult> {
 	const localComponents: ComponentKey[] = [
 		"technicalIssues",
 		"internalLinking",
 		"duplicateContent",
 	];
 
-	const result = await runPipeline(input, localComponents);
-	return result.results;
+	return runPipeline(input, localComponents);
 }
 
 /**
@@ -200,6 +204,7 @@ export async function runLocalComponents(
 export async function runExternalComponents(
 	input: PipelineInput,
 	existingResults: ComponentResults,
+	existingUsage?: ApiUsage,
 ): Promise<PipelineResult> {
 	const externalComponents: ComponentKey[] = [
 		"currentRankings",
@@ -213,7 +218,7 @@ export async function runExternalComponents(
 		"actionPlan", // Runs last, aggregates all results
 	];
 
-	return runPipeline(input, externalComponents, existingResults);
+	return runPipeline(input, externalComponents, existingResults, existingUsage);
 }
 
 /**

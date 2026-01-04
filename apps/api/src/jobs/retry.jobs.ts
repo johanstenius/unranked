@@ -289,6 +289,11 @@ async function retryMissingReportEmails(): Promise<void> {
 	for (const audit of auditsNeedingEmail) {
 		const auditLog = createLogger("retry-email", { auditId: audit.id });
 
+		// Skip FREE tier - they don't receive emails
+		if (audit.tier === "FREE") {
+			continue;
+		}
+
 		if (!audit.reportToken) {
 			auditLog.warn("Completed audit has no report token, skipping");
 			continue;

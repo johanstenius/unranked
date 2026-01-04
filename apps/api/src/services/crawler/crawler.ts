@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import readability from "text-readability";
 import { createLogger } from "../../lib/logger.js";
+import { isPrivateHost, validateUrlSecurity } from "../../lib/url.js";
 import type {
 	BrokenLink,
 	CrawlResult,
@@ -21,36 +22,6 @@ const MAX_REDIRECTS = 10;
 
 type RawSection = { path: string; pageCount: number };
 
-const BLOCKED_HOSTS = new Set([
-	"localhost",
-	"127.0.0.1",
-	"0.0.0.0",
-	"[::1]",
-	"metadata.google.internal",
-	"169.254.169.254",
-]);
-
-function isPrivateIP(hostname: string): boolean {
-	if (BLOCKED_HOSTS.has(hostname)) return true;
-	const parts = hostname.split(".").map(Number);
-	if (parts.length !== 4) return false;
-	const [a, b, c, d] = parts as [number, number, number, number];
-	if (a === 10) return true;
-	if (a === 172 && b >= 16 && b <= 31) return true;
-	if (a === 192 && b === 168) return true;
-	return false;
-}
-
-function validateUrl(url: string): void {
-	const parsed = new URL(url);
-	if (!["http:", "https:"].includes(parsed.protocol)) {
-		throw new Error(`Invalid protocol: ${parsed.protocol}`);
-	}
-	if (isPrivateIP(parsed.hostname)) {
-		throw new Error(`Blocked host: ${parsed.hostname}`);
-	}
-}
-
 type FetchResult = {
 	content: string;
 	finalUrl: string;
@@ -58,7 +29,7 @@ type FetchResult = {
 };
 
 async function fetchPage(url: string): Promise<FetchResult> {
-	validateUrl(url);
+	validateUrlSecurity(url);
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -86,7 +57,7 @@ async function fetchPage(url: string): Promise<FetchResult> {
 
 				// Resolve relative URLs
 				const nextUrl = new URL(location, currentUrl).href;
-				validateUrl(nextUrl);
+				validateUrlSecurity(nextUrl);
 				chain.push(nextUrl);
 				currentUrl = nextUrl;
 				continue;
@@ -112,7 +83,7 @@ async function fetchPage(url: string): Promise<FetchResult> {
 
 async function checkUrlStatus(url: string): Promise<number | null> {
 	try {
-		validateUrl(url);
+		validateUrlSecurity(url);
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 5000);
 
@@ -468,7 +439,7 @@ async function fetchSitemapRecursive(
 	if (depth > MAX_SITEMAP_DEPTH) return [];
 
 	try {
-		validateUrl(url);
+		validateUrlSecurity(url);
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
