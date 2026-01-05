@@ -142,7 +142,7 @@ function CWVMiniPreview({ pages }: { pages: CWVPageResult[] }) {
 	if (recentPages.length === 0) return null;
 
 	return (
-		<div className="mt-2 space-y-0.5">
+		<div className="mt-2 h-[54px] overflow-hidden">
 			<AnimatePresence mode="popLayout">
 				{recentPages.map((page, idx) => {
 					const pathname = new URL(page.url).pathname;
@@ -151,11 +151,11 @@ function CWVMiniPreview({ pages }: { pages: CWVPageResult[] }) {
 					return (
 						<motion.div
 							key={page.url}
-							initial={{ opacity: 0, x: -8, height: 0 }}
-							animate={{ opacity: isFirst ? 1 : 0.4, x: 0, height: "auto" }}
-							exit={{ opacity: 0, x: 8, height: 0 }}
+							initial={{ opacity: 0, x: -8 }}
+							animate={{ opacity: isFirst ? 1 : 0.4, x: 0 }}
+							exit={{ opacity: 0, x: 8 }}
 							transition={{ duration: 0.15 }}
-							className="flex items-center gap-1.5 text-xs"
+							className="flex items-center gap-1.5 text-xs h-[18px]"
 						>
 							{page.performance !== null ? (
 								<span

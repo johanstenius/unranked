@@ -1,6 +1,6 @@
 "use client";
 
-import type { Analysis, Audit } from "@/lib/types";
+import type { Analysis, Audit, AuditProgress } from "@/lib/types";
 import {
 	AnimatePresence,
 	motion,
@@ -12,6 +12,7 @@ import { useEffect } from "react";
 type ProgressiveStatsProps = {
 	audit: Audit;
 	analysis: Analysis | null;
+	progress: AuditProgress | null;
 	isProcessing: boolean;
 	isFreeTier: boolean;
 };
@@ -89,9 +90,23 @@ function StatCard({
 	);
 }
 
+function getComponentStatus(
+	progress: AuditProgress | null,
+	key: keyof AuditProgress,
+): string {
+	if (!progress) return "pending";
+	const value = progress[key];
+	if (value && typeof value === "object" && "status" in value) {
+		return (value as { status: string }).status;
+	}
+	if (typeof value === "string") return value;
+	return "pending";
+}
+
 export function ProgressiveStats({
 	audit,
 	analysis,
+	progress,
 	isProcessing,
 	isFreeTier,
 }: ProgressiveStatsProps) {
@@ -104,18 +119,31 @@ export function ProgressiveStats({
 	const totalOpportunityVolume =
 		analysis?.opportunities.reduce((sum, o) => sum + o.searchVolume, 0) ?? 0;
 
+	// Check individual component status
+	const rankingsStatus = getComponentStatus(progress, "currentRankings");
+	const opportunitiesStatus = getComponentStatus(
+		progress,
+		"keywordOpportunities",
+	);
+	const technicalStatus = getComponentStatus(progress, "technicalIssues");
+
+	// Show skeleton only if component hasn't completed yet
+	const isRankingsLoading = rankingsStatus !== "completed";
+	const isOpportunitiesLoading = opportunitiesStatus !== "completed";
+	const isTechnicalLoading = technicalStatus !== "completed";
+
 	if (isFreeTier) {
 		return (
 			<div className="grid grid-cols-2 gap-4 mb-10">
 				<StatCard
 					value={pagesFound}
 					label="Pages crawled"
-					isLoading={isProcessing}
+					isLoading={isProcessing && pagesFound === 0}
 				/>
 				<StatCard
 					value={analysis?.technicalIssues.length ?? null}
 					label="Technical issues"
-					isLoading={isProcessing}
+					isLoading={isTechnicalLoading}
 				/>
 			</div>
 		);
@@ -131,25 +159,25 @@ export function ProgressiveStats({
 			<StatCard
 				value={keywordsRanking > 0 ? keywordsRanking : null}
 				label="Keywords ranking"
-				isLoading={isProcessing}
+				isLoading={isRankingsLoading}
 			/>
 			<StatCard
 				value={totalEstTraffic > 0 ? totalEstTraffic : null}
 				label="Est. monthly traffic"
-				isLoading={isProcessing}
+				isLoading={isRankingsLoading}
 				color="text-accent-teal"
 				prefix="~"
 			/>
 			<StatCard
 				value={opportunities > 0 ? opportunities : null}
 				label="Opportunities"
-				isLoading={isProcessing}
+				isLoading={isOpportunitiesLoading}
 				color="text-accent-indigo"
 			/>
 			<StatCard
 				value={totalOpportunityVolume > 0 ? totalOpportunityVolume : null}
 				label="Potential traffic"
-				isLoading={isProcessing}
+				isLoading={isOpportunitiesLoading}
 				prefix="~"
 			/>
 		</div>

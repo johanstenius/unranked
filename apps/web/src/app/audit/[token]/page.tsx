@@ -369,6 +369,7 @@ function AuditContent() {
 							<ProgressiveStats
 								audit={audit}
 								analysis={analysis}
+								progress={audit.progress}
 								isProcessing={isProcessing}
 								isFreeTier={isFreeTier}
 							/>
