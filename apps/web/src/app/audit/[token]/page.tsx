@@ -27,25 +27,18 @@ import {
 	BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { LoadingScreen, Spinner } from "@/components/ui/spinner";
-import {
-	getAudit,
-	getAuditAnalysis,
-	getAuditBriefs,
-	subscribeToAudit,
-	tierInfo,
-} from "@/lib/api";
+import { useAuditState } from "@/hooks/useAuditState";
+import { getAuditBriefs, tierInfo } from "@/lib/api";
 import type {
 	Analysis,
 	Audit,
-	AuditSSEEvent,
+	AuditProgress,
 	Brief,
-	CWVPageResult,
-	CoreWebVitalsData,
-	HealthScore,
+	ComponentState,
 } from "@/lib/types";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 type TabType =
 	| "overview"
@@ -64,23 +57,161 @@ const TAB_LABELS: Record<TabType, string> = {
 	briefs: "Content Briefs",
 };
 
+/**
+ * Extract component status for legacy progress format
+ */
+function extractStatus(component: ComponentState<unknown>): string {
+	return component.status;
+}
+
 function AuditContent() {
 	const params = useParams();
 	const searchParams = useSearchParams();
 	const token = params.token as string;
 	const success = searchParams.get("success") === "true";
 
-	const [audit, setAudit] = useState<Audit | null>(null);
+	// Use unified state hook
+	const { state, loading, error } = useAuditState(token);
+
+	// Local UI state
 	const [briefs, setBriefs] = useState<Brief[]>([]);
-	const [analysis, setAnalysis] = useState<Analysis | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
 	const [activeTab, setActiveTab] = useState<TabType>("overview");
 	const [healthScoreExpanded, setHealthScoreExpanded] = useState(false);
 	const [pdfExporting, setPdfExporting] = useState(false);
-	const [cwvPages, setCwvPages] = useState<CWVPageResult[]>([]);
-	const [cwvData, setCwvData] = useState<CoreWebVitalsData | null>(null);
-	const [healthScore, setHealthScore] = useState<HealthScore | null>(null);
+
+	// Fetch briefs when completed (briefs not streamed via SSE)
+	useEffect(() => {
+		if (state?.status === "COMPLETED") {
+			getAuditBriefs(token)
+				.then(setBriefs)
+				.catch((err) => console.error("Failed to fetch briefs:", err));
+		}
+	}, [state?.status, token]);
+
+	// Transform unified state to legacy Analysis format for components
+	const analysis: Analysis | null = useMemo(() => {
+		if (!state) return null;
+
+		const { components } = state;
+
+		// Only build analysis if we have some completed components
+		const hasData =
+			components.technical.status === "completed" ||
+			components.rankings.status === "completed" ||
+			components.opportunities.status === "completed";
+
+		if (!hasData) return null;
+
+		return {
+			currentRankings:
+				components.rankings.status === "completed"
+					? components.rankings.data
+					: [],
+			opportunities:
+				components.opportunities.status === "completed"
+					? components.opportunities.data
+					: [],
+			opportunityClusters: state.opportunityClusters ?? [],
+			quickWins:
+				components.quickWins.status === "completed"
+					? components.quickWins.data
+					: [],
+			technicalIssues:
+				components.technical.status === "completed"
+					? components.technical.data
+					: [],
+			internalLinkingIssues:
+				components.internalLinking.status === "completed"
+					? components.internalLinking.data
+					: { orphanPages: [], underlinkedPages: [] },
+			competitorGaps:
+				components.competitors.status === "completed"
+					? components.competitors.data.gaps
+					: [],
+			cannibalizationIssues:
+				components.cannibalization.status === "completed"
+					? components.cannibalization.data
+					: [],
+			snippetOpportunities:
+				components.snippets.status === "completed"
+					? components.snippets.data
+					: [],
+			sectionStats: [],
+			healthScore: state.healthScore,
+			discoveredCompetitors:
+				components.competitors.status === "completed"
+					? components.competitors.data.discovered
+					: [],
+			actionPlan: state.actionPlan,
+			coreWebVitals:
+				components.coreWebVitals.status === "completed"
+					? components.coreWebVitals.data
+					: undefined,
+		};
+	}, [state]);
+
+	// Transform unified state to legacy Audit format for components
+	const audit: Audit | null = useMemo(() => {
+		if (!state) return null;
+
+		// Build legacy progress from component states
+		const progress: AuditProgress = {
+			crawl: extractStatus(state.components.crawl) as AuditProgress["crawl"],
+			technicalIssues: extractStatus(
+				state.components.technical,
+			) as AuditProgress["technicalIssues"],
+			internalLinking: extractStatus(
+				state.components.internalLinking,
+			) as AuditProgress["internalLinking"],
+			duplicateContent: extractStatus(
+				state.components.duplicateContent,
+			) as AuditProgress["duplicateContent"],
+			redirectChains: extractStatus(
+				state.components.redirectChains,
+			) as AuditProgress["redirectChains"],
+			coreWebVitals: extractStatus(
+				state.components.coreWebVitals,
+			) as AuditProgress["coreWebVitals"],
+			currentRankings: extractStatus(
+				state.components.rankings,
+			) as AuditProgress["currentRankings"],
+			competitorAnalysis: extractStatus(
+				state.components.competitors,
+			) as AuditProgress["competitorAnalysis"],
+			keywordOpportunities: extractStatus(
+				state.components.opportunities,
+			) as AuditProgress["keywordOpportunities"],
+			intentClassification: "pending" as AuditProgress["intentClassification"],
+			keywordClustering: "pending" as AuditProgress["keywordClustering"],
+			quickWins: extractStatus(
+				state.components.quickWins,
+			) as AuditProgress["quickWins"],
+			briefs: extractStatus(state.components.briefs) as AuditProgress["briefs"],
+			retryCount: 0,
+		};
+
+		return {
+			accessToken: state.accessToken,
+			status: state.status,
+			siteUrl: state.siteUrl,
+			productDesc: null,
+			competitors: [],
+			sections: null,
+			detectedSections: null,
+			tier: state.tier,
+			pagesFound: state.pagesFound,
+			sitemapUrlCount: state.sitemapUrlCount,
+			currentRankings:
+				state.components.rankings.status === "completed"
+					? state.components.rankings.data
+					: null,
+			progress,
+			retryAfter: null,
+			createdAt: state.createdAt,
+			startedAt: null,
+			completedAt: state.completedAt,
+		};
+	}, [state]);
 
 	const handleExportPdf = useCallback(async () => {
 		if (!audit || !analysis) return;
@@ -94,148 +225,11 @@ function AuditContent() {
 		}
 	}, [audit, analysis, briefs]);
 
-	useEffect(() => {
-		let sseConnection: { close: () => void } | null = null;
-
-		async function fetchInitialData() {
-			try {
-				const auditData = await getAudit(token);
-				setAudit(auditData);
-
-				if (auditData.status === "COMPLETED") {
-					const [briefsData, analysisData] = await Promise.all([
-						getAuditBriefs(token),
-						getAuditAnalysis(token),
-					]);
-					setBriefs(briefsData);
-					setAnalysis(analysisData);
-					setHealthScore(analysisData.healthScore);
-				} else if (auditData.status !== "FAILED") {
-					// Subscribe to SSE for real-time updates
-					sseConnection = subscribeToAudit(
-						token,
-						(event: AuditSSEEvent) => {
-							switch (event.type) {
-								case "status":
-									setAudit((prev) =>
-										prev ? { ...prev, status: event.status } : prev,
-									);
-									break;
-								case "progress":
-									setAudit((prev) =>
-										prev ? { ...prev, progress: event.progress } : prev,
-									);
-									break;
-								case "component":
-									console.log(
-										"[SSE] component event:",
-										event.key,
-										event.status,
-									);
-									setAudit((prev) => {
-										if (!prev) return prev;
-										const currentProgress = prev.progress ?? {
-											crawl: "pending" as const,
-											technicalIssues: "pending" as const,
-											internalLinking: "pending" as const,
-											duplicateContent: "pending" as const,
-											redirectChains: "pending" as const,
-											coreWebVitals: "pending" as const,
-											currentRankings: "pending" as const,
-											competitorAnalysis: "pending" as const,
-											keywordOpportunities: "pending" as const,
-											intentClassification: "pending" as const,
-											keywordClustering: "pending" as const,
-											quickWins: "pending" as const,
-											briefs: "pending" as const,
-											retryCount: 0,
-										};
-										return {
-											...prev,
-											progress: {
-												...currentProgress,
-												[event.key]: event.status,
-											},
-										};
-									});
-									break;
-								case "cwv":
-									setCwvPages((prev) => {
-										const exists = prev.some((p) => p.url === event.page.url);
-										if (exists) return prev;
-										return [...prev, event.page];
-									});
-									break;
-								case "cwv-complete":
-									setCwvData(event.data);
-									break;
-								case "health":
-									setHealthScore(event.score);
-									break;
-								case "partial-ready":
-									// Fetch partial analysis + updated audit (for pagesFound)
-									// Preserve SSE-updated progress to avoid race condition
-									Promise.all([getAuditAnalysis(token), getAudit(token)])
-										.then(([analysisData, auditData]) => {
-											setAnalysis(analysisData);
-											setAudit((prev) => ({
-												...auditData,
-												progress: prev?.progress ?? auditData.progress,
-											}));
-										})
-										.catch((err) => {
-											console.error("Failed to fetch partial data:", err);
-										});
-									break;
-								case "complete":
-									// Fetch full data on completion
-									Promise.all([
-										getAuditBriefs(token),
-										getAuditAnalysis(token),
-										getAudit(token),
-									])
-										.then(([briefsData, analysisData, auditData]) => {
-											setBriefs(briefsData);
-											setAnalysis(analysisData);
-											setAudit(auditData);
-											setHealthScore(analysisData.healthScore);
-										})
-										.catch((err) => {
-											console.error(
-												"Failed to fetch completed audit data:",
-												err,
-											);
-											setError("Failed to load audit results");
-										});
-									sseConnection?.close();
-									break;
-							}
-						},
-						(err) => {
-							console.error("SSE error:", err);
-						},
-					);
-				}
-
-				setLoading(false);
-			} catch (err) {
-				setError(err instanceof Error ? err.message : "Failed to load audit");
-				setLoading(false);
-			}
-		}
-
-		fetchInitialData();
-
-		return () => {
-			sseConnection?.close();
-		};
-	}, [token]);
-
 	if (loading) {
 		return <LoadingScreen message="Loading audit..." />;
 	}
 
-	if (error || !audit) {
+	if (error || !state || !audit) {
 		return (
 			<div className="min-h-screen bg-canvas flex items-center justify-center">
 				<div className="text-center">
@@ -251,9 +245,17 @@ function AuditContent() {
 	}
 
 	const isProcessing =
-		audit.status !== "COMPLETED" && audit.status !== "FAILED";
-	const isFreeTier = audit.tier === "FREE";
-	const hostname = new URL(audit.siteUrl).hostname;
+		state.status !== "COMPLETED" && state.status !== "FAILED";
+	const isFreeTier = state.tier === "FREE";
+	const hostname = new URL(state.siteUrl).hostname;
+
+	// CWV data from streaming + final
+	const cwvPages = state.cwvStream;
+	const cwvData =
+		state.components.coreWebVitals.status === "completed"
+			? state.components.coreWebVitals.data
+			: null;
+	const healthScore = state.healthScore;
 
 	return (
 		<div className="min-h-screen bg-canvas">
@@ -289,7 +291,7 @@ function AuditContent() {
 						</div>
 					)}
 
-					{audit.status === "FAILED" && (
+					{state.status === "FAILED" && (
 						<div className="p-8 bg-status-crit-bg border border-status-crit rounded">
 							<h2 className="font-display text-xl font-semibold text-status-crit mb-2">
 								Analysis Failed
@@ -301,7 +303,7 @@ function AuditContent() {
 						</div>
 					)}
 
-					{audit.status !== "FAILED" && (
+					{state.status !== "FAILED" && (
 						<>
 							{/* Unified progress card during analysis */}
 							{isProcessing && (
@@ -310,8 +312,8 @@ function AuditContent() {
 									progress={audit.progress}
 									cwvPages={cwvPages}
 									cwvTotal={Math.min(
-										audit.pagesFound ?? tierInfo[audit.tier].pages,
-										tierInfo[audit.tier].pages,
+										state.pagesFound ?? tierInfo[state.tier].pages,
+										tierInfo[state.tier].pages,
 									)}
 									healthScore={healthScore}
 								/>
@@ -329,7 +331,7 @@ function AuditContent() {
 									</h1>
 									<p className="text-text-secondary mt-2">
 										{new Date(
-											audit.completedAt || audit.createdAt,
+											state.completedAt || state.createdAt,
 										).toLocaleDateString("en-US", {
 											year: "numeric",
 											month: "long",
@@ -338,7 +340,7 @@ function AuditContent() {
 									</p>
 								</div>
 								<div className="flex gap-2">
-									{!isProcessing && tierInfo[audit.tier].pdfExport && (
+									{!isProcessing && tierInfo[state.tier].pdfExport && (
 										<button
 											type="button"
 											onClick={handleExportPdf}
@@ -378,7 +380,7 @@ function AuditContent() {
 								{(Object.keys(TAB_LABELS) as TabType[])
 									.filter((tab) => {
 										// Hide briefs tab for tiers with 0 briefs
-										if (tab === "briefs" && tierInfo[audit.tier].briefs === 0) {
+										if (tab === "briefs" && tierInfo[state.tier].briefs === 0) {
 											return false;
 										}
 										// Hide opportunities, quickwins, and performance for FREE tier
@@ -438,9 +440,7 @@ function AuditContent() {
 											streamingPages={cwvPages}
 											isAnalyzing={
 												isProcessing &&
-												(!audit.progress?.coreWebVitals ||
-													audit.progress?.coreWebVitals === "running" ||
-													audit.progress?.coreWebVitals === "pending")
+												state.components.coreWebVitals.status !== "completed"
 											}
 										/>
 									)}
@@ -450,7 +450,7 @@ function AuditContent() {
 								</div>
 
 								<div className="space-y-6">
-									{analysis && tierInfo[audit.tier].competitors > 0 && (
+									{analysis && tierInfo[state.tier].competitors > 0 && (
 										<CompetitorAnalysis analysis={analysis} />
 									)}
 									{analysis && (

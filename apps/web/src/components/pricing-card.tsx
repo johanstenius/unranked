@@ -3,6 +3,7 @@
 import { motion } from "@/components/motion";
 import type { AuditTier } from "@/lib/api";
 import { tierInfo } from "@/lib/api";
+import { billingEnabled } from "@/lib/config";
 import Link from "next/link";
 
 type PricingCardProps = {
@@ -12,6 +13,8 @@ type PricingCardProps = {
 
 export function PricingCard({ tier, featured }: PricingCardProps) {
 	const info = tierInfo[tier];
+	const isPaidTier = tier !== "FREE";
+	const isDisabled = isPaidTier && !billingEnabled;
 
 	return (
 		<motion.div
@@ -94,18 +97,41 @@ export function PricingCard({ tier, featured }: PricingCardProps) {
 				))}
 			</ul>
 
-			<motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-				<Link
-					href={`/analyze?tier=${tier}`}
-					className={`block w-full text-center py-3 px-4 rounded-lg text-sm font-medium transition-all ${
-						featured
-							? "bg-canvas text-accent hover:bg-canvas/90 shadow-sm"
-							: "bg-accent text-canvas hover:bg-accent-hover"
-					}`}
-				>
-					Get Started
-				</Link>
-			</motion.div>
+			{isDisabled ? (
+				<>
+					<div className="relative mb-4">
+						<span
+							className={`inline-block px-2 py-0.5 text-2xs font-medium rounded ${
+								featured
+									? "bg-canvas/20 text-canvas"
+									: "bg-accent/10 text-accent"
+							}`}
+						>
+							Coming Soon
+						</span>
+					</div>
+					<div
+						className={`block w-full text-center py-3 px-4 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed ${
+							featured ? "bg-canvas text-accent" : "bg-accent text-canvas"
+						}`}
+					>
+						Coming Soon
+					</div>
+				</>
+			) : (
+				<motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+					<Link
+						href={`/analyze?tier=${tier}`}
+						className={`block w-full text-center py-3 px-4 rounded-lg text-sm font-medium transition-all ${
+							featured
+								? "bg-canvas text-accent hover:bg-canvas/90 shadow-sm"
+								: "bg-accent text-canvas hover:bg-accent-hover"
+						}`}
+					>
+						Get Started
+					</Link>
+				</motion.div>
+			)}
 		</motion.div>
 	);
 }

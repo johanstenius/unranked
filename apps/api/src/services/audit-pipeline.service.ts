@@ -11,11 +11,11 @@
  */
 
 import {
-	emitComplete,
-	emitComponentCompleted,
-	emitComponentFailed,
-	emitComponentRunning,
-	emitStatus,
+	emitAuditComplete,
+	emitAuditStatus,
+	emitComponentComplete,
+	emitComponentFail,
+	emitComponentStart,
 } from "../lib/audit-events.js";
 import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
@@ -39,6 +39,24 @@ import {
 	markComponentFailed,
 	markComponentRunning,
 } from "../types/audit-progress.js";
+import type { StateComponentKey } from "../types/audit-state.js";
+
+// Map from AuditProgress keys to StateComponentKey for SSE events
+const componentKeyMap: Partial<Record<ComponentKey, StateComponentKey>> = {
+	currentRankings: "rankings",
+	competitorAnalysis: "competitors",
+	keywordOpportunities: "opportunities",
+	quickWins: "quickWins",
+	briefs: "briefs",
+	coreWebVitals: "coreWebVitals",
+	technicalIssues: "technical",
+	internalLinking: "internalLinking",
+	duplicateContent: "duplicateContent",
+	redirectChains: "redirectChains",
+	crawl: "crawl",
+	cannibalization: "cannibalization",
+	snippetOpportunities: "snippets",
+};
 import type { StoredAnalysisData } from "../types/stored-analysis.js";
 import { sendReportReadyEmail } from "./email.service.js";
 import {
@@ -143,7 +161,10 @@ export async function runPendingComponents(
 		// ATOMIC: Mark as running BEFORE we start
 		progress = markComponentRunning(progress, component);
 		await saveProgress(audit.id, progress);
-		emitComponentRunning(audit.id, component);
+		const stateKey = componentKeyMap[component];
+		if (stateKey) {
+			emitComponentStart(audit.id, stateKey);
+		}
 
 		try {
 			const result = await runComponent(
@@ -158,7 +179,6 @@ export async function runPendingComponents(
 				// ATOMIC: Mark as completed AFTER success
 				progress = markComponentCompleted(progress, component);
 				await saveProgress(audit.id, progress);
-				emitComponentCompleted(audit.id, component);
 
 				// Store component result if it has data
 				if (result.data !== undefined) {
@@ -170,13 +190,20 @@ export async function runPendingComponents(
 					);
 				}
 
+				// Emit completion with data
+				if (stateKey) {
+					emitComponentComplete(audit.id, stateKey, result.data ?? null);
+				}
+
 				componentsRun.push(component);
 				componentLog.info("Component completed");
 			} else {
 				// ATOMIC: Mark as failed AFTER failure
 				progress = markComponentFailed(progress, component, result.error);
 				await saveProgress(audit.id, progress);
-				emitComponentFailed(audit.id, component, result.error);
+				if (stateKey) {
+					emitComponentFail(audit.id, stateKey, result.error);
+				}
 
 				componentsFailed.push(component);
 				componentLog.warn({ error: result.error }, "Component failed");
@@ -186,7 +213,9 @@ export async function runPendingComponents(
 				error instanceof Error ? error.message : "Unknown error";
 			progress = markComponentFailed(progress, component, errorMessage);
 			await saveProgress(audit.id, progress);
-			emitComponentFailed(audit.id, component, errorMessage);
+			if (stateKey) {
+				emitComponentFail(audit.id, stateKey, errorMessage);
+			}
 
 			componentsFailed.push(component);
 			componentLog.error({ error: errorMessage }, "Component threw exception");
@@ -227,8 +256,8 @@ export async function completeAudit(auditId: string): Promise<void> {
 	});
 
 	// Emit completion event for SSE listeners
-	emitStatus(auditId, "COMPLETED");
-	emitComplete(auditId);
+	emitAuditStatus(auditId, "COMPLETED");
+	emitAuditComplete(auditId);
 
 	const audit = await auditRepo.getAuditById(auditId);
 	if (!audit) {

@@ -2,11 +2,13 @@ import type {
 	Analysis,
 	Audit,
 	AuditSSEEvent,
+	AuditState,
 	Brief,
 	CheckoutResponse,
 	CreateAuditInput,
 	DiscoverEvent,
 	DiscoverResponse,
+	NewAuditSSEEvent,
 } from "./types";
 
 // Re-export all types for backward compatibility
@@ -184,5 +186,58 @@ export function subscribeToAudit(
 		close: () => {
 			eventSource.close();
 		},
+	};
+}
+
+// =============================================================================
+// Unified Audit State API
+// =============================================================================
+
+/**
+ * Get unified audit state (hydration)
+ */
+export async function getAuditState(token: string): Promise<AuditState> {
+	return fetchApi<AuditState>(`/audits/${token}`);
+}
+
+/**
+ * Subscribe to new unified SSE events.
+ * Returns an unsubscribe function.
+ */
+export function subscribeToAuditNew(
+	token: string,
+	onEvent: (event: NewAuditSSEEvent) => void,
+	onError?: (error: Error) => void,
+): () => void {
+	const eventSource = new EventSource(`${API_URL}/audits/${token}/stream`);
+
+	function handleMessage(e: MessageEvent) {
+		try {
+			const event = JSON.parse(e.data) as NewAuditSSEEvent;
+			onEvent(event);
+		} catch {
+			// Skip invalid JSON
+		}
+	}
+
+	// Listen to new event types
+	eventSource.addEventListener("audit:status", handleMessage);
+	eventSource.addEventListener("component:start", handleMessage);
+	eventSource.addEventListener("component:complete", handleMessage);
+	eventSource.addEventListener("component:fail", handleMessage);
+	eventSource.addEventListener("cwv:page", handleMessage);
+	eventSource.addEventListener("crawl:pages", handleMessage);
+	eventSource.addEventListener("health:score", handleMessage);
+	eventSource.addEventListener("clusters", handleMessage);
+	eventSource.addEventListener("action-plan", handleMessage);
+	eventSource.addEventListener("audit:complete", handleMessage);
+	eventSource.addEventListener("audit:error", handleMessage);
+
+	eventSource.onerror = () => {
+		onError?.(new Error("SSE connection error"));
+	};
+
+	return () => {
+		eventSource.close();
 	};
 }

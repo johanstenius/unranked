@@ -2,31 +2,43 @@
  * Audit Event System
  *
  * Simple in-memory pub/sub for streaming audit progress via SSE.
- * Listeners subscribe to audit events and receive updates in real-time.
+ * Events carry actual data payloads - frontend updates state directly.
  */
 
 import type { AuditStatus } from "@prisma/client";
-import type {
-	CWVPageResult,
-	CoreWebVitalsData,
-} from "../services/seo/components/types.js";
+import type { CWVPageResult } from "../services/seo/components/types.js";
 import type { HealthScore } from "../services/seo/health-score.js";
-import type { ComponentKey } from "../types/audit-progress.js";
+import type { StateComponentKey } from "../types/audit-state.js";
 
+/**
+ * SSE Event types - clean, data-carrying events
+ *
+ * Key principle: component:complete carries the actual data
+ * so frontend can update state immediately without REST calls.
+ */
 export type AuditSSEEvent =
-	| { type: "status"; status: AuditStatus }
-	| {
-			type: "component";
-			key: ComponentKey;
-			status: "running" | "completed" | "failed";
-			error?: string;
-	  }
-	| { type: "cwv"; page: CWVPageResult }
-	| { type: "cwv-complete"; data: CoreWebVitalsData }
-	| { type: "health"; score: HealthScore }
-	| { type: "partial-ready" }
-	| { type: "complete" }
-	| { type: "error"; message: string };
+	// Overall audit status
+	| { type: "audit:status"; status: AuditStatus }
+
+	// Component lifecycle - data payload on complete
+	| { type: "component:start"; key: StateComponentKey }
+	| { type: "component:complete"; key: StateComponentKey; data: unknown }
+	| { type: "component:fail"; key: StateComponentKey; error: string }
+
+	// CWV streaming (individual pages as they complete)
+	| { type: "cwv:page"; page: CWVPageResult }
+
+	// Metadata updates
+	| { type: "crawl:pages"; count: number; sitemapCount?: number }
+	| { type: "health:score"; score: HealthScore }
+
+	// Derived data (clusters, action plan)
+	| { type: "clusters"; data: unknown[] }
+	| { type: "action-plan"; data: unknown[] }
+
+	// Terminal events
+	| { type: "audit:complete" }
+	| { type: "audit:error"; message: string };
 
 type EventCallback = (event: AuditSSEEvent) => void;
 
@@ -64,16 +76,17 @@ export function emit(auditId: string, event: AuditSSEEvent): void {
 	const auditListeners = listeners.get(auditId);
 	const count = auditListeners?.size ?? 0;
 
-	if (
-		event.type === "cwv" ||
-		event.type === "cwv-complete" ||
-		event.type === "component"
+	if (event.type === "cwv:page") {
+		console.log(
+			`[audit-events] emit ${event.type} for ${auditId}, listeners: ${count}`,
+		);
+	} else if (
+		event.type === "component:start" ||
+		event.type === "component:complete"
 	) {
 		console.log(
 			`[audit-events] emit ${event.type} for ${auditId}, listeners: ${count}`,
-			event.type === "component"
-				? { key: event.key, status: event.status }
-				: undefined,
+			{ key: event.key },
 		);
 	}
 
@@ -103,33 +116,65 @@ export function listenerCount(auditId: string): number {
 	return listeners.get(auditId)?.size ?? 0;
 }
 
-// Convenience emit functions
-export const emitStatus = (auditId: string, status: AuditStatus) =>
-	emit(auditId, { type: "status", status });
+// ============================================================================
+// Event emitters
+// ============================================================================
 
-export const emitComponentRunning = (auditId: string, key: ComponentKey) =>
-	emit(auditId, { type: "component", key, status: "running" });
+export function emitAuditStatus(auditId: string, status: AuditStatus): void {
+	emit(auditId, { type: "audit:status", status });
+}
 
-export const emitComponentCompleted = (auditId: string, key: ComponentKey) =>
-	emit(auditId, { type: "component", key, status: "completed" });
-
-export const emitComponentFailed = (
+export function emitComponentStart(
 	auditId: string,
-	key: ComponentKey,
+	key: StateComponentKey,
+): void {
+	emit(auditId, { type: "component:start", key });
+}
+
+export function emitComponentComplete<T>(
+	auditId: string,
+	key: StateComponentKey,
+	data: T,
+): void {
+	emit(auditId, { type: "component:complete", key, data });
+}
+
+export function emitComponentFail(
+	auditId: string,
+	key: StateComponentKey,
 	error: string,
-) => emit(auditId, { type: "component", key, status: "failed", error });
+): void {
+	emit(auditId, { type: "component:fail", key, error });
+}
 
-export const emitCWVPage = (auditId: string, page: CWVPageResult) =>
-	emit(auditId, { type: "cwv", page });
+export function emitCrawlPages(
+	auditId: string,
+	count: number,
+	sitemapCount?: number,
+): void {
+	emit(auditId, { type: "crawl:pages", count, sitemapCount });
+}
 
-export const emitCWVComplete = (auditId: string, data: CoreWebVitalsData) =>
-	emit(auditId, { type: "cwv-complete", data });
+export function emitCWVPage(auditId: string, page: CWVPageResult): void {
+	emit(auditId, { type: "cwv:page", page });
+}
 
-export const emitHealth = (auditId: string, score: HealthScore) =>
-	emit(auditId, { type: "health", score });
+export function emitHealthScore(auditId: string, score: HealthScore): void {
+	emit(auditId, { type: "health:score", score });
+}
 
-export const emitComplete = (auditId: string) =>
-	emit(auditId, { type: "complete" });
+export function emitClusters(auditId: string, data: unknown[]): void {
+	emit(auditId, { type: "clusters", data });
+}
 
-export const emitError = (auditId: string, message: string) =>
-	emit(auditId, { type: "error", message });
+export function emitActionPlan(auditId: string, data: unknown[]): void {
+	emit(auditId, { type: "action-plan", data });
+}
+
+export function emitAuditComplete(auditId: string): void {
+	emit(auditId, { type: "audit:complete" });
+}
+
+export function emitAuditError(auditId: string, message: string): void {
+	emit(auditId, { type: "audit:error", message });
+}

@@ -93,7 +93,10 @@ function buildContext(input: PipelineInput, usage: ApiUsage): ComponentContext {
 
 export type PipelineCallbacks = {
 	onComponentStart?: (key: ComponentKey) => void | Promise<void>;
-	onComponentComplete?: (key: ComponentKey) => void | Promise<void>;
+	onComponentComplete?: (
+		key: ComponentKey,
+		data: unknown,
+	) => void | Promise<void>;
 	onComponentFailed?: (
 		key: ComponentKey,
 		error: string,
@@ -180,8 +183,8 @@ export async function runPipeline(
 				completedSet.add(key);
 				completed.push(key);
 				log.info({ component: key }, "Component completed");
-				// Emit complete callback
-				await callbacks?.onComponentComplete?.(key);
+				// Emit complete callback with data
+				await callbacks?.onComponentComplete?.(key, result.data);
 			} else {
 				failed.push({ key, error: result.error });
 				log.warn({ component: key, error: result.error }, "Component failed");

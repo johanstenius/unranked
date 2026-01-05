@@ -11,6 +11,7 @@ import {
 	tierInfo,
 	validateUrl,
 } from "@/lib/api";
+import { billingEnabled } from "@/lib/config";
 import { normalizeUrl } from "@/lib/url";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -227,6 +228,36 @@ function AnalyzeForm() {
 
 	const canSubmit =
 		site.trim() && email.trim() && !siteError && !validatingSite;
+
+	// If billing is disabled (production), show coming soon page
+	if (!billingEnabled) {
+		return (
+			<div className="min-h-screen bg-canvas">
+				<FormNav />
+				<main className="py-16 px-6">
+					<div className="max-w-[560px] mx-auto text-center">
+						<SlideUp className="mb-10">
+							<div className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 text-accent text-sm font-medium rounded-full mb-6">
+								Coming Soon
+							</div>
+							<h1 className="font-display text-[2.5rem] leading-[1.1] text-text-primary mb-3 font-bold">
+								Full audits launching soon
+							</h1>
+							<p className="text-text-secondary text-lg mb-8">
+								Paid audit plans are coming soon.
+							</p>
+							<Link
+								href="/check"
+								className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-canvas rounded-lg font-medium hover:bg-accent-hover transition-colors"
+							>
+								Try Free Health Check →
+							</Link>
+						</SlideUp>
+					</div>
+				</main>
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-h-screen bg-canvas">

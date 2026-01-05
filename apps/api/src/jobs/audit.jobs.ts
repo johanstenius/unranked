@@ -11,13 +11,12 @@
 
 import type PgBoss from "pg-boss";
 import {
-	emit,
-	emitCWVComplete,
+	emitAuditStatus,
 	emitCWVPage,
-	emitComponentCompleted,
-	emitComponentRunning,
-	emitHealth,
-	emitStatus,
+	emitComponentComplete,
+	emitComponentStart,
+	emitCrawlPages,
+	emitHealthScore,
 	listenerCount,
 } from "../lib/audit-events.js";
 import { createLogger } from "../lib/logger.js";
@@ -54,10 +53,25 @@ import {
 	markComponentCompleted,
 	markComponentRunning,
 } from "../types/audit-progress.js";
+import type { StateComponentKey } from "../types/audit-state.js";
 
 const log = createLogger("queue");
 
 const CWV_CONCURRENCY = 15;
+
+// Map from pipeline ComponentKey to SSE StateComponentKey
+const componentKeyMap: Record<string, StateComponentKey> = {
+	currentRankings: "rankings",
+	competitorAnalysis: "competitors",
+	keywordOpportunities: "opportunities",
+	quickWins: "quickWins",
+	coreWebVitals: "coreWebVitals",
+	technicalIssues: "technical",
+	internalLinking: "internalLinking",
+	duplicateContent: "duplicateContent",
+	cannibalization: "cannibalization",
+	snippetOpportunities: "snippets",
+};
 
 function summarizeCWV(pages: CWVPageResult[]): CoreWebVitalsData["summary"] {
 	const validPages = pages.filter(
@@ -150,14 +164,14 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					progress,
 					startedAt: new Date(),
 				});
-				emitStatus(auditId, "CRAWLING");
+				emitAuditStatus(auditId, "CRAWLING");
 
 				// ============================================================
 				// PHASE 1: Crawl pages
 				// ============================================================
 				progress = markComponentRunning(progress, "crawl");
 				await auditRepo.updateAudit(auditId, { progress });
-				emitComponentRunning(auditId, "crawl");
+				emitComponentStart(auditId, "crawl");
 				const limits = tierLimits[audit.tier];
 				const sectionsFilter =
 					audit.sections.length > 0 ? audit.sections : undefined;
@@ -216,7 +230,8 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// Mark crawl completed
 				progress = markComponentCompleted(progress, "crawl");
 				await auditRepo.updateAudit(auditId, { progress });
-				emitComponentCompleted(auditId, "crawl");
+				emitComponentComplete(auditId, "crawl", null);
+				emitCrawlPages(auditId, result.pages.length, result.sitemapUrlCount);
 
 				jobLog.info({ pagesFound: result.pages.length }, "Crawl complete");
 
@@ -224,7 +239,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// PHASE 2: Run pipeline components
 				// ============================================================
 				await auditRepo.updateAudit(auditId, { status: "ANALYZING" });
-				emitStatus(auditId, "ANALYZING");
+				emitAuditStatus(auditId, "ANALYZING");
 
 				const isFreeTier = audit.tier === "FREE";
 				const redirectChains = (result.redirectChains ?? []) as RedirectChain[];
@@ -249,19 +264,26 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				progress = markComponentRunning(progress, "technicalIssues");
 				progress = markComponentRunning(progress, "internalLinking");
 				await auditRepo.updateAudit(auditId, { progress });
-				emitComponentRunning(auditId, "technicalIssues");
-				emitComponentRunning(auditId, "internalLinking");
+				emitComponentStart(auditId, "technical");
+				emitComponentStart(auditId, "internalLinking");
 				const localPipelineResult = await runLocalComponents(pipelineInput);
 
-				// Mark local components completed and emit events
+				// Mark local components completed and emit events WITH DATA
+				const technicalData = localPipelineResult.results.technicalIssues ?? [];
+				const internalLinkingData = localPipelineResult.results
+					.internalLinkingIssues ?? {
+					orphanPages: [],
+					underlinkedPages: [],
+				};
+
 				progress = markComponentCompleted(progress, "technicalIssues");
-				emitComponentCompleted(auditId, "technicalIssues");
+				emitComponentComplete(auditId, "technical", technicalData);
 				progress = markComponentCompleted(progress, "internalLinking");
-				emitComponentCompleted(auditId, "internalLinking");
+				emitComponentComplete(auditId, "internalLinking", internalLinkingData);
 				progress = markComponentCompleted(progress, "duplicateContent");
-				emitComponentCompleted(auditId, "duplicateContent");
+				emitComponentComplete(auditId, "duplicateContent", []);
 				progress = markComponentCompleted(progress, "redirectChains");
-				emitComponentCompleted(auditId, "redirectChains");
+				emitComponentComplete(auditId, "redirectChains", redirectChains);
 
 				// Store partial results so frontend can show results page
 				const partialResults = {
@@ -287,9 +309,6 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					progress,
 					opportunities: partialResults,
 				});
-
-				// Emit event so frontend knows partial results are ready
-				emit(auditId, { type: "partial-ready" as const });
 
 				jobLog.info(
 					{
@@ -323,8 +342,8 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				progress = markComponentRunning(progress, "coreWebVitals");
 				progress = markComponentRunning(progress, "currentRankings");
 				await auditRepo.updateAudit(auditId, { progress });
-				emitComponentRunning(auditId, "coreWebVitals");
-				emitComponentRunning(auditId, "currentRankings");
+				emitComponentStart(auditId, "coreWebVitals");
+				emitComponentStart(auditId, "rankings");
 
 				// CWV task - runs independently, doesn't block other components
 				const cwvTask = (async () => {
@@ -361,12 +380,11 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 
 					progress = markComponentCompleted(progress, "coreWebVitals");
 					await auditRepo.updateAudit(auditId, { progress });
-					emitComponentCompleted(auditId, "coreWebVitals");
+					emitComponentComplete(auditId, "coreWebVitals", coreWebVitals);
 					jobLog.info(
 						{ totalPages: cwvResults.length, summary: coreWebVitals.summary },
 						"CWV complete",
 					);
-					emitCWVComplete(auditId, coreWebVitals);
 					return coreWebVitals;
 				})();
 
@@ -380,10 +398,13 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 						localPipelineResult.results,
 						localPipelineResult.usage,
 						{
-							onComponentComplete: async (key) => {
+							onComponentComplete: async (key, data) => {
 								progress = markComponentCompleted(progress, key);
 								await auditRepo.updateAudit(auditId, { progress });
-								emitComponentCompleted(auditId, key);
+								const sseKey = componentKeyMap[key];
+								if (sseKey) {
+									emitComponentComplete(auditId, sseKey, data);
+								}
 							},
 						},
 					);
@@ -402,12 +423,18 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 							onComponentStart: async (key) => {
 								progress = markComponentRunning(progress, key);
 								await auditRepo.updateAudit(auditId, { progress });
-								emitComponentRunning(auditId, key);
+								const sseKey = componentKeyMap[key];
+								if (sseKey) {
+									emitComponentStart(auditId, sseKey);
+								}
 							},
-							onComponentComplete: async (key) => {
+							onComponentComplete: async (key, data) => {
 								progress = markComponentCompleted(progress, key);
 								await auditRepo.updateAudit(auditId, { progress });
-								emitComponentCompleted(auditId, key);
+								const sseKey = componentKeyMap[key];
+								if (sseKey) {
+									emitComponentComplete(auditId, sseKey, data);
+								}
 							},
 						},
 					);
@@ -464,7 +491,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				);
 
 				// Emit health score via SSE
-				emitHealth(auditId, healthScore);
+				emitHealthScore(auditId, healthScore);
 
 				// Store results
 				await auditRepo.updateAudit(auditId, {

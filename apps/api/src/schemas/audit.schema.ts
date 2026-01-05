@@ -455,3 +455,126 @@ export const tierLimits: Record<AuditTier, TierLimits> = {
 		pdfExport: true,
 	},
 };
+
+// ============================================================================
+// Unified Audit State Schema - Single source of truth
+// ============================================================================
+
+/**
+ * Component state - discriminated union ensures data exists when completed
+ */
+function componentStateSchema<T extends z.ZodTypeAny>(dataSchema: T) {
+	return z.discriminatedUnion("status", [
+		z.object({ status: z.literal("pending") }),
+		z.object({ status: z.literal("running") }),
+		z.object({ status: z.literal("completed"), data: dataSchema }),
+		z.object({ status: z.literal("failed"), error: z.string() }),
+	]);
+}
+
+// Brief schema for unified state (matches BriefData type)
+const briefDataSchema = z.object({
+	id: z.string(),
+	keyword: z.string(),
+	searchVolume: z.number(),
+	difficulty: z.number(),
+	intent: searchIntentSchema.nullable(),
+	title: z.string(),
+	structure: z.record(z.string(), z.unknown()),
+	questions: z.array(z.string()),
+	relatedKw: z.array(z.string()),
+	competitors: z.array(
+		z.object({
+			domain: z.string(),
+			url: z.string(),
+			title: z.string(),
+		}),
+	),
+	suggestedInternalLinks: z.array(z.string()),
+});
+
+// Competitor data schema
+const competitorDataSchema = z.object({
+	gaps: z.array(competitorGapSchema),
+	discovered: z.array(discoveredCompetitorSchema),
+});
+
+// Component states schema
+export const componentStatesSchema = z.object({
+	crawl: componentStateSchema(z.null()),
+	technical: componentStateSchema(z.array(technicalIssueSchema)),
+	internalLinking: componentStateSchema(internalLinkingIssuesSchema),
+	duplicateContent: componentStateSchema(
+		z.array(
+			z.object({
+				pages: z.array(z.string()),
+				similarity: z.number(),
+			}),
+		),
+	),
+	redirectChains: componentStateSchema(
+		z.array(
+			z.object({
+				chain: z.array(z.string()),
+				finalUrl: z.string(),
+			}),
+		),
+	),
+	coreWebVitals: componentStateSchema(coreWebVitalsSchema),
+	rankings: componentStateSchema(z.array(currentRankingSchema)),
+	opportunities: componentStateSchema(z.array(opportunitySchema)),
+	quickWins: componentStateSchema(z.array(quickWinSchema)),
+	competitors: componentStateSchema(competitorDataSchema),
+	cannibalization: componentStateSchema(z.array(cannibalizationIssueSchema)),
+	snippets: componentStateSchema(z.array(snippetOpportunitySchema)),
+	briefs: componentStateSchema(z.array(briefDataSchema)),
+});
+export type ComponentStatesResponse = z.infer<typeof componentStatesSchema>;
+
+// Action item schema for action plan
+const actionItemSchema = z.object({
+	id: z.string(),
+	priority: z.number(),
+	type: z.string(),
+	title: z.string(),
+	description: z.string(),
+	url: z.string().optional(),
+	keyword: z.string().optional(),
+	estimatedImpact: z.object({
+		trafficGain: z.number().optional(),
+		searchVolume: z.number().optional(),
+	}),
+	category: z.string(),
+});
+
+/**
+ * Unified audit state - single source of truth
+ */
+export const auditStateSchema = z.object({
+	// Identity
+	id: z.string(),
+	accessToken: z.string(),
+	siteUrl: z.string(),
+	tier: auditTierSchema,
+
+	// Overall status
+	status: auditStatusSchema,
+	createdAt: z.string(),
+	completedAt: z.string().nullable(),
+
+	// Crawl metadata
+	pagesFound: z.number().nullable(),
+	sitemapUrlCount: z.number().nullable(),
+
+	// Component states - status and data unified
+	components: componentStatesSchema,
+
+	// Streaming state (CWV pages as they arrive)
+	cwvStream: z.array(cwvPageResultSchema),
+
+	// Derived data
+	opportunityClusters: z.array(opportunityClusterSchema).optional(),
+	actionPlan: z.array(actionItemSchema).optional(),
+	healthScore: healthScoreSchema.nullable(),
+});
+export type AuditStateResponse = z.infer<typeof auditStateSchema>;

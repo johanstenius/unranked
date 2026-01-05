@@ -3,6 +3,7 @@
 import { motion } from "@/components/motion";
 import { Spinner } from "@/components/ui/spinner";
 import { createUpgradeCheckout, tierInfo } from "@/lib/api";
+import { billingEnabled } from "@/lib/config";
 import type { Analysis } from "@/lib/types";
 import { useState } from "react";
 
@@ -40,7 +41,9 @@ export function UpgradeBanner({ auditToken, analysis }: UpgradeBannerProps) {
 			<div className="flex items-start justify-between gap-6">
 				<div>
 					<h3 className="font-display text-lg font-semibold text-text-primary mb-2">
-						Unlock the full report
+						{billingEnabled
+							? "Unlock the full report"
+							: "Full audits coming soon"}
 					</h3>
 					<p className="text-text-secondary text-sm mb-4 max-w-[500px]">
 						You&apos;re viewing a free health check.{" "}
@@ -51,45 +54,54 @@ export function UpgradeBanner({ auditToken, analysis }: UpgradeBannerProps) {
 								waiting for you.{" "}
 							</>
 						)}
-						Upgrade to get keyword opportunities, AI content briefs, and
-						competitor analysis.
+						{billingEnabled
+							? "Upgrade to get keyword opportunities, AI content briefs, and competitor analysis."
+							: "Paid plans coming soon."}
 					</p>
 
 					{error && <p className="text-sm text-status-crit mb-4">{error}</p>}
 
-					<div className="flex gap-3">
-						<motion.button
-							type="button"
-							onClick={() => handleUpgrade("AUDIT")}
-							disabled={loading}
-							whileHover={{ scale: 1.02 }}
-							whileTap={{ scale: 0.98 }}
-							className="h-10 px-5 bg-accent text-canvas text-sm font-medium rounded hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-						>
-							{loading ? (
-								<>
-									<Spinner
-										size="sm"
-										className="border-canvas/30 border-t-canvas"
-									/>
-									<span>Processing...</span>
-								</>
-							) : (
-								<>Upgrade to Audit — ${tierInfo.AUDIT.price}</>
-							)}
-						</motion.button>
+					{billingEnabled ? (
+						<div className="flex gap-3">
+							<motion.button
+								type="button"
+								onClick={() => handleUpgrade("AUDIT")}
+								disabled={loading}
+								whileHover={{ scale: 1.02 }}
+								whileTap={{ scale: 0.98 }}
+								className="h-10 px-5 bg-accent text-canvas text-sm font-medium rounded hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+							>
+								{loading ? (
+									<>
+										<Spinner
+											size="sm"
+											className="border-canvas/30 border-t-canvas"
+										/>
+										<span>Processing...</span>
+									</>
+								) : (
+									<>Upgrade to Audit — ${tierInfo.AUDIT.price}</>
+								)}
+							</motion.button>
 
-						<motion.button
-							type="button"
-							onClick={() => handleUpgrade("SCAN")}
-							disabled={loading}
-							whileHover={{ scale: 1.02 }}
-							whileTap={{ scale: 0.98 }}
-							className="h-10 px-4 bg-surface border border-border-active text-sm font-medium text-text-primary rounded hover:border-border-focus hover:bg-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							Scan — ${tierInfo.SCAN.price}
-						</motion.button>
-					</div>
+							<motion.button
+								type="button"
+								onClick={() => handleUpgrade("SCAN")}
+								disabled={loading}
+								whileHover={{ scale: 1.02 }}
+								whileTap={{ scale: 0.98 }}
+								className="h-10 px-4 bg-surface border border-border-active text-sm font-medium text-text-primary rounded hover:border-border-focus hover:bg-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								Scan — ${tierInfo.SCAN.price}
+							</motion.button>
+						</div>
+					) : (
+						<div className="flex gap-3">
+							<div className="h-10 px-5 bg-accent/50 text-canvas text-sm font-medium rounded opacity-50 cursor-not-allowed flex items-center">
+								Coming Soon
+							</div>
+						</div>
+					)}
 				</div>
 
 				<div className="hidden md:block text-right">

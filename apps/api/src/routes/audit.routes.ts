@@ -7,7 +7,9 @@ import * as auditRepo from "../repositories/audit.repository.js";
 import * as briefRepo from "../repositories/brief.repository.js";
 import {
 	type AuditProgressResponse,
+	type AuditStateResponse,
 	type AuditTier,
+	type ComponentStatesResponse,
 	type HealthScoreResponse,
 	type SearchIntentResponse,
 	type SectionInfoResponse,
@@ -15,6 +17,7 @@ import {
 	type UpgradeHints,
 	analysisResponseSchema,
 	auditResponseSchema,
+	auditStateSchema,
 	briefResponseSchema,
 	createAuditSchema,
 	discoverRequestSchema,
@@ -215,6 +218,168 @@ function mapBriefToResponse(brief: BriefDbModel) {
 			intent,
 		),
 		createdAt: brief.createdAt.toISOString(),
+	};
+}
+
+// ============================================================================
+// Unified Audit State Builder
+// ============================================================================
+
+type AuditDbModel = {
+	id: string;
+	accessToken: string;
+	siteUrl: string;
+	tier: AuditTier;
+	status: string;
+	createdAt: Date;
+	completedAt: Date | null;
+	pagesFound: number | null;
+	sitemapUrlCount: number | null;
+	progress: unknown;
+	opportunities: unknown;
+	healthScore: unknown;
+	briefs: BriefDbModel[];
+};
+
+type ComponentStatus = "pending" | "running" | "completed" | "failed";
+
+function getProgressStatus(
+	progress: AuditProgress | null,
+	key: keyof AuditProgress,
+): ComponentStatus {
+	if (!progress) return "pending";
+	const value = progress[key];
+	if (typeof value === "string") return value as ComponentStatus;
+	if (value && typeof value === "object" && "status" in value) {
+		return (value as { status: string }).status as ComponentStatus;
+	}
+	return "pending";
+}
+
+function buildComponentState<T>(
+	status: ComponentStatus,
+	data: T | undefined,
+	errorMsg?: string,
+):
+	| { status: "pending" }
+	| { status: "running" }
+	| { status: "completed"; data: T }
+	| { status: "failed"; error: string } {
+	switch (status) {
+		case "completed":
+			return { status: "completed", data: data as T };
+		case "failed":
+			return { status: "failed", error: errorMsg ?? "Component failed" };
+		case "running":
+			return { status: "running" };
+		default:
+			return { status: "pending" };
+	}
+}
+
+function buildAuditState(audit: AuditDbModel): AuditStateResponse {
+	const progress = audit.progress as AuditProgress | null;
+	const analysis = audit.opportunities as AnalysisResult | null;
+	const healthScore = audit.healthScore as HealthScoreResponse | null;
+
+	// Build component states from progress + analysis data
+	const components: ComponentStatesResponse = {
+		crawl: buildComponentState(getProgressStatus(progress, "crawl"), null),
+		technical: buildComponentState(
+			getProgressStatus(progress, "technicalIssues"),
+			analysis?.technicalIssues ?? [],
+		),
+		internalLinking: buildComponentState(
+			getProgressStatus(progress, "internalLinking"),
+			analysis?.internalLinkingIssues ?? {
+				orphanPages: [],
+				underlinkedPages: [],
+			},
+		),
+		duplicateContent: buildComponentState(
+			getProgressStatus(progress, "duplicateContent"),
+			[], // Not stored separately yet
+		),
+		redirectChains: buildComponentState(
+			getProgressStatus(progress, "redirectChains"),
+			[], // Not stored separately yet
+		),
+		coreWebVitals: buildComponentState(
+			getProgressStatus(progress, "coreWebVitals"),
+			analysis?.coreWebVitals,
+		),
+		rankings: buildComponentState(
+			getProgressStatus(progress, "currentRankings"),
+			analysis?.currentRankings ?? [],
+		),
+		opportunities: buildComponentState(
+			getProgressStatus(progress, "keywordOpportunities"),
+			analysis?.opportunities ?? [],
+		),
+		quickWins: buildComponentState(
+			getProgressStatus(progress, "quickWins"),
+			analysis?.quickWins ?? [],
+		),
+		competitors: buildComponentState(
+			getProgressStatus(progress, "competitorAnalysis"),
+			{
+				gaps: analysis?.competitorGaps ?? [],
+				discovered: analysis?.discoveredCompetitors ?? [],
+			},
+		),
+		cannibalization: buildComponentState(
+			getProgressStatus(progress, "cannibalization"),
+			analysis?.cannibalizationIssues ?? [],
+		),
+		snippets: buildComponentState(
+			getProgressStatus(progress, "snippetOpportunities"),
+			analysis?.snippetOpportunities ?? [],
+		),
+		briefs: buildComponentState(
+			getProgressStatus(progress, "briefs"),
+			audit.briefs.map((b) => ({
+				id: b.id,
+				keyword: b.keyword,
+				searchVolume: b.searchVolume,
+				difficulty: b.difficulty,
+				intent: b.intent as
+					| "informational"
+					| "transactional"
+					| "navigational"
+					| "commercial"
+					| null,
+				title: b.title,
+				structure: b.structure as Record<string, unknown>,
+				questions: b.questions,
+				relatedKw: b.relatedKw,
+				competitors: ((b.competitors as unknown[]) ?? []).map((c) => {
+					const comp = c as { domain?: string; url?: string; title?: string };
+					return {
+						domain: comp.domain ?? "",
+						url: comp.url ?? "",
+						title: comp.title ?? "",
+					};
+				}),
+				suggestedInternalLinks: b.suggestedInternalLinks,
+			})),
+		),
+	};
+
+	return {
+		id: audit.id,
+		accessToken: audit.accessToken,
+		siteUrl: audit.siteUrl,
+		tier: audit.tier,
+		status: audit.status as AuditStateResponse["status"],
+		createdAt: audit.createdAt.toISOString(),
+		completedAt: audit.completedAt?.toISOString() ?? null,
+		pagesFound: audit.pagesFound,
+		sitemapUrlCount: audit.sitemapUrlCount,
+		components,
+		cwvStream: [], // Populated via SSE during analysis
+		opportunityClusters: analysis?.opportunityClusters,
+		actionPlan: analysis?.actionPlan,
+		healthScore,
 	};
 }
 
@@ -429,10 +594,10 @@ const getAuditRoute = createRoute({
 		200: {
 			content: {
 				"application/json": {
-					schema: auditResponseSchema,
+					schema: auditStateSchema,
 				},
 			},
-			description: "Audit details",
+			description: "Unified audit state",
 		},
 		404: {
 			content: {
@@ -458,27 +623,23 @@ auditRoutes.openapi(getAuditRoute, async (c) => {
 		return c.json({ error: "Audit link has expired" }, 404);
 	}
 
-	const storedAnalysis = audit.opportunities as AnalysisResult | null;
+	const auditState = buildAuditState({
+		id: audit.id,
+		accessToken: audit.accessToken,
+		siteUrl: audit.siteUrl,
+		tier: audit.tier,
+		status: audit.status,
+		createdAt: audit.createdAt,
+		completedAt: audit.completedAt,
+		pagesFound: audit.pagesFound,
+		sitemapUrlCount: audit.sitemapUrlCount,
+		progress: audit.progress,
+		opportunities: audit.opportunities,
+		healthScore: audit.healthScore,
+		briefs: audit.briefs,
+	});
 
-	return c.json(
-		{
-			accessToken: audit.accessToken,
-			status: audit.status,
-			siteUrl: audit.siteUrl,
-			productDesc: audit.productDesc,
-			competitors: audit.competitors,
-			sections: audit.sections,
-			detectedSections: audit.detectedSections as SectionInfoResponse[] | null,
-			tier: audit.tier,
-			pagesFound: audit.pagesFound,
-			sitemapUrlCount: audit.sitemapUrlCount,
-			currentRankings: storedAnalysis?.currentRankings ?? null,
-			progress: toProgressResponse(audit.progress as AuditProgress | null),
-			createdAt: audit.createdAt.toISOString(),
-			completedAt: audit.completedAt?.toISOString() ?? null,
-		},
-		200,
-	);
+	return c.json(auditState, 200);
 });
 
 const getAuditAnalysisRoute = createRoute({

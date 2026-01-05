@@ -383,3 +383,165 @@ export type AuditSSEEvent =
 	| AuditSSEEventError
 	| AuditSSEEventHeartbeat
 	| AuditSSEEventProgress;
+
+// =============================================================================
+// Unified Audit State - Single source of truth
+// =============================================================================
+
+/**
+ * Component keys for the unified state (different from AuditProgress keys)
+ */
+export type StateComponentKey =
+	| "crawl"
+	| "technical"
+	| "internalLinking"
+	| "duplicateContent"
+	| "redirectChains"
+	| "coreWebVitals"
+	| "rankings"
+	| "opportunities"
+	| "quickWins"
+	| "competitors"
+	| "cannibalization"
+	| "snippets"
+	| "briefs";
+
+/**
+ * Component state - discriminated union ensures data exists when completed
+ */
+export type ComponentState<T> =
+	| { status: "pending" }
+	| { status: "running" }
+	| { status: "completed"; data: T }
+	| { status: "failed"; error: string };
+
+/**
+ * Brief data for unified state
+ */
+export type BriefData = {
+	id: string;
+	keyword: string;
+	searchVolume: number;
+	difficulty: number;
+	intent: SearchIntent | null;
+	title: string;
+	structure: Record<string, unknown>;
+	questions: string[];
+	relatedKw: string[];
+	competitors: Array<{ domain: string; url: string; title: string }>;
+	suggestedInternalLinks: string[];
+};
+
+/**
+ * Competitor data for unified state
+ */
+export type CompetitorData = {
+	gaps: CompetitorGap[];
+	discovered: DiscoveredCompetitor[];
+};
+
+/**
+ * Redirect chain data
+ */
+export type RedirectChain = {
+	chain: string[];
+	finalUrl: string;
+};
+
+/**
+ * All component states with their respective data types
+ */
+export type ComponentStates = {
+	crawl: ComponentState<null>;
+	technical: ComponentState<TechnicalIssue[]>;
+	internalLinking: ComponentState<InternalLinkingIssues>;
+	duplicateContent: ComponentState<
+		Array<{ pages: string[]; similarity: number }>
+	>;
+	redirectChains: ComponentState<RedirectChain[]>;
+	coreWebVitals: ComponentState<CoreWebVitalsData>;
+	rankings: ComponentState<CurrentRanking[]>;
+	opportunities: ComponentState<Opportunity[]>;
+	quickWins: ComponentState<QuickWin[]>;
+	competitors: ComponentState<CompetitorData>;
+	cannibalization: ComponentState<CannibalizationIssue[]>;
+	snippets: ComponentState<SnippetOpportunity[]>;
+	briefs: ComponentState<BriefData[]>;
+};
+
+/**
+ * Unified audit state - single source of truth
+ */
+export type AuditState = {
+	// Identity
+	id: string;
+	accessToken: string;
+	siteUrl: string;
+	tier: AuditTier;
+
+	// Overall status
+	status: AuditStatus;
+	createdAt: string;
+	completedAt: string | null;
+
+	// Crawl metadata
+	pagesFound: number | null;
+	sitemapUrlCount: number | null;
+
+	// Component states - status and data unified
+	components: ComponentStates;
+
+	// Streaming state (CWV pages as they arrive)
+	cwvStream: CWVPageResult[];
+
+	// Derived data (computed after components complete)
+	opportunityClusters?: OpportunityCluster[];
+	actionPlan?: PrioritizedAction[];
+	healthScore: HealthScore | null;
+};
+
+// =============================================================================
+// New SSE Event Types (data-carrying)
+// =============================================================================
+
+export type NewAuditSSEEvent =
+	// Overall audit status
+	| { type: "audit:status"; status: AuditStatus }
+
+	// Component lifecycle - data payload on complete
+	| { type: "component:start"; key: StateComponentKey }
+	| { type: "component:complete"; key: StateComponentKey; data: unknown }
+	| { type: "component:fail"; key: StateComponentKey; error: string }
+
+	// CWV streaming
+	| { type: "cwv:page"; page: CWVPageResult }
+
+	// Metadata updates
+	| { type: "crawl:pages"; count: number; sitemapCount?: number }
+	| { type: "health:score"; score: HealthScore }
+
+	// Derived data
+	| { type: "clusters"; data: OpportunityCluster[] }
+	| { type: "action-plan"; data: PrioritizedAction[] }
+
+	// Terminal events
+	| { type: "audit:complete" }
+	| { type: "audit:error"; message: string };
+
+/**
+ * Helper to check if component is completed
+ */
+export function isComponentCompleted<T>(
+	component: ComponentState<T>,
+): component is { status: "completed"; data: T } {
+	return component.status === "completed";
+}
+
+/**
+ * Helper to extract data from a completed component
+ */
+export function getComponentData<T>(
+	component: ComponentState<T>,
+): T | undefined {
+	return component.status === "completed" ? component.data : undefined;
+}
