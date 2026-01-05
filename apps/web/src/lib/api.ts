@@ -8,7 +8,6 @@ import type {
 	CreateAuditInput,
 	DiscoverEvent,
 	DiscoverResponse,
-	NewAuditSSEEvent,
 } from "./types";
 
 // Re-export all types for backward compatibility
@@ -141,14 +140,21 @@ export async function createUpgradeCheckout(
 }
 
 /**
- * Subscribe to audit progress via SSE.
- * Returns an EventSource and unsubscribe function.
+ * Get unified audit state (hydration)
+ */
+export async function getAuditState(token: string): Promise<AuditState> {
+	return fetchApi<AuditState>(`/audits/${token}`);
+}
+
+/**
+ * Subscribe to audit SSE events.
+ * Returns an unsubscribe function.
  */
 export function subscribeToAudit(
 	token: string,
 	onEvent: (event: AuditSSEEvent) => void,
 	onError?: (error: Error) => void,
-): { close: () => void } {
+): () => void {
 	const eventSource = new EventSource(`${API_URL}/audits/${token}/stream`);
 
 	function handleMessage(e: MessageEvent) {
@@ -160,67 +166,7 @@ export function subscribeToAudit(
 		}
 	}
 
-	// Listen to all event types we care about
-	eventSource.addEventListener("status", handleMessage);
-	eventSource.addEventListener("component", handleMessage);
-	eventSource.addEventListener("cwv", handleMessage);
-	eventSource.addEventListener("cwv-complete", handleMessage);
-	eventSource.addEventListener("health", handleMessage);
-	eventSource.addEventListener("partial-ready", handleMessage);
-	eventSource.addEventListener("complete", handleMessage);
-	eventSource.addEventListener("error", (e) => {
-		try {
-			const event = JSON.parse((e as MessageEvent).data) as AuditSSEEvent;
-			onEvent(event);
-		} catch {
-			onError?.(new Error("SSE connection error"));
-		}
-	});
-	eventSource.addEventListener("progress", handleMessage);
-
-	eventSource.onerror = () => {
-		onError?.(new Error("SSE connection error"));
-	};
-
-	return {
-		close: () => {
-			eventSource.close();
-		},
-	};
-}
-
-// =============================================================================
-// Unified Audit State API
-// =============================================================================
-
-/**
- * Get unified audit state (hydration)
- */
-export async function getAuditState(token: string): Promise<AuditState> {
-	return fetchApi<AuditState>(`/audits/${token}`);
-}
-
-/**
- * Subscribe to new unified SSE events.
- * Returns an unsubscribe function.
- */
-export function subscribeToAuditNew(
-	token: string,
-	onEvent: (event: NewAuditSSEEvent) => void,
-	onError?: (error: Error) => void,
-): () => void {
-	const eventSource = new EventSource(`${API_URL}/audits/${token}/stream`);
-
-	function handleMessage(e: MessageEvent) {
-		try {
-			const event = JSON.parse(e.data) as NewAuditSSEEvent;
-			onEvent(event);
-		} catch {
-			// Skip invalid JSON
-		}
-	}
-
-	// Listen to new event types
+	// Listen to event types
 	eventSource.addEventListener("audit:status", handleMessage);
 	eventSource.addEventListener("component:start", handleMessage);
 	eventSource.addEventListener("component:complete", handleMessage);

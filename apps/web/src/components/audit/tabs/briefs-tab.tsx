@@ -7,6 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -15,16 +16,49 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import type { Brief } from "@/lib/types";
+import type { BriefData, ComponentState } from "@/lib/types";
 import { getDifficultyColor, getDifficultyLabel } from "@/lib/utils";
 import Link from "next/link";
 
 type BriefsTabProps = {
-	briefs: Brief[];
+	briefs: ComponentState<BriefData[]>;
 	auditToken: string;
 };
 
 export function BriefsTab({ briefs, auditToken }: BriefsTabProps) {
+	if (briefs.status === "pending" || briefs.status === "running") {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="font-display text-lg">Content Briefs</CardTitle>
+					<CardDescription>Generating content briefs...</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						<Skeleton className="h-10 w-full" />
+						<Skeleton className="h-10 w-full" />
+						<Skeleton className="h-10 w-full" />
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (briefs.status === "failed") {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="font-display text-lg">Content Briefs</CardTitle>
+					<CardDescription className="text-status-crit">
+						{briefs.error}
+					</CardDescription>
+				</CardHeader>
+			</Card>
+		);
+	}
+
+	const briefsList = briefs.data;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -32,7 +66,7 @@ export function BriefsTab({ briefs, auditToken }: BriefsTabProps) {
 				<CardDescription>Detailed instructions for new content</CardDescription>
 			</CardHeader>
 			<CardContent>
-				{briefs.length === 0 ? (
+				{briefsList.length === 0 ? (
 					<p className="text-muted-foreground">No briefs generated</p>
 				) : (
 					<Table>
@@ -46,7 +80,7 @@ export function BriefsTab({ briefs, auditToken }: BriefsTabProps) {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{briefs.map((brief) => (
+							{briefsList.map((brief) => (
 								<TableRow key={brief.id}>
 									<TableCell className="font-medium">{brief.keyword}</TableCell>
 									<TableCell>{brief.searchVolume.toLocaleString()}</TableCell>

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 	},
 };
 
-export default function AnalyzeLayout({
+export default function AuditNewLayout({
 	children,
 }: {
 	children: React.ReactNode;

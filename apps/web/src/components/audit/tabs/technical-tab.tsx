@@ -7,6 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,13 +15,20 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getRuleInfo } from "@/lib/rule-catalog";
-import type { Analysis, TechnicalIssue } from "@/lib/types";
+import type {
+	CannibalizationIssue,
+	ComponentState,
+	InternalLinkingIssues,
+	TechnicalIssue,
+} from "@/lib/types";
 import { cn, stripOrigin } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, ChevronRight, Info } from "lucide-react";
 import { useState } from "react";
 
 type TechnicalTabProps = {
-	analysis: Analysis;
+	technical: ComponentState<TechnicalIssue[]>;
+	internalLinking: ComponentState<InternalLinkingIssues>;
+	cannibalization: ComponentState<CannibalizationIssue[]>;
 };
 
 type PageWithDetail = {
@@ -270,12 +278,65 @@ function EmptyState() {
 	);
 }
 
-export function TechnicalTab({ analysis }: TechnicalTabProps) {
-	const groupedIssues = groupIssuesByRule(analysis.technicalIssues);
-	const severityCounts = countBySeverity(groupedIssues);
-
+function LoadingCard({
+	title,
+	description,
+}: { title: string; description: string }) {
 	return (
-		<div className="space-y-6">
+		<Card className="border-border rounded-xl">
+			<CardHeader className="pb-4">
+				<CardTitle className="font-display text-xl font-bold">
+					{title}
+				</CardTitle>
+				<CardDescription>{description}</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<div className="space-y-3">
+					<Skeleton className="h-12 w-full" />
+					<Skeleton className="h-12 w-full" />
+					<Skeleton className="h-12 w-3/4" />
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+function ErrorCard({ title, error }: { title: string; error: string }) {
+	return (
+		<Card className="border-border rounded-xl border-status-crit/30">
+			<CardHeader className="pb-4">
+				<CardTitle className="font-display text-xl font-bold text-status-crit">
+					{title}
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<p className="text-sm text-status-crit">{error}</p>
+			</CardContent>
+		</Card>
+	);
+}
+
+export function TechnicalTab({
+	technical,
+	internalLinking,
+	cannibalization,
+}: TechnicalTabProps) {
+	// Technical issues section
+	const technicalContent = (() => {
+		if (technical.status === "pending" || technical.status === "running") {
+			return (
+				<LoadingCard
+					title="Technical Audit"
+					description="Analyzing SEO issues..."
+				/>
+			);
+		}
+		if (technical.status === "failed") {
+			return <ErrorCard title="Technical Audit" error={technical.error} />;
+		}
+		const groupedIssues = groupIssuesByRule(technical.data);
+		const severityCounts = countBySeverity(groupedIssues);
+		return (
 			<Card className="border-border rounded-xl">
 				<CardHeader className="pb-4">
 					<CardTitle className="font-display text-xl font-bold">
@@ -300,7 +361,29 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 					)}
 				</CardContent>
 			</Card>
+		);
+	})();
 
+	// Internal linking section
+	const linkingContent = (() => {
+		if (
+			internalLinking.status === "pending" ||
+			internalLinking.status === "running"
+		) {
+			return (
+				<LoadingCard
+					title="Internal Linking"
+					description="Analyzing link structure..."
+				/>
+			);
+		}
+		if (internalLinking.status === "failed") {
+			return (
+				<ErrorCard title="Internal Linking" error={internalLinking.error} />
+			);
+		}
+		const issues = internalLinking.data;
+		return (
 			<Card className="border-border rounded-xl">
 				<CardHeader className="pb-4">
 					<CardTitle className="font-display text-xl font-bold">
@@ -311,8 +394,8 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					{analysis.internalLinkingIssues.orphanPages.length === 0 &&
-					analysis.internalLinkingIssues.underlinkedPages.length === 0 ? (
+					{issues.orphanPages.length === 0 &&
+					issues.underlinkedPages.length === 0 ? (
 						<div className="flex flex-col items-center justify-center py-12 text-center">
 							<div className="w-12 h-12 rounded-full bg-status-good-bg flex items-center justify-center mb-4">
 								<CheckCircle2 className="w-6 h-6 text-status-good" />
@@ -326,7 +409,7 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 						</div>
 					) : (
 						<div className="space-y-4">
-							{analysis.internalLinkingIssues.orphanPages.length > 0 && (
+							{issues.orphanPages.length > 0 && (
 								<div className="rounded-lg border border-border/60 border-l-[3px] border-l-status-crit overflow-hidden">
 									<div className="p-4">
 										<div className="flex items-center gap-3 mb-3">
@@ -341,7 +424,7 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 											</div>
 										</div>
 										<div className="pl-7 space-y-1">
-											{analysis.internalLinkingIssues.orphanPages.map((url) => (
+											{issues.orphanPages.map((url) => (
 												<div
 													key={url}
 													className="text-sm text-text-secondary py-1 truncate font-mono"
@@ -354,7 +437,7 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 								</div>
 							)}
 
-							{analysis.internalLinkingIssues.underlinkedPages.length > 0 && (
+							{issues.underlinkedPages.length > 0 && (
 								<div className="rounded-lg border border-border/60 border-l-[3px] border-l-status-warn overflow-hidden">
 									<div className="p-4">
 										<div className="flex items-center gap-3 mb-3">
@@ -369,22 +452,20 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 											</div>
 										</div>
 										<div className="pl-7 space-y-1">
-											{analysis.internalLinkingIssues.underlinkedPages.map(
-												(p) => (
-													<div
-														key={p.url}
-														className="flex items-center justify-between text-sm py-1"
-													>
-														<span className="text-text-secondary truncate font-mono max-w-[300px]">
-															{stripOrigin(p.url)}
-														</span>
-														<span className="text-text-tertiary tabular-nums shrink-0 ml-4">
-															{p.incomingLinks}{" "}
-															{p.incomingLinks === 1 ? "link" : "links"}
-														</span>
-													</div>
-												),
-											)}
+											{issues.underlinkedPages.map((p) => (
+												<div
+													key={p.url}
+													className="flex items-center justify-between text-sm py-1"
+												>
+													<span className="text-text-secondary truncate font-mono max-w-[300px]">
+														{stripOrigin(p.url)}
+													</span>
+													<span className="text-text-tertiary tabular-nums shrink-0 ml-4">
+														{p.incomingLinks}{" "}
+														{p.incomingLinks === 1 ? "link" : "links"}
+													</span>
+												</div>
+											))}
 										</div>
 									</div>
 								</div>
@@ -393,7 +474,32 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 					)}
 				</CardContent>
 			</Card>
+		);
+	})();
 
+	// Cannibalization section
+	const cannibalizationContent = (() => {
+		if (
+			cannibalization.status === "pending" ||
+			cannibalization.status === "running"
+		) {
+			return (
+				<LoadingCard
+					title="Keyword Cannibalization"
+					description="Analyzing keyword conflicts..."
+				/>
+			);
+		}
+		if (cannibalization.status === "failed") {
+			return (
+				<ErrorCard
+					title="Keyword Cannibalization"
+					error={cannibalization.error}
+				/>
+			);
+		}
+		const issues = cannibalization.data;
+		return (
 			<Card className="border-border rounded-xl">
 				<CardHeader className="pb-4">
 					<CardTitle className="font-display text-xl font-bold">
@@ -404,7 +510,7 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					{analysis.cannibalizationIssues.length === 0 ? (
+					{issues.length === 0 ? (
 						<div className="flex flex-col items-center justify-center py-12 text-center">
 							<div className="w-12 h-12 rounded-full bg-status-good-bg flex items-center justify-center mb-4">
 								<CheckCircle2 className="w-6 h-6 text-status-good" />
@@ -416,64 +522,75 @@ export function TechnicalTab({ analysis }: TechnicalTabProps) {
 						</div>
 					) : (
 						<div className="space-y-3">
-							{analysis.cannibalizationIssues.map((issue) => (
-								<div
-									key={issue.keyword}
-									className={cn(
-										"rounded-lg border border-border/60 border-l-[3px] overflow-hidden",
-										issue.severity === "high"
-											? "border-l-status-crit"
-											: "border-l-status-warn",
-									)}
-								>
-									<div className="p-4">
-										<div className="flex items-center justify-between mb-3">
-											<div className="flex items-center gap-3">
-												<AlertTriangle
-													className={cn(
-														"w-4 h-4 shrink-0",
-														issue.severity === "high"
-															? "text-status-crit"
-															: "text-status-warn",
-													)}
-												/>
-												<span className="font-medium text-text-primary">
-													&ldquo;{issue.keyword}&rdquo;
-												</span>
-												<span className="text-sm text-text-tertiary">
-													{issue.searchVolume.toLocaleString()} monthly searches
-												</span>
-											</div>
-										</div>
-										<div className="pl-7 space-y-2">
-											{issue.pages.map((page) => (
-												<div
-													key={page.url}
-													className="flex items-center justify-between text-sm"
-												>
-													<span className="text-text-secondary truncate font-mono max-w-[280px]">
-														{stripOrigin(page.url)}
-													</span>
-													<div className="flex items-center gap-4 shrink-0 ml-4">
-														<span className="text-text-tertiary tabular-nums">
-															{page.position
-																? `#${page.position}`
-																: "Not ranking"}
-														</span>
-														<span className="text-2xs text-text-tertiary bg-subtle px-1.5 py-0.5 rounded">
-															{page.signals.join(", ")}
-														</span>
-													</div>
-												</div>
-											))}
-										</div>
-									</div>
-								</div>
+							{issues.map((issue) => (
+								<CannibalizationCard key={issue.keyword} issue={issue} />
 							))}
 						</div>
 					)}
 				</CardContent>
 			</Card>
+		);
+	})();
+
+	return (
+		<div className="space-y-6">
+			{technicalContent}
+			{linkingContent}
+			{cannibalizationContent}
+		</div>
+	);
+}
+
+function CannibalizationCard({ issue }: { issue: CannibalizationIssue }) {
+	return (
+		<div
+			className={cn(
+				"rounded-lg border border-border/60 border-l-[3px] overflow-hidden",
+				issue.severity === "high"
+					? "border-l-status-crit"
+					: "border-l-status-warn",
+			)}
+		>
+			<div className="p-4">
+				<div className="flex items-center justify-between mb-3">
+					<div className="flex items-center gap-3">
+						<AlertTriangle
+							className={cn(
+								"w-4 h-4 shrink-0",
+								issue.severity === "high"
+									? "text-status-crit"
+									: "text-status-warn",
+							)}
+						/>
+						<span className="font-medium text-text-primary">
+							&ldquo;{issue.keyword}&rdquo;
+						</span>
+						<span className="text-sm text-text-tertiary">
+							{issue.searchVolume.toLocaleString()} monthly searches
+						</span>
+					</div>
+				</div>
+				<div className="pl-7 space-y-2">
+					{issue.pages.map((page) => (
+						<div
+							key={page.url}
+							className="flex items-center justify-between text-sm"
+						>
+							<span className="text-text-secondary truncate font-mono max-w-[280px]">
+								{stripOrigin(page.url)}
+							</span>
+							<div className="flex items-center gap-4 shrink-0 ml-4">
+								<span className="text-text-tertiary tabular-nums">
+									{page.position ? `#${page.position}` : "Not ranking"}
+								</span>
+								<span className="text-2xs text-text-tertiary bg-subtle px-1.5 py-0.5 rounded">
+									{page.signals.join(", ")}
+								</span>
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
 		</div>
 	);
 }

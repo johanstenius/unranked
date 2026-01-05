@@ -8,14 +8,14 @@
  * 4. Single state object - no fragmented state variables
  */
 
-import { getAuditState, subscribeToAuditNew } from "@/lib/api";
+import { getAuditState, subscribeToAudit } from "@/lib/api";
 import type {
+	AuditSSEEvent,
 	AuditState,
 	AuditStatus,
 	CWVPageResult,
 	ComponentStates,
 	HealthScore,
-	NewAuditSSEEvent,
 	OpportunityCluster,
 	PrioritizedAction,
 	StateComponentKey,
@@ -52,7 +52,7 @@ function createInitialComponentStates(): ComponentStates {
 /**
  * Apply an SSE event to the audit state (idempotent)
  */
-function applyEvent(state: AuditState, event: NewAuditSSEEvent): AuditState {
+function applyEvent(state: AuditState, event: AuditSSEEvent): AuditState {
 	switch (event.type) {
 		case "audit:status":
 			return { ...state, status: event.status };
@@ -144,7 +144,7 @@ export function useAuditState(token: string): UseAuditStateReturn {
 					initialState.status !== "COMPLETED" &&
 					initialState.status !== "FAILED"
 				) {
-					unsubscribe = subscribeToAuditNew(
+					unsubscribe = subscribeToAudit(
 						token,
 						(event) => {
 							setState((prev) => (prev ? applyEvent(prev, event) : prev));

@@ -7,14 +7,56 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { Analysis } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { ComponentState, QuickWin } from "@/lib/types";
 import { stripOrigin } from "@/lib/utils";
 
 type QuickWinsTabProps = {
-	analysis: Analysis;
+	quickWins: ComponentState<QuickWin[]>;
 };
 
-export function QuickWinsTab({ analysis }: QuickWinsTabProps) {
+export function QuickWinsTab({ quickWins }: QuickWinsTabProps) {
+	if (quickWins.status === "pending" || quickWins.status === "running") {
+		return (
+			<div className="space-y-4">
+				<Card>
+					<CardHeader>
+						<CardTitle className="font-display text-lg">Quick Wins</CardTitle>
+						<CardDescription>
+							Analyzing pages ranking 10-30 for improvement opportunities...
+						</CardDescription>
+					</CardHeader>
+				</Card>
+				<Card>
+					<CardContent className="pt-6 space-y-3">
+						<Skeleton className="h-24 w-full" />
+						<Skeleton className="h-24 w-full" />
+						<Skeleton className="h-24 w-3/4" />
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
+	if (quickWins.status === "failed") {
+		return (
+			<div className="space-y-4">
+				<Card className="border-status-crit/30">
+					<CardHeader>
+						<CardTitle className="font-display text-lg text-status-crit">
+							Quick Wins
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-sm text-status-crit">{quickWins.error}</p>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
+	const wins = quickWins.data;
+
 	return (
 		<div className="space-y-4">
 			<Card>
@@ -25,14 +67,14 @@ export function QuickWinsTab({ analysis }: QuickWinsTabProps) {
 					</CardDescription>
 				</CardHeader>
 			</Card>
-			{analysis.quickWins.length === 0 ? (
+			{wins.length === 0 ? (
 				<Card>
 					<CardContent className="pt-6 text-center text-muted-foreground">
 						No quick wins identified
 					</CardContent>
 				</Card>
 			) : (
-				analysis.quickWins.map((qw) => (
+				wins.map((qw) => (
 					<Card key={qw.url}>
 						<CardContent className="pt-6">
 							<div className="flex items-start justify-between mb-3">

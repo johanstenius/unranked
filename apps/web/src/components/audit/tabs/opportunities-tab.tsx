@@ -8,6 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -16,12 +17,19 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import type { Analysis, OpportunityCluster } from "@/lib/types";
+import type {
+	ComponentState,
+	Opportunity,
+	OpportunityCluster,
+	SnippetOpportunity,
+} from "@/lib/types";
 import { getDifficultyColor, getDifficultyLabel } from "@/lib/utils";
 import { useState } from "react";
 
 type OpportunitiesTabProps = {
-	analysis: Analysis;
+	opportunities: ComponentState<Opportunity[]>;
+	clusters: OpportunityCluster[];
+	snippets: ComponentState<SnippetOpportunity[]>;
 };
 
 const ACTION_CONFIG = {
@@ -153,12 +161,66 @@ function ClusterCard({ cluster }: { cluster: OpportunityCluster }) {
 	);
 }
 
-export function OpportunitiesTab({ analysis }: OpportunitiesTabProps) {
-	const hasClusters = analysis.opportunityClusters?.length > 0;
-
+function LoadingCard({
+	title,
+	description,
+}: { title: string; description: string }) {
 	return (
-		<div className="space-y-6">
-			{hasClusters ? (
+		<Card>
+			<CardHeader>
+				<CardTitle className="font-display text-lg">{title}</CardTitle>
+				<CardDescription>{description}</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<div className="space-y-3">
+					<Skeleton className="h-16 w-full" />
+					<Skeleton className="h-16 w-full" />
+					<Skeleton className="h-16 w-3/4" />
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+export function OpportunitiesTab({
+	opportunities,
+	clusters,
+	snippets,
+}: OpportunitiesTabProps) {
+	// Opportunities / Clusters section
+	const opportunitiesContent = (() => {
+		if (
+			opportunities.status === "pending" ||
+			opportunities.status === "running"
+		) {
+			return (
+				<LoadingCard
+					title="Topic Clusters"
+					description="Analyzing keyword opportunities..."
+				/>
+			);
+		}
+
+		if (opportunities.status === "failed") {
+			return (
+				<Card className="border-status-crit/30">
+					<CardHeader>
+						<CardTitle className="font-display text-lg text-status-crit">
+							Opportunities
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-sm text-status-crit">{opportunities.error}</p>
+					</CardContent>
+				</Card>
+			);
+		}
+
+		const opps = opportunities.data;
+		const hasClusters = clusters.length > 0;
+
+		if (hasClusters) {
+			return (
 				<div>
 					<div className="flex items-center justify-between mb-4">
 						<div>
@@ -166,8 +228,7 @@ export function OpportunitiesTab({ analysis }: OpportunitiesTabProps) {
 								Topic Clusters
 							</h2>
 							<p className="text-sm text-text-secondary">
-								{analysis.opportunityClusters.length} content opportunities
-								grouped by topic
+								{clusters.length} content opportunities grouped by topic
 							</p>
 						</div>
 						<div className="flex items-center gap-2 text-xs text-text-tertiary">
@@ -193,22 +254,28 @@ export function OpportunitiesTab({ analysis }: OpportunitiesTabProps) {
 					</div>
 
 					<div className="space-y-3">
-						{analysis.opportunityClusters.map((cluster) => (
+						{clusters.map((cluster) => (
 							<ClusterCard key={cluster.topic} cluster={cluster} />
 						))}
 					</div>
 				</div>
-			) : (
-				<Card>
-					<CardHeader>
-						<CardTitle className="font-display text-lg">
-							All Opportunities
-						</CardTitle>
-						<CardDescription>
-							Keywords ranked by potential impact
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
+			);
+		}
+
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="font-display text-lg">
+						All Opportunities
+					</CardTitle>
+					<CardDescription>Keywords ranked by potential impact</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{opps.length === 0 ? (
+						<p className="text-center text-muted-foreground py-6">
+							No opportunities found
+						</p>
+					) : (
 						<Table>
 							<TableHeader>
 								<TableRow>
@@ -220,7 +287,7 @@ export function OpportunitiesTab({ analysis }: OpportunitiesTabProps) {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{analysis.opportunities.map((opp) => (
+								{opps.map((opp) => (
 									<TableRow key={opp.keyword}>
 										<TableCell>
 											<span className="font-medium block">{opp.keyword}</span>
@@ -260,43 +327,65 @@ export function OpportunitiesTab({ analysis }: OpportunitiesTabProps) {
 								))}
 							</TableBody>
 						</Table>
-					</CardContent>
-				</Card>
-			)}
+					)}
+				</CardContent>
+			</Card>
+		);
+	})();
 
-			{analysis.snippetOpportunities.length > 0 && (
-				<Card>
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<CardTitle className="font-display text-lg">
-								Featured Snippet Opportunities
-							</CardTitle>
-							<span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-								Click to preview
-							</span>
-						</div>
-						<CardDescription>
-							Keywords with featured snippets you can target
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<div className="flex items-center gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border mb-2">
-							<div className="w-3" />
-							<div className="flex-1">Keyword</div>
-							<div className="w-[88px] text-center">Type</div>
-							<div className="w-20 text-right">Volume</div>
-							<div className="w-16 text-center">Position</div>
-							<div className="w-16 text-right">Difficulty</div>
-						</div>
+	// Snippets section
+	const snippetsContent = (() => {
+		if (snippets.status === "pending" || snippets.status === "running") {
+			return null; // Don't show loading for snippets, it's secondary
+		}
 
-						<div className="space-y-2">
-							{analysis.snippetOpportunities.map((snip) => (
-								<SnippetOpportunityRow key={snip.keyword} snippet={snip} />
-							))}
-						</div>
-					</CardContent>
-				</Card>
-			)}
+		if (snippets.status === "failed") {
+			return null; // Silently skip failed snippets
+		}
+
+		if (snippets.data.length === 0) {
+			return null;
+		}
+
+		return (
+			<Card>
+				<CardHeader>
+					<div className="flex items-center justify-between">
+						<CardTitle className="font-display text-lg">
+							Featured Snippet Opportunities
+						</CardTitle>
+						<span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+							Click to preview
+						</span>
+					</div>
+					<CardDescription>
+						Keywords with featured snippets you can target
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border mb-2">
+						<div className="w-3" />
+						<div className="flex-1">Keyword</div>
+						<div className="w-[88px] text-center">Type</div>
+						<div className="w-20 text-right">Volume</div>
+						<div className="w-16 text-center">Position</div>
+						<div className="w-16 text-right">Difficulty</div>
+					</div>
+
+					<div className="space-y-2">
+						{snippets.data.map((snip) => (
+							<SnippetOpportunityRow key={snip.keyword} snippet={snip} />
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	})();
+
+	return (
+		<div className="space-y-6">
+			{opportunitiesContent}
+			{snippetsContent}
 		</div>
 	);
 }

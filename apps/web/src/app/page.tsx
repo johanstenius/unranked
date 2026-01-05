@@ -16,9 +16,9 @@ export default function HomePage() {
 		e.preventDefault();
 		const url = website.trim();
 		if (url) {
-			router.push(`/analyze?site=${encodeURIComponent(url)}`);
+			router.push(`/audit/new?site=${encodeURIComponent(url)}`);
 		} else {
-			router.push("/analyze");
+			router.push("/audit/new");
 		}
 	}
 
@@ -49,7 +49,7 @@ export default function HomePage() {
 						<ThemeToggle />
 						<button
 							type="button"
-							onClick={() => router.push("/analyze")}
+							onClick={() => router.push("/audit/new")}
 							className="h-9 px-4 bg-accent text-canvas text-sm font-medium rounded transition-colors hover:bg-accent-hover"
 						>
 							Start Analysis
@@ -127,10 +127,10 @@ export default function HomePage() {
 						<p className="text-sm text-text-secondary">
 							Or{" "}
 							<Link
-								href="/check"
+								href="/audit/new?tier=FREE"
 								className="text-text-primary underline underline-offset-4 hover:no-underline"
 							>
-								try a free health check
+								try a free technical check
 							</Link>{" "}
 							first.
 						</p>

@@ -344,45 +344,11 @@ export type CoreWebVitalsData = {
 	};
 };
 
-// SSE Audit Progress Events
+// Legacy ComponentKey for progress tracking
 export type ComponentKey = keyof Omit<
 	AuditProgress,
 	"lastRetryAt" | "retryCount"
 >;
-
-export type AuditSSEEventStatus = { type: "status"; status: AuditStatus };
-export type AuditSSEEventComponent = {
-	type: "component";
-	key: ComponentKey;
-	status: "running" | "completed" | "failed";
-	error?: string;
-};
-export type AuditSSEEventCWV = { type: "cwv"; page: CWVPageResult };
-export type AuditSSEEventCWVComplete = {
-	type: "cwv-complete";
-	data: CoreWebVitalsData;
-};
-export type AuditSSEEventHealth = { type: "health"; score: HealthScore };
-export type AuditSSEEventPartialReady = { type: "partial-ready" };
-export type AuditSSEEventComplete = { type: "complete" };
-export type AuditSSEEventError = { type: "error"; message: string };
-export type AuditSSEEventHeartbeat = { type: "heartbeat"; timestamp: number };
-export type AuditSSEEventProgress = {
-	type: "progress";
-	progress: AuditProgress;
-};
-
-export type AuditSSEEvent =
-	| AuditSSEEventStatus
-	| AuditSSEEventComponent
-	| AuditSSEEventCWV
-	| AuditSSEEventCWVComplete
-	| AuditSSEEventHealth
-	| AuditSSEEventPartialReady
-	| AuditSSEEventComplete
-	| AuditSSEEventError
-	| AuditSSEEventHeartbeat
-	| AuditSSEEventProgress;
 
 // =============================================================================
 // Unified Audit State - Single source of truth
@@ -416,20 +382,23 @@ export type ComponentState<T> =
 	| { status: "failed"; error: string };
 
 /**
- * Brief data for unified state
+ * Brief data for unified state (matches Prisma Brief model)
  */
 export type BriefData = {
 	id: string;
 	keyword: string;
 	searchVolume: number;
 	difficulty: number;
-	intent: SearchIntent | null;
+	intent: string | null;
 	title: string;
 	structure: Record<string, unknown>;
 	questions: string[];
 	relatedKw: string[];
-	competitors: Array<{ domain: string; url: string; title: string }>;
+	competitors: unknown;
 	suggestedInternalLinks: string[];
+	clusteredKeywords: string[];
+	totalClusterVolume: number;
+	estimatedEffort: string | null;
 };
 
 /**
@@ -501,10 +470,10 @@ export type AuditState = {
 };
 
 // =============================================================================
-// New SSE Event Types (data-carrying)
+// SSE Event Types (data-carrying)
 // =============================================================================
 
-export type NewAuditSSEEvent =
+export type AuditSSEEvent =
 	// Overall audit status
 	| { type: "audit:status"; status: AuditStatus }
 

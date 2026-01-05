@@ -459,6 +459,8 @@ export const technicalIssuesComponent: ComponentEntry<TechnicalIssue[]> = {
 	dependencies: [],
 	run: runTechnicalIssues,
 	store: (results, data) => ({ ...results, technicalIssues: data }),
+	sseKey: "technical",
+	getSSEData: (results) => results.technicalIssues ?? [],
 };
 
 // ============================================================================
@@ -513,6 +515,9 @@ export const internalLinkingComponent: ComponentEntry<{
 			...data.technicalIssues,
 		],
 	}),
+	sseKey: "internalLinking",
+	getSSEData: (results) =>
+		results.internalLinkingIssues ?? { orphanPages: [], underlinkedPages: [] },
 };
 
 // ============================================================================
@@ -562,4 +567,10 @@ export const duplicateContentComponent: ComponentEntry<{
 			...data.technicalIssues,
 		],
 	}),
+	sseKey: "duplicateContent",
+	getSSEData: (results) =>
+		(results.duplicateGroups ?? []).map((g) => ({
+			pages: g.urls,
+			similarity: g.type === "exact" ? 100 : 85,
+		})),
 };

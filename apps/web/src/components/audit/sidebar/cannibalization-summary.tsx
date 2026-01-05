@@ -1,20 +1,44 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Analysis } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { CannibalizationIssue, ComponentState } from "@/lib/types";
 
 type CannibalizationSummaryProps = {
-	analysis: Analysis;
+	cannibalization: ComponentState<CannibalizationIssue[]>;
 	onViewDetails: () => void;
 };
 
 export function CannibalizationSummary({
-	analysis,
+	cannibalization,
 	onViewDetails,
 }: CannibalizationSummaryProps) {
-	if (analysis.cannibalizationIssues.length === 0) return null;
+	if (
+		cannibalization.status === "pending" ||
+		cannibalization.status === "running"
+	) {
+		return (
+			<Card className="border-border rounded-xl">
+				<CardHeader className="pb-3">
+					<CardTitle className="font-display text-lg font-bold">
+						Cannibalization
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<Skeleton className="h-16 w-full" />
+				</CardContent>
+			</Card>
+		);
+	}
 
-	const firstIssue = analysis.cannibalizationIssues[0];
+	if (cannibalization.status === "failed") {
+		return null;
+	}
+
+	const issues = cannibalization.data;
+	if (issues.length === 0) return null;
+
+	const firstIssue = issues[0];
 
 	return (
 		<Card className="border-border rounded-xl">
@@ -28,7 +52,7 @@ export function CannibalizationSummary({
 					<div className="flex justify-between items-center">
 						<span className="text-text-secondary">Competing keywords</span>
 						<span className="text-status-warn font-medium tabular-nums">
-							{analysis.cannibalizationIssues.length}
+							{issues.length}
 						</span>
 					</div>
 					{firstIssue && (

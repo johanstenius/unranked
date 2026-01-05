@@ -121,7 +121,7 @@ export function PricingCard({ tier, featured }: PricingCardProps) {
 			) : (
 				<motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
 					<Link
-						href={`/analyze?tier=${tier}`}
+						href={`/audit/new?tier=${tier}`}
 						className={`block w-full text-center py-3 px-4 rounded-lg text-sm font-medium transition-all ${
 							featured
 								? "bg-canvas text-accent hover:bg-canvas/90 shadow-sm"

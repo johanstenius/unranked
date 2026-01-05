@@ -28,17 +28,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { LoadingScreen, Spinner } from "@/components/ui/spinner";
 import { useAuditState } from "@/hooks/useAuditState";
-import { getAuditBriefs, tierInfo } from "@/lib/api";
-import type {
-	Analysis,
-	Audit,
-	AuditProgress,
-	Brief,
-	ComponentState,
-} from "@/lib/types";
+import { tierInfo } from "@/lib/api";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 
 type TabType =
 	| "overview"
@@ -57,13 +50,6 @@ const TAB_LABELS: Record<TabType, string> = {
 	briefs: "Content Briefs",
 };
 
-/**
- * Extract component status for legacy progress format
- */
-function extractStatus(component: ComponentState<unknown>): string {
-	return component.status;
-}
-
 function AuditContent() {
 	const params = useParams();
 	const searchParams = useSearchParams();
@@ -74,162 +60,27 @@ function AuditContent() {
 	const { state, loading, error } = useAuditState(token);
 
 	// Local UI state
-	const [briefs, setBriefs] = useState<Brief[]>([]);
 	const [activeTab, setActiveTab] = useState<TabType>("overview");
 	const [healthScoreExpanded, setHealthScoreExpanded] = useState(false);
 	const [pdfExporting, setPdfExporting] = useState(false);
 
-	// Fetch briefs when completed (briefs not streamed via SSE)
-	useEffect(() => {
-		if (state?.status === "COMPLETED") {
-			getAuditBriefs(token)
-				.then(setBriefs)
-				.catch((err) => console.error("Failed to fetch briefs:", err));
-		}
-	}, [state?.status, token]);
-
-	// Transform unified state to legacy Analysis format for components
-	const analysis: Analysis | null = useMemo(() => {
-		if (!state) return null;
-
-		const { components } = state;
-
-		// Only build analysis if we have some completed components
-		const hasData =
-			components.technical.status === "completed" ||
-			components.rankings.status === "completed" ||
-			components.opportunities.status === "completed";
-
-		if (!hasData) return null;
-
-		return {
-			currentRankings:
-				components.rankings.status === "completed"
-					? components.rankings.data
-					: [],
-			opportunities:
-				components.opportunities.status === "completed"
-					? components.opportunities.data
-					: [],
-			opportunityClusters: state.opportunityClusters ?? [],
-			quickWins:
-				components.quickWins.status === "completed"
-					? components.quickWins.data
-					: [],
-			technicalIssues:
-				components.technical.status === "completed"
-					? components.technical.data
-					: [],
-			internalLinkingIssues:
-				components.internalLinking.status === "completed"
-					? components.internalLinking.data
-					: { orphanPages: [], underlinkedPages: [] },
-			competitorGaps:
-				components.competitors.status === "completed"
-					? components.competitors.data.gaps
-					: [],
-			cannibalizationIssues:
-				components.cannibalization.status === "completed"
-					? components.cannibalization.data
-					: [],
-			snippetOpportunities:
-				components.snippets.status === "completed"
-					? components.snippets.data
-					: [],
-			sectionStats: [],
-			healthScore: state.healthScore,
-			discoveredCompetitors:
-				components.competitors.status === "completed"
-					? components.competitors.data.discovered
-					: [],
-			actionPlan: state.actionPlan,
-			coreWebVitals:
-				components.coreWebVitals.status === "completed"
-					? components.coreWebVitals.data
-					: undefined,
-		};
-	}, [state]);
-
-	// Transform unified state to legacy Audit format for components
-	const audit: Audit | null = useMemo(() => {
-		if (!state) return null;
-
-		// Build legacy progress from component states
-		const progress: AuditProgress = {
-			crawl: extractStatus(state.components.crawl) as AuditProgress["crawl"],
-			technicalIssues: extractStatus(
-				state.components.technical,
-			) as AuditProgress["technicalIssues"],
-			internalLinking: extractStatus(
-				state.components.internalLinking,
-			) as AuditProgress["internalLinking"],
-			duplicateContent: extractStatus(
-				state.components.duplicateContent,
-			) as AuditProgress["duplicateContent"],
-			redirectChains: extractStatus(
-				state.components.redirectChains,
-			) as AuditProgress["redirectChains"],
-			coreWebVitals: extractStatus(
-				state.components.coreWebVitals,
-			) as AuditProgress["coreWebVitals"],
-			currentRankings: extractStatus(
-				state.components.rankings,
-			) as AuditProgress["currentRankings"],
-			competitorAnalysis: extractStatus(
-				state.components.competitors,
-			) as AuditProgress["competitorAnalysis"],
-			keywordOpportunities: extractStatus(
-				state.components.opportunities,
-			) as AuditProgress["keywordOpportunities"],
-			intentClassification: "pending" as AuditProgress["intentClassification"],
-			keywordClustering: "pending" as AuditProgress["keywordClustering"],
-			quickWins: extractStatus(
-				state.components.quickWins,
-			) as AuditProgress["quickWins"],
-			briefs: extractStatus(state.components.briefs) as AuditProgress["briefs"],
-			retryCount: 0,
-		};
-
-		return {
-			accessToken: state.accessToken,
-			status: state.status,
-			siteUrl: state.siteUrl,
-			productDesc: null,
-			competitors: [],
-			sections: null,
-			detectedSections: null,
-			tier: state.tier,
-			pagesFound: state.pagesFound,
-			sitemapUrlCount: state.sitemapUrlCount,
-			currentRankings:
-				state.components.rankings.status === "completed"
-					? state.components.rankings.data
-					: null,
-			progress,
-			retryAfter: null,
-			createdAt: state.createdAt,
-			startedAt: null,
-			completedAt: state.completedAt,
-		};
-	}, [state]);
-
 	const handleExportPdf = useCallback(async () => {
-		if (!audit || !analysis) return;
+		if (!state) return;
 		setPdfExporting(true);
 		try {
-			await downloadAuditPdf(audit, analysis, briefs);
+			await downloadAuditPdf(state);
 		} catch (err) {
 			console.error("PDF export failed:", err);
 		} finally {
 			setPdfExporting(false);
 		}
-	}, [audit, analysis, briefs]);
+	}, [state]);
 
 	if (loading) {
 		return <LoadingScreen message="Loading audit..." />;
 	}
 
-	if (error || !state || !audit) {
+	if (error || !state) {
 		return (
 			<div className="min-h-screen bg-canvas flex items-center justify-center">
 				<div className="text-center">
@@ -244,16 +95,17 @@ function AuditContent() {
 		);
 	}
 
+	const { components } = state;
 	const isProcessing =
 		state.status !== "COMPLETED" && state.status !== "FAILED";
 	const isFreeTier = state.tier === "FREE";
 	const hostname = new URL(state.siteUrl).hostname;
 
-	// CWV data from streaming + final
+	// CWV data from streaming
 	const cwvPages = state.cwvStream;
 	const cwvData =
-		state.components.coreWebVitals.status === "completed"
-			? state.components.coreWebVitals.data
+		components.coreWebVitals.status === "completed"
+			? components.coreWebVitals.data
 			: null;
 	const healthScore = state.healthScore;
 
@@ -308,14 +160,15 @@ function AuditContent() {
 							{/* Unified progress card during analysis */}
 							{isProcessing && (
 								<AnalysisProgressCard
-									audit={audit}
-									progress={audit.progress}
+									status={state.status}
+									pagesFound={state.pagesFound}
+									sitemapUrlCount={state.sitemapUrlCount}
+									components={components}
 									cwvPages={cwvPages}
 									cwvTotal={Math.min(
 										state.pagesFound ?? tierInfo[state.tier].pages,
 										tierInfo[state.tier].pages,
 									)}
-									healthScore={healthScore}
 								/>
 							)}
 
@@ -364,14 +217,18 @@ function AuditContent() {
 								/>
 							)}
 
-							{isFreeTier && analysis && (
-								<UpgradeBanner auditToken={token} analysis={analysis} />
+							{isFreeTier && (
+								<UpgradeBanner
+									auditToken={token}
+									opportunities={components.opportunities}
+								/>
 							)}
 
 							<ProgressiveStats
-								audit={audit}
-								analysis={analysis}
-								progress={audit.progress}
+								pagesFound={state.pagesFound}
+								rankings={components.rankings}
+								opportunities={components.opportunities}
+								technical={components.technical}
 								isProcessing={isProcessing}
 								isFreeTier={isFreeTier}
 							/>
@@ -412,9 +269,12 @@ function AuditContent() {
 
 							<div className="grid grid-cols-3 gap-6">
 								<div className="col-span-2 space-y-6">
-									{activeTab === "overview" && analysis && (
+									{activeTab === "overview" && (
 										<OverviewTab
-											analysis={analysis}
+											rankings={components.rankings}
+											opportunities={components.opportunities}
+											coreWebVitals={components.coreWebVitals}
+											actionPlan={state.actionPlan ?? []}
 											onViewAllOpportunities={() =>
 												setActiveTab("opportunities")
 											}
@@ -423,45 +283,52 @@ function AuditContent() {
 													? () => setActiveTab("performance")
 													: undefined
 											}
+											isFreeTier={isFreeTier}
 										/>
 									)}
-									{activeTab === "opportunities" && analysis && (
-										<OpportunitiesTab analysis={analysis} />
+									{activeTab === "opportunities" && (
+										<OpportunitiesTab
+											opportunities={components.opportunities}
+											clusters={state.opportunityClusters ?? []}
+											snippets={components.snippets}
+										/>
 									)}
-									{activeTab === "quickwins" && analysis && (
-										<QuickWinsTab analysis={analysis} />
+									{activeTab === "quickwins" && (
+										<QuickWinsTab quickWins={components.quickWins} />
 									)}
-									{activeTab === "technical" && analysis && (
-										<TechnicalTab analysis={analysis} />
+									{activeTab === "technical" && (
+										<TechnicalTab
+											technical={components.technical}
+											internalLinking={components.internalLinking}
+											cannibalization={components.cannibalization}
+										/>
 									)}
 									{activeTab === "performance" && (
 										<PerformanceTab
-											data={cwvData ?? analysis?.coreWebVitals ?? null}
+											data={cwvData}
 											streamingPages={cwvPages}
 											isAnalyzing={
 												isProcessing &&
-												state.components.coreWebVitals.status !== "completed"
+												components.coreWebVitals.status !== "completed"
 											}
 										/>
 									)}
 									{activeTab === "briefs" && (
-										<BriefsTab briefs={briefs} auditToken={token} />
+										<BriefsTab briefs={components.briefs} auditToken={token} />
 									)}
 								</div>
 
 								<div className="space-y-6">
-									{analysis && tierInfo[state.tier].competitors > 0 && (
-										<CompetitorAnalysis analysis={analysis} />
+									{tierInfo[state.tier].competitors > 0 && (
+										<CompetitorAnalysis competitors={components.competitors} />
 									)}
-									{analysis && (
-										<InternalLinkingSummary
-											analysis={analysis}
-											onViewDetails={() => setActiveTab("technical")}
-										/>
-									)}
-									{analysis && !isFreeTier && (
+									<InternalLinkingSummary
+										internalLinking={components.internalLinking}
+										onViewDetails={() => setActiveTab("technical")}
+									/>
+									{!isFreeTier && (
 										<CannibalizationSummary
-											analysis={analysis}
+											cannibalization={components.cannibalization}
 											onViewDetails={() => setActiveTab("technical")}
 										/>
 									)}

@@ -24,7 +24,7 @@ const websiteSchema = {
 		"@type": "SearchAction",
 		target: {
 			"@type": "EntryPoint",
-			urlTemplate: `${BASE_URL}/analyze?site={search_term_string}`,
+			urlTemplate: `${BASE_URL}/audit/new?site={search_term_string}`,
 		},
 		"query-input": "required name=search_term_string",
 	},

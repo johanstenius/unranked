@@ -286,4 +286,6 @@ export const actionPlanComponent: ComponentEntry<PrioritizedAction[]> = {
 	],
 	run: runActionPlan,
 	store: (results, data) => ({ ...results, actionPlan: data }),
+	sseKey: null, // Action plan sent via separate emitActionPlan event
+	getSSEData: () => null,
 };

@@ -394,25 +394,28 @@ async function runComponent(
 			);
 
 			if (result.ok) {
-				// Store briefs in database
-				for (const brief of result.data.briefs) {
-					await briefRepo.createBrief({
-						auditId: audit.id,
-						keyword: brief.keyword,
-						searchVolume: brief.searchVolume,
-						difficulty: brief.difficulty,
-						title: brief.title,
-						structure: brief.structure,
-						questions: brief.questions,
-						relatedKw: brief.relatedKw,
-						competitors: brief.competitors,
-						suggestedInternalLinks: brief.suggestedInternalLinks,
-						clusteredKeywords: brief.clusteredKeywords,
-						totalClusterVolume: brief.totalClusterVolume,
-						intent: brief.intent,
-					});
-				}
-				return { ok: true };
+				// Store briefs in database and collect with IDs for SSE
+				const storedBriefs = await Promise.all(
+					result.data.briefs.map((brief) =>
+						briefRepo.createBrief({
+							auditId: audit.id,
+							keyword: brief.keyword,
+							searchVolume: brief.searchVolume,
+							difficulty: brief.difficulty,
+							title: brief.title,
+							structure: brief.structure,
+							questions: brief.questions,
+							relatedKw: brief.relatedKw,
+							competitors: brief.competitors,
+							suggestedInternalLinks: brief.suggestedInternalLinks,
+							clusteredKeywords: brief.clusteredKeywords,
+							totalClusterVolume: brief.totalClusterVolume,
+							intent: brief.intent,
+						}),
+					),
+				);
+				// Return briefs for SSE emission
+				return { ok: true, data: storedBriefs };
 			}
 			return { ok: false, error: result.error };
 		}

@@ -7,16 +7,35 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { Analysis } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { CompetitorData, ComponentState } from "@/lib/types";
 
 type CompetitorAnalysisProps = {
-	analysis: Analysis;
+	competitors: ComponentState<CompetitorData>;
 };
 
-export function CompetitorAnalysis({ analysis }: CompetitorAnalysisProps) {
-	const hasCompetitors =
-		analysis.competitorGaps.length > 0 ||
-		(analysis.discoveredCompetitors?.length ?? 0) > 0;
+export function CompetitorAnalysis({ competitors }: CompetitorAnalysisProps) {
+	if (competitors.status === "pending" || competitors.status === "running") {
+		return (
+			<Card className="border-border rounded-xl">
+				<CardHeader className="pb-3">
+					<CardTitle className="font-display text-lg font-bold">
+						Competitors
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<Skeleton className="h-16 w-full" />
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (competitors.status === "failed") {
+		return null;
+	}
+
+	const { gaps, discovered } = competitors.data;
+	const hasCompetitors = gaps.length > 0 || discovered.length > 0;
 
 	if (!hasCompetitors) return null;
 
@@ -24,19 +43,16 @@ export function CompetitorAnalysis({ analysis }: CompetitorAnalysisProps) {
 		<Card className="border-border rounded-xl">
 			<CardHeader className="pb-3">
 				<CardTitle className="font-display text-lg font-bold">
-					{(analysis.discoveredCompetitors?.length ?? 0) > 0
-						? "Competitors Found"
-						: "Competitor Gap"}
+					{discovered.length > 0 ? "Competitors Found" : "Competitor Gap"}
 				</CardTitle>
-				{(analysis.discoveredCompetitors?.length ?? 0) > 0 && (
+				{discovered.length > 0 && (
 					<CardDescription className="text-sm">
-						{analysis.discoveredCompetitors?.length} domains competing for your
-						keywords
+						{discovered.length} domains competing for your keywords
 					</CardDescription>
 				)}
 			</CardHeader>
 			<CardContent className="space-y-4">
-				{analysis.competitorGaps.map((gap) => (
+				{gaps.map((gap) => (
 					<div key={gap.competitor}>
 						<div className="flex justify-between text-sm mb-1.5">
 							<span className="text-text-primary font-medium">

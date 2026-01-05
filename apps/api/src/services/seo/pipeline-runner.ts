@@ -95,7 +95,7 @@ export type PipelineCallbacks = {
 	onComponentStart?: (key: ComponentKey) => void | Promise<void>;
 	onComponentComplete?: (
 		key: ComponentKey,
-		data: unknown,
+		results: ComponentResults,
 	) => void | Promise<void>;
 	onComponentFailed?: (
 		key: ComponentKey,
@@ -183,8 +183,8 @@ export async function runPipeline(
 				completedSet.add(key);
 				completed.push(key);
 				log.info({ component: key }, "Component completed");
-				// Emit complete callback with data
-				await callbacks?.onComponentComplete?.(key, result.data);
+				// Emit complete callback with stored results
+				await callbacks?.onComponentComplete?.(key, results);
 			} else {
 				failed.push({ key, error: result.error });
 				log.warn({ component: key, error: result.error }, "Component failed");

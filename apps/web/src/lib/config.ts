@@ -18,7 +18,7 @@ export type TierInfo = {
 
 export const tierInfo: Record<AuditTier, TierInfo> = {
 	FREE: {
-		name: "Free",
+		name: "Technical",
 		price: 0,
 		pages: 50,
 		opportunities: 0,
@@ -27,9 +27,9 @@ export const tierInfo: Record<AuditTier, TierInfo> = {
 		pdfExport: false,
 		features: [
 			"50 pages crawled",
-			"Technical SEO audit",
+			"Technical issues only",
 			"Internal linking audit",
-			"Content quality checks",
+			"No keyword opportunities",
 		],
 	},
 	SCAN: {

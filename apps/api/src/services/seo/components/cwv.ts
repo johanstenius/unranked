@@ -237,7 +237,9 @@ export function selectPagesToAnalyze(
 	return selected;
 }
 
-function summarizeCWV(pages: CWVPageResult[]): CoreWebVitalsData["summary"] {
+export function summarizeCWV(
+	pages: CWVPageResult[],
+): CoreWebVitalsData["summary"] {
 	const validPages = pages.filter(
 		(p) => p.status === "success" && p.performance != null,
 	);
@@ -319,4 +321,6 @@ export const coreWebVitalsComponent: ComponentEntry<CoreWebVitalsData> = {
 	dependencies: [],
 	run: runCoreWebVitals,
 	store: (results, data) => ({ ...results, coreWebVitals: data }),
+	sseKey: "coreWebVitals",
+	getSSEData: (results) => results.coreWebVitals ?? null,
 };

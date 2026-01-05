@@ -23,16 +23,15 @@ import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
 import * as crawledPageRepo from "../repositories/crawled-page.repository.js";
 import { tierLimits } from "../schemas/audit.schema.js";
-import {
-	completeAudit,
-	runPendingComponents,
-} from "../services/audit-pipeline.service.js";
+import { completeAudit } from "../services/audit-pipeline.service.js";
 import { crawlDocs } from "../services/crawler/crawler.js";
 import type { RedirectChain } from "../services/crawler/types.js";
 import {
 	selectPagesToAnalyze,
 	streamCWV,
+	summarizeCWV,
 } from "../services/seo/components/cwv.js";
+import { COMPONENT_REGISTRY } from "../services/seo/components/index.js";
 import type {
 	CWVPageResult,
 	CoreWebVitalsData,
@@ -53,60 +52,9 @@ import {
 	markComponentCompleted,
 	markComponentRunning,
 } from "../types/audit-progress.js";
-import type { StateComponentKey } from "../types/audit-state.js";
-
 const log = createLogger("queue");
 
 const CWV_CONCURRENCY = 15;
-
-// Map from pipeline ComponentKey to SSE StateComponentKey
-const componentKeyMap: Record<string, StateComponentKey> = {
-	currentRankings: "rankings",
-	competitorAnalysis: "competitors",
-	keywordOpportunities: "opportunities",
-	quickWins: "quickWins",
-	coreWebVitals: "coreWebVitals",
-	technicalIssues: "technical",
-	internalLinking: "internalLinking",
-	duplicateContent: "duplicateContent",
-	cannibalization: "cannibalization",
-	snippetOpportunities: "snippets",
-};
-
-function summarizeCWV(pages: CWVPageResult[]): CoreWebVitalsData["summary"] {
-	const validPages = pages.filter(
-		(p) => p.status === "success" && p.performance != null,
-	);
-
-	if (validPages.length === 0) {
-		return { good: 0, needsImprovement: 0, poor: 0, avgPerformance: null };
-	}
-
-	let good = 0;
-	let needsImprovement = 0;
-	let poor = 0;
-	let totalPerformance = 0;
-
-	for (const page of validPages) {
-		const perf = page.performance as number;
-		totalPerformance += perf;
-
-		if (perf >= 90) {
-			good++;
-		} else if (perf >= 50) {
-			needsImprovement++;
-		} else {
-			poor++;
-		}
-	}
-
-	return {
-		good,
-		needsImprovement,
-		poor,
-		avgPerformance: totalPerformance / validPages.length,
-	};
-}
 
 export type CrawlJobData = {
 	auditId: string;
@@ -261,27 +209,37 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				};
 
 				// Run local components (always succeed)
-				progress = markComponentRunning(progress, "technicalIssues");
-				progress = markComponentRunning(progress, "internalLinking");
+				const localComponentKeys = [
+					"technicalIssues",
+					"internalLinking",
+					"duplicateContent",
+				] as const;
+
+				for (const key of localComponentKeys) {
+					progress = markComponentRunning(progress, key);
+					const component = COMPONENT_REGISTRY[key];
+					if (component.sseKey) {
+						emitComponentStart(auditId, component.sseKey);
+					}
+				}
 				await auditRepo.updateAudit(auditId, { progress });
-				emitComponentStart(auditId, "technical");
-				emitComponentStart(auditId, "internalLinking");
+
 				const localPipelineResult = await runLocalComponents(pipelineInput);
 
-				// Mark local components completed and emit events WITH DATA
-				const technicalData = localPipelineResult.results.technicalIssues ?? [];
-				const internalLinkingData = localPipelineResult.results
-					.internalLinkingIssues ?? {
-					orphanPages: [],
-					underlinkedPages: [],
-				};
+				// Mark local components completed and emit via registry
+				for (const key of localComponentKeys) {
+					progress = markComponentCompleted(progress, key);
+					const component = COMPONENT_REGISTRY[key];
+					if (component.sseKey) {
+						emitComponentComplete(
+							auditId,
+							component.sseKey,
+							component.getSSEData(localPipelineResult.results),
+						);
+					}
+				}
 
-				progress = markComponentCompleted(progress, "technicalIssues");
-				emitComponentComplete(auditId, "technical", technicalData);
-				progress = markComponentCompleted(progress, "internalLinking");
-				emitComponentComplete(auditId, "internalLinking", internalLinkingData);
-				progress = markComponentCompleted(progress, "duplicateContent");
-				emitComponentComplete(auditId, "duplicateContent", []);
+				// redirectChains is crawl metadata, not a component
 				progress = markComponentCompleted(progress, "redirectChains");
 				emitComponentComplete(auditId, "redirectChains", redirectChains);
 
@@ -398,12 +356,16 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 						localPipelineResult.results,
 						localPipelineResult.usage,
 						{
-							onComponentComplete: async (key, data) => {
+							onComponentComplete: async (key, results) => {
 								progress = markComponentCompleted(progress, key);
 								await auditRepo.updateAudit(auditId, { progress });
-								const sseKey = componentKeyMap[key];
-								if (sseKey) {
-									emitComponentComplete(auditId, sseKey, data);
+								const component = COMPONENT_REGISTRY[key];
+								if (component.sseKey) {
+									emitComponentComplete(
+										auditId,
+										component.sseKey,
+										component.getSSEData(results),
+									);
 								}
 							},
 						},
@@ -423,17 +385,21 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 							onComponentStart: async (key) => {
 								progress = markComponentRunning(progress, key);
 								await auditRepo.updateAudit(auditId, { progress });
-								const sseKey = componentKeyMap[key];
-								if (sseKey) {
-									emitComponentStart(auditId, sseKey);
+								const component = COMPONENT_REGISTRY[key];
+								if (component.sseKey) {
+									emitComponentStart(auditId, component.sseKey);
 								}
 							},
-							onComponentComplete: async (key, data) => {
+							onComponentComplete: async (key, results) => {
 								progress = markComponentCompleted(progress, key);
 								await auditRepo.updateAudit(auditId, { progress });
-								const sseKey = componentKeyMap[key];
-								if (sseKey) {
-									emitComponentComplete(auditId, sseKey, data);
+								const component = COMPONENT_REGISTRY[key];
+								if (component.sseKey) {
+									emitComponentComplete(
+										auditId,
+										component.sseKey,
+										component.getSSEData(results),
+									);
 								}
 							},
 						},

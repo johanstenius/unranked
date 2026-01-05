@@ -1,6 +1,11 @@
 "use client";
 
-import type { Analysis, Audit, AuditProgress } from "@/lib/types";
+import type {
+	ComponentState,
+	CurrentRanking,
+	Opportunity,
+	TechnicalIssue,
+} from "@/lib/types";
 import {
 	AnimatePresence,
 	motion,
@@ -10,9 +15,10 @@ import {
 import { useEffect } from "react";
 
 type ProgressiveStatsProps = {
-	audit: Audit;
-	analysis: Analysis | null;
-	progress: AuditProgress | null;
+	pagesFound: number | null;
+	rankings: ComponentState<CurrentRanking[]>;
+	opportunities: ComponentState<Opportunity[]>;
+	technical: ComponentState<TechnicalIssue[]>;
 	isProcessing: boolean;
 	isFreeTier: boolean;
 };
@@ -90,58 +96,48 @@ function StatCard({
 	);
 }
 
-function getComponentStatus(
-	progress: AuditProgress | null,
-	key: keyof AuditProgress,
-): string {
-	if (!progress) return "pending";
-	const value = progress[key];
-	if (value && typeof value === "object" && "status" in value) {
-		return (value as { status: string }).status;
-	}
-	if (typeof value === "string") return value;
-	return "pending";
-}
-
 export function ProgressiveStats({
-	audit,
-	analysis,
-	progress,
+	pagesFound,
+	rankings,
+	opportunities,
+	technical,
 	isProcessing,
 	isFreeTier,
 }: ProgressiveStatsProps) {
-	const pagesFound = audit.pagesFound ?? 0;
-	const keywordsRanking = analysis?.currentRankings.length ?? 0;
-	const opportunities = analysis?.opportunities.length ?? 0;
-	const totalEstTraffic =
-		analysis?.currentRankings.reduce((sum, r) => sum + r.estimatedTraffic, 0) ??
-		0;
-	const totalOpportunityVolume =
-		analysis?.opportunities.reduce((sum, o) => sum + o.searchVolume, 0) ?? 0;
+	const pages = pagesFound ?? 0;
 
-	// Check individual component status
-	const rankingsStatus = getComponentStatus(progress, "currentRankings");
-	const opportunitiesStatus = getComponentStatus(
-		progress,
-		"keywordOpportunities",
+	// Extract data from component states
+	const rankingsData = rankings.status === "completed" ? rankings.data : [];
+	const opportunitiesData =
+		opportunities.status === "completed" ? opportunities.data : [];
+	const technicalData = technical.status === "completed" ? technical.data : [];
+
+	const keywordsRanking = rankingsData.length;
+	const opportunitiesCount = opportunitiesData.length;
+	const totalEstTraffic = rankingsData.reduce(
+		(sum, r) => sum + r.estimatedTraffic,
+		0,
 	);
-	const technicalStatus = getComponentStatus(progress, "technicalIssues");
+	const totalOpportunityVolume = opportunitiesData.reduce(
+		(sum, o) => sum + o.searchVolume,
+		0,
+	);
 
-	// Show skeleton only if component hasn't completed yet
-	const isRankingsLoading = rankingsStatus !== "completed";
-	const isOpportunitiesLoading = opportunitiesStatus !== "completed";
-	const isTechnicalLoading = technicalStatus !== "completed";
+	// Loading states based on component status
+	const isRankingsLoading = rankings.status !== "completed";
+	const isOpportunitiesLoading = opportunities.status !== "completed";
+	const isTechnicalLoading = technical.status !== "completed";
 
 	if (isFreeTier) {
 		return (
 			<div className="grid grid-cols-2 gap-4 mb-10">
 				<StatCard
-					value={pagesFound}
+					value={pages}
 					label="Pages crawled"
-					isLoading={isProcessing && pagesFound === 0}
+					isLoading={isProcessing && pages === 0}
 				/>
 				<StatCard
-					value={analysis?.technicalIssues.length ?? null}
+					value={technicalData.length > 0 ? technicalData.length : null}
 					label="Technical issues"
 					isLoading={isTechnicalLoading}
 				/>
@@ -152,9 +148,9 @@ export function ProgressiveStats({
 	return (
 		<div className="grid grid-cols-5 gap-4 mb-10">
 			<StatCard
-				value={pagesFound}
+				value={pages}
 				label="Pages crawled"
-				isLoading={isProcessing && pagesFound === 0}
+				isLoading={isProcessing && pages === 0}
 			/>
 			<StatCard
 				value={keywordsRanking > 0 ? keywordsRanking : null}
@@ -169,7 +165,7 @@ export function ProgressiveStats({
 				prefix="~"
 			/>
 			<StatCard
-				value={opportunities > 0 ? opportunities : null}
+				value={opportunitiesCount > 0 ? opportunitiesCount : null}
 				label="Opportunities"
 				isLoading={isOpportunitiesLoading}
 				color="text-accent-indigo"

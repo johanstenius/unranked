@@ -1,20 +1,43 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Analysis } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { ComponentState, InternalLinkingIssues } from "@/lib/types";
 
 type InternalLinkingSummaryProps = {
-	analysis: Analysis;
+	internalLinking: ComponentState<InternalLinkingIssues>;
 	onViewDetails: () => void;
 };
 
 export function InternalLinkingSummary({
-	analysis,
+	internalLinking,
 	onViewDetails,
 }: InternalLinkingSummaryProps) {
-	const orphanCount = analysis.internalLinkingIssues.orphanPages.length;
-	const underlinkedCount =
-		analysis.internalLinkingIssues.underlinkedPages.length;
+	if (
+		internalLinking.status === "pending" ||
+		internalLinking.status === "running"
+	) {
+		return (
+			<Card className="border-border rounded-xl">
+				<CardHeader className="pb-3">
+					<CardTitle className="font-display text-lg font-bold">
+						Internal Linking
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<Skeleton className="h-16 w-full" />
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (internalLinking.status === "failed") {
+		return null;
+	}
+
+	const issues = internalLinking.data;
+	const orphanCount = issues.orphanPages.length;
+	const underlinkedCount = issues.underlinkedPages.length;
 	const hasIssues = orphanCount > 0 || underlinkedCount > 0;
 
 	return (

@@ -4,19 +4,23 @@ import { motion } from "@/components/motion";
 import { Spinner } from "@/components/ui/spinner";
 import { createUpgradeCheckout, tierInfo } from "@/lib/api";
 import { billingEnabled } from "@/lib/config";
-import type { Analysis } from "@/lib/types";
+import type { ComponentState, Opportunity } from "@/lib/types";
 import { useState } from "react";
 
 type UpgradeBannerProps = {
 	auditToken: string;
-	analysis: Analysis | null;
+	opportunities: ComponentState<Opportunity[]>;
 };
 
-export function UpgradeBanner({ auditToken, analysis }: UpgradeBannerProps) {
+export function UpgradeBanner({
+	auditToken,
+	opportunities,
+}: UpgradeBannerProps) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const opportunitiesCount = analysis?.opportunities.length ?? 0;
+	const opportunitiesCount =
+		opportunities.status === "completed" ? opportunities.data.length : 0;
 	const freeLimit = tierInfo.FREE.opportunities;
 	const hiddenOpportunities =
 		typeof freeLimit === "number"

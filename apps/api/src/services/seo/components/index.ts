@@ -66,6 +66,8 @@ export const COMPONENT_REGISTRY: ComponentRegistry = {
 		dependencies: ["keywordClustering"],
 		run: async () => ({ ok: true as const, data: null }),
 		store: (results: ComponentResults) => results,
+		sseKey: "briefs",
+		getSSEData: () => [], // Briefs fetched via separate API
 	},
 
 	// Aggregation component - runs last

@@ -1,29 +1,28 @@
 "use client";
 
 import type {
-	Audit,
-	AuditProgress,
+	AuditStatus,
 	CWVPageResult,
-	ComponentStatus,
-	HealthScore,
+	ComponentState,
+	ComponentStates,
 } from "@/lib/types";
 import { AnimatePresence, motion } from "framer-motion";
 
 type AnalysisProgressCardProps = {
-	audit: Audit;
-	progress: AuditProgress | null;
+	status: AuditStatus;
+	pagesFound: number | null;
+	sitemapUrlCount: number | null;
+	components: ComponentStates;
 	cwvPages: CWVPageResult[];
 	cwvTotal: number;
-	healthScore: HealthScore | null;
-	onComplete?: () => void;
 };
 
-// Pipeline phases - some run in parallel but shown separately
+// Pipeline phases mapped to component state keys
 type Phase = {
 	key: string;
 	label: string;
 	runningLabel: string;
-	progressKey: keyof AuditProgress;
+	componentKey: keyof ComponentStates;
 };
 
 const PHASES: Phase[] = [
@@ -31,67 +30,44 @@ const PHASES: Phase[] = [
 		key: "crawl",
 		label: "Crawl",
 		runningLabel: "Discovering pages",
-		progressKey: "crawl",
+		componentKey: "crawl",
 	},
 	{
 		key: "technical",
 		label: "Technical",
 		runningLabel: "Checking technical SEO",
-		progressKey: "technicalIssues",
+		componentKey: "technical",
 	},
 	{
 		key: "performance",
 		label: "Performance",
 		runningLabel: "Measuring page speed",
-		progressKey: "coreWebVitals",
+		componentKey: "coreWebVitals",
 	},
 	{
 		key: "rankings",
 		label: "Rankings",
 		runningLabel: "Analyzing rankings",
-		progressKey: "currentRankings",
+		componentKey: "rankings",
 	},
 	{
 		key: "opportunities",
 		label: "Opportunities",
 		runningLabel: "Finding opportunities",
-		progressKey: "keywordOpportunities",
+		componentKey: "opportunities",
 	},
 ];
 
-const VALID_STATUSES: ComponentStatus[] = [
-	"pending",
-	"running",
-	"completed",
-	"failed",
-	"retrying",
-];
+type ComponentStatusValue = ComponentState<unknown>["status"];
 
-function getStatus(
-	progress: AuditProgress | null,
-	key: keyof AuditProgress,
-): ComponentStatus {
-	if (!progress) return "pending";
-	const value = progress[key];
-
-	if (value && typeof value === "object" && "status" in value) {
-		const objStatus = (value as { status: string }).status;
-		if (VALID_STATUSES.includes(objStatus as ComponentStatus)) {
-			return objStatus as ComponentStatus;
-		}
-	}
-
-	if (
-		typeof value === "string" &&
-		VALID_STATUSES.includes(value as ComponentStatus)
-	) {
-		return value as ComponentStatus;
-	}
-
-	return "pending";
+function getPhaseStatus(
+	components: ComponentStates,
+	key: keyof ComponentStates,
+): ComponentStatusValue {
+	return components[key].status;
 }
 
-function PhaseIndicator({ status }: { status: ComponentStatus }) {
+function PhaseIndicator({ status }: { status: ComponentStatusValue }) {
 	const isComplete = status === "completed";
 	const isRunning = status === "running";
 
@@ -189,32 +165,32 @@ function CWVMiniPreview({ pages }: { pages: CWVPageResult[] }) {
 }
 
 export function AnalysisProgressCard({
-	audit,
-	progress,
+	status,
+	pagesFound,
+	sitemapUrlCount,
+	components,
 	cwvPages,
 	cwvTotal,
 }: AnalysisProgressCardProps) {
 	const completedCount = PHASES.filter(
-		(p) => getStatus(progress, p.progressKey) === "completed",
+		(p) => getPhaseStatus(components, p.componentKey) === "completed",
 	).length;
 
 	// Find all running phases (can be multiple due to parallelism)
 	const runningPhases = PHASES.filter(
-		(p) => getStatus(progress, p.progressKey) === "running",
+		(p) => getPhaseStatus(components, p.componentKey) === "running",
 	);
 
 	const progressPercent = (completedCount / PHASES.length) * 100;
 
-	const isCWVRunning = getStatus(progress, "coreWebVitals") === "running";
-
 	function getStatusMessage(): string {
-		if (audit.status === "PENDING") return "Starting analysis...";
-		if (audit.status === "CRAWLING") {
-			if (audit.sitemapUrlCount && !audit.pagesFound) {
-				return `Found ${audit.sitemapUrlCount} pages in sitemap`;
+		if (status === "PENDING") return "Starting analysis...";
+		if (status === "CRAWLING") {
+			if (sitemapUrlCount && !pagesFound) {
+				return `Found ${sitemapUrlCount} pages in sitemap`;
 			}
-			if (audit.pagesFound) {
-				return `Crawling ${audit.pagesFound} pages...`;
+			if (pagesFound) {
+				return `Crawling ${pagesFound} pages...`;
 			}
 			return "Looking for sitemap...";
 		}
@@ -294,16 +270,16 @@ export function AnalysisProgressCard({
 				{/* Phases - horizontal flow, no numbers */}
 				<div className="flex items-start gap-2">
 					{PHASES.map((phase, idx) => {
-						const status = getStatus(progress, phase.progressKey);
-						const isComplete = status === "completed";
-						const isRunning = status === "running";
+						const phaseStatus = getPhaseStatus(components, phase.componentKey);
+						const isComplete = phaseStatus === "completed";
+						const isRunning = phaseStatus === "running";
 						const isPerformance = phase.key === "performance";
 						const isLast = idx === PHASES.length - 1;
 
 						return (
 							<div key={phase.key} className="flex items-start flex-1">
 								<div className="flex flex-col items-center flex-1">
-									<PhaseIndicator status={status} />
+									<PhaseIndicator status={phaseStatus} />
 
 									<span
 										className={`mt-2 text-sm font-medium text-center ${
@@ -361,7 +337,7 @@ export function AnalysisProgressCard({
 				</div>
 
 				{/* Discovery stats */}
-				{audit.pagesFound && audit.pagesFound > 0 && (
+				{pagesFound && pagesFound > 0 && (
 					<motion.div
 						initial={{ opacity: 0, y: 10 }}
 						animate={{ opacity: 1, y: 0 }}
@@ -380,15 +356,15 @@ export function AnalysisProgressCard({
 							</svg>
 							<span className="text-sm text-text-secondary">
 								<span className="font-mono font-medium text-text-primary">
-									{audit.pagesFound}
+									{pagesFound}
 								</span>{" "}
 								pages crawled
 							</span>
 						</div>
-						{audit.sitemapUrlCount && audit.sitemapUrlCount > 0 && (
+						{sitemapUrlCount && sitemapUrlCount > 0 && (
 							<div className="flex items-center gap-2 text-sm text-text-tertiary">
 								<span>from</span>
-								<span className="font-mono">{audit.sitemapUrlCount}</span>
+								<span className="font-mono">{sitemapUrlCount}</span>
 								<span>in sitemap</span>
 							</div>
 						)}

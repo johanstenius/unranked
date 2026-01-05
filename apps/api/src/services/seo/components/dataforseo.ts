@@ -199,6 +199,8 @@ export const currentRankingsComponent: ComponentEntry<CurrentRanking[]> = {
 	dependencies: [],
 	run: runCurrentRankings,
 	store: (results, data) => ({ ...results, currentRankings: data }),
+	sseKey: "rankings",
+	getSSEData: (results) => results.currentRankings ?? [],
 };
 
 // ============================================================================
@@ -340,6 +342,8 @@ export const keywordOpportunitiesComponent: ComponentEntry<KeywordOpportunitiesR
 				...data.seedOpportunities,
 			],
 		}),
+		sseKey: "opportunities",
+		getSSEData: (results) => results.opportunities ?? [],
 	};
 
 // ============================================================================
@@ -560,6 +564,11 @@ export const competitorAnalysisComponent: ComponentEntry<CompetitorAnalysisResul
 				...data.newOpportunities,
 			],
 		}),
+		sseKey: "competitors",
+		getSSEData: (results) => ({
+			gaps: results.competitorGaps ?? [],
+			discovered: results.discoveredCompetitors ?? [],
+		}),
 	};
 
 // ============================================================================
@@ -649,6 +658,8 @@ export const cannibalizationComponent: ComponentEntry<CannibalizationIssue[]> =
 		dependencies: ["currentRankings"],
 		run: runCannibalization,
 		store: (results, data) => ({ ...results, cannibalizationIssues: data }),
+		sseKey: "cannibalization",
+		getSSEData: (results) => results.cannibalizationIssues ?? [],
 	};
 
 // ============================================================================
@@ -788,4 +799,6 @@ export const snippetOpportunitiesComponent: ComponentEntry<
 	dependencies: ["currentRankings", "competitorAnalysis"],
 	run: runSnippetOpportunities,
 	store: (results, data) => ({ ...results, snippetOpportunities: data }),
+	sseKey: "snippets",
+	getSSEData: (results) => results.snippetOpportunities ?? [],
 };

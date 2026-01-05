@@ -6,39 +6,15 @@
  */
 
 import type { AuditStatus } from "@prisma/client";
+import type {
+	OpportunityCluster,
+	PrioritizedAction,
+} from "../services/seo/analysis.js";
 import type { CWVPageResult } from "../services/seo/components/types.js";
 import type { HealthScore } from "../services/seo/health-score.js";
-import type { StateComponentKey } from "../types/audit-state.js";
+import type { AuditSSEEvent, StateComponentKey } from "../types/audit-state.js";
 
-/**
- * SSE Event types - clean, data-carrying events
- *
- * Key principle: component:complete carries the actual data
- * so frontend can update state immediately without REST calls.
- */
-export type AuditSSEEvent =
-	// Overall audit status
-	| { type: "audit:status"; status: AuditStatus }
-
-	// Component lifecycle - data payload on complete
-	| { type: "component:start"; key: StateComponentKey }
-	| { type: "component:complete"; key: StateComponentKey; data: unknown }
-	| { type: "component:fail"; key: StateComponentKey; error: string }
-
-	// CWV streaming (individual pages as they complete)
-	| { type: "cwv:page"; page: CWVPageResult }
-
-	// Metadata updates
-	| { type: "crawl:pages"; count: number; sitemapCount?: number }
-	| { type: "health:score"; score: HealthScore }
-
-	// Derived data (clusters, action plan)
-	| { type: "clusters"; data: unknown[] }
-	| { type: "action-plan"; data: unknown[] }
-
-	// Terminal events
-	| { type: "audit:complete" }
-	| { type: "audit:error"; message: string };
+export type { AuditSSEEvent };
 
 type EventCallback = (event: AuditSSEEvent) => void;
 
@@ -163,11 +139,17 @@ export function emitHealthScore(auditId: string, score: HealthScore): void {
 	emit(auditId, { type: "health:score", score });
 }
 
-export function emitClusters(auditId: string, data: unknown[]): void {
+export function emitClusters(
+	auditId: string,
+	data: OpportunityCluster[],
+): void {
 	emit(auditId, { type: "clusters", data });
 }
 
-export function emitActionPlan(auditId: string, data: unknown[]): void {
+export function emitActionPlan(
+	auditId: string,
+	data: PrioritizedAction[],
+): void {
 	emit(auditId, { type: "action-plan", data });
 }
 

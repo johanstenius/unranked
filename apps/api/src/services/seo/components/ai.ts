@@ -99,6 +99,8 @@ export const intentClassificationComponent: ComponentEntry<
 	run: runIntentClassification,
 	// Intent data is applied to opportunities in-place, no separate storage needed
 	store: (results, _data) => results,
+	sseKey: null, // No SSE emission - modifies opportunities in place
+	getSSEData: () => null,
 };
 
 // ============================================================================
@@ -237,6 +239,8 @@ export const keywordClusteringComponent: ComponentEntry<OpportunityCluster[]> =
 		dependencies: ["intentClassification"],
 		run: runKeywordClustering,
 		store: (results, data) => ({ ...results, opportunityClusters: data }),
+		sseKey: null, // Clusters sent via separate emitClusters event
+		getSSEData: () => null,
 	};
 
 // ============================================================================
@@ -383,4 +387,6 @@ export const quickWinsComponent: ComponentEntry<QuickWin[]> = {
 	dependencies: ["currentRankings"],
 	run: runQuickWins,
 	store: (results, data) => ({ ...results, quickWins: data }),
+	sseKey: "quickWins",
+	getSSEData: (results) => results.quickWins ?? [],
 };

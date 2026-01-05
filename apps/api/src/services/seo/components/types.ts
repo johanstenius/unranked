@@ -213,6 +213,25 @@ export type ComponentFn<T> = (
 ) => Promise<ComponentResult<T>>;
 
 /**
+ * SSE component keys - used for frontend state
+ * These are the canonical keys used in SSE events.
+ */
+export type SSEComponentKey =
+	| "crawl"
+	| "technical"
+	| "internalLinking"
+	| "duplicateContent"
+	| "redirectChains"
+	| "coreWebVitals"
+	| "rankings"
+	| "opportunities"
+	| "quickWins"
+	| "competitors"
+	| "cannibalization"
+	| "snippets"
+	| "briefs";
+
+/**
  * Component registry entry (uses unknown for registry compatibility)
  */
 export type ComponentEntry<T = unknown> = {
@@ -224,6 +243,10 @@ export type ComponentEntry<T = unknown> = {
 	) => Promise<ComponentResult<T>>;
 	/** Store result in ComponentResults */
 	store: (results: ComponentResults, data: T) => ComponentResults;
+	/** SSE key for this component (null = don't emit) */
+	sseKey: SSEComponentKey | null;
+	/** Extract SSE data from results after storing */
+	getSSEData: (results: ComponentResults) => unknown;
 };
 
 /**

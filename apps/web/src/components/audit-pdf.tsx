@@ -1,10 +1,9 @@
 "use client";
 
 import type {
-	Analysis,
-	Audit,
+	AuditState,
 	AuditTier,
-	Brief,
+	BriefData,
 	CannibalizationIssue,
 	CompetitorGap,
 	HealthScore,
@@ -13,7 +12,6 @@ import type {
 	Opportunity,
 	PrioritizedAction,
 	QuickWin,
-	SectionStats,
 	TechnicalIssue,
 } from "@/lib/types";
 import { extractHostname, getPathname } from "@/lib/utils";
@@ -838,12 +836,35 @@ function ProgressBar({
 }
 
 // =============================================================================
+// PDF Data Types
+// =============================================================================
+
+type PdfAuditData = {
+	siteUrl: string;
+	accessToken: string;
+	tier: AuditTier;
+	pagesFound: number;
+};
+
+type PdfAnalysisData = {
+	healthScore: HealthScore | null;
+	currentRankings: { keyword: string }[];
+	opportunities: Opportunity[];
+	quickWins: QuickWin[];
+	technicalIssues: TechnicalIssue[];
+	internalLinkingIssues: InternalLinkingIssues;
+	cannibalizationIssues: CannibalizationIssue[];
+	competitorGaps: CompetitorGap[];
+	actionPlan: PrioritizedAction[];
+};
+
+// =============================================================================
 // Page Components
 // =============================================================================
 
 type CoverPageProps = {
-	audit: Audit;
-	analysis: Analysis;
+	audit: PdfAuditData;
+	analysis: PdfAnalysisData;
 	isFreeTier: boolean;
 };
 
@@ -1589,114 +1610,9 @@ function LinkingIssuesPage({
 	);
 }
 
-type SectionStatsPageProps = {
-	hostname: string;
-	sectionStats: SectionStats[];
-};
-
-function SectionStatsPage({ hostname, sectionStats }: SectionStatsPageProps) {
-	if (sectionStats.length === 0) return null;
-
-	return (
-		<Page size="A4" style={styles.page}>
-			<PageHeader hostname={hostname} />
-
-			<Text style={styles.h2}>Section Performance</Text>
-			<Text style={styles.subtitle}>
-				Breakdown of SEO metrics by site section
-			</Text>
-
-			<View style={[styles.table, styles.sectionStatsTable]}>
-				<View style={styles.tableHeader}>
-					<Text style={[styles.tableHeaderCell, { width: "30%" }]}>
-						Section
-					</Text>
-					<Text
-						style={[
-							styles.tableHeaderCell,
-							{ width: "15%", textAlign: "right" },
-						]}
-					>
-						Pages
-					</Text>
-					<Text
-						style={[
-							styles.tableHeaderCell,
-							{ width: "18%", textAlign: "right" },
-						]}
-					>
-						Keywords
-					</Text>
-					<Text
-						style={[
-							styles.tableHeaderCell,
-							{ width: "18%", textAlign: "right" },
-						]}
-					>
-						Traffic
-					</Text>
-					<Text
-						style={[
-							styles.tableHeaderCell,
-							{ width: "19%", textAlign: "right" },
-						]}
-					>
-						Issues
-					</Text>
-				</View>
-				{sectionStats.map((section, i) => (
-					<View
-						key={section.section}
-						style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}
-					>
-						<Text
-							style={[
-								styles.tableCell,
-								{ width: "30%", fontFamily: "Helvetica-Bold" },
-							]}
-						>
-							/{section.section}
-						</Text>
-						<Text
-							style={[styles.tableCell, { width: "15%", textAlign: "right" }]}
-						>
-							{section.pagesCount}
-						</Text>
-						<Text
-							style={[styles.tableCell, { width: "18%", textAlign: "right" }]}
-						>
-							{section.rankingKeywords}
-						</Text>
-						<Text
-							style={[styles.tableCell, { width: "18%", textAlign: "right" }]}
-						>
-							{formatNumber(section.estimatedTraffic)}
-						</Text>
-						<Text
-							style={[
-								styles.tableCell,
-								{
-									width: "19%",
-									textAlign: "right",
-									color:
-										section.technicalIssues > 0 ? colors.coral : colors.teal,
-								},
-							]}
-						>
-							{section.technicalIssues}
-						</Text>
-					</View>
-				))}
-			</View>
-
-			<PageFooter />
-		</Page>
-	);
-}
-
 type BriefsPageProps = {
 	hostname: string;
-	briefs: Brief[];
+	briefs: BriefData[];
 };
 
 function BriefsPage({ hostname, briefs }: BriefsPageProps) {
@@ -1798,13 +1714,68 @@ function BriefsPage({ hostname, briefs }: BriefsPageProps) {
 }
 
 // =============================================================================
+// Data Extraction from AuditState
+// =============================================================================
+
+function extractPdfData(state: AuditState): {
+	audit: PdfAuditData;
+	analysis: PdfAnalysisData;
+	briefs: BriefData[];
+} {
+	const { components } = state;
+
+	return {
+		audit: {
+			siteUrl: state.siteUrl,
+			accessToken: state.accessToken,
+			tier: state.tier,
+			pagesFound: state.pagesFound ?? 0,
+		},
+		analysis: {
+			healthScore: state.healthScore,
+			currentRankings:
+				components.rankings.status === "completed"
+					? components.rankings.data
+					: [],
+			opportunities:
+				components.opportunities.status === "completed"
+					? components.opportunities.data
+					: [],
+			quickWins:
+				components.quickWins.status === "completed"
+					? components.quickWins.data
+					: [],
+			technicalIssues:
+				components.technical.status === "completed"
+					? components.technical.data
+					: [],
+			internalLinkingIssues:
+				components.internalLinking.status === "completed"
+					? components.internalLinking.data
+					: { orphanPages: [], underlinkedPages: [] },
+			cannibalizationIssues:
+				components.cannibalization.status === "completed"
+					? components.cannibalization.data
+					: [],
+			competitorGaps:
+				components.competitors.status === "completed"
+					? components.competitors.data.gaps
+					: [],
+			actionPlan: state.actionPlan ?? [],
+		},
+		briefs:
+			components.briefs.status === "completed" ? components.briefs.data : [],
+	};
+}
+
+// =============================================================================
 // Main Document
 // =============================================================================
 
 type AuditPdfDocumentProps = {
-	audit: Audit;
-	analysis: Analysis;
-	briefs: Brief[];
+	audit: PdfAuditData;
+	analysis: PdfAnalysisData;
+	briefs: BriefData[];
 };
 
 function AuditPdfDocument({ audit, analysis, briefs }: AuditPdfDocumentProps) {
@@ -1880,14 +1851,6 @@ function AuditPdfDocument({ audit, analysis, briefs }: AuditPdfDocumentProps) {
 				cannibalizationIssues={analysis.cannibalizationIssues}
 			/>
 
-			{/* Section Stats */}
-			{analysis.sectionStats.length > 0 && (
-				<SectionStatsPage
-					hostname={hostname}
-					sectionStats={analysis.sectionStats}
-				/>
-			)}
-
 			{/* Briefs */}
 			{showBriefs && <BriefsPage hostname={hostname} briefs={briefs} />}
 		</Document>
@@ -1898,11 +1861,9 @@ function AuditPdfDocument({ audit, analysis, briefs }: AuditPdfDocumentProps) {
 // Export Function
 // =============================================================================
 
-export async function downloadAuditPdf(
-	audit: Audit,
-	analysis: Analysis,
-	briefs: Brief[],
-): Promise<void> {
+export async function downloadAuditPdf(state: AuditState): Promise<void> {
+	const { audit, analysis, briefs } = extractPdfData(state);
+
 	const blob = await pdf(
 		<AuditPdfDocument audit={audit} analysis={analysis} briefs={briefs} />,
 	).toBlob();
