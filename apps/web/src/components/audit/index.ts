@@ -1,3 +1,4 @@
+export { AnalysisProgressCard } from "./analysis-progress-card";
 export { CWVCard } from "./cwv-card";
 export { HealthScoreCard } from "./health-score-card";
 export { LiveAnalysisCard } from "./live-analysis-card";

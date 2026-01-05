@@ -6,6 +6,7 @@ import { type AuditSSEEvent, subscribe } from "../lib/audit-events.js";
 import * as auditRepo from "../repositories/audit.repository.js";
 import * as briefRepo from "../repositories/brief.repository.js";
 import {
+	type AuditProgressResponse,
 	type AuditTier,
 	type HealthScoreResponse,
 	type SearchIntentResponse,
@@ -26,6 +27,39 @@ import {
 	discoverSectionsStream,
 } from "../services/crawler/crawler.js";
 import type { AnalysisResult } from "../services/seo/analysis.js";
+import type { AuditProgress } from "../types/audit-progress.js";
+
+type StatusString = "pending" | "running" | "completed" | "retrying" | "failed";
+
+function extractStatus(value: unknown): StatusString {
+	if (typeof value === "string") return value as StatusString;
+	if (value && typeof value === "object" && "status" in value) {
+		return (value as { status: string }).status as StatusString;
+	}
+	return "pending";
+}
+
+function toProgressResponse(
+	progress: AuditProgress | null,
+): AuditProgressResponse | null {
+	if (!progress) return null;
+	return {
+		crawl: extractStatus(progress.crawl),
+		technicalIssues: extractStatus(progress.technicalIssues),
+		internalLinking: extractStatus(progress.internalLinking),
+		duplicateContent: extractStatus(progress.duplicateContent),
+		redirectChains: extractStatus(progress.redirectChains),
+		coreWebVitals: extractStatus(progress.coreWebVitals),
+		currentRankings: extractStatus(progress.currentRankings),
+		competitorAnalysis: extractStatus(progress.competitorAnalysis),
+		keywordOpportunities: extractStatus(progress.keywordOpportunities),
+		intentClassification: extractStatus(progress.intentClassification),
+		keywordClustering: extractStatus(progress.keywordClustering),
+		quickWins: extractStatus(progress.quickWins),
+		briefs: extractStatus(progress.briefs),
+		retryCount: progress.retryCount ?? 0,
+	};
+}
 
 function getSectionFromUrl(url: string, baseUrl: string): string {
 	try {
@@ -274,10 +308,13 @@ auditRoutes.get("/audits/:token/stream", async (c) => {
 
 		// Send current progress if available
 		if (audit.progress) {
+			const progress = toProgressResponse(
+				audit.progress as AuditProgress | null,
+			);
 			await stream.writeSSE({
 				id: String(eventId++),
 				event: "progress",
-				data: JSON.stringify({ type: "progress", progress: audit.progress }),
+				data: JSON.stringify({ type: "progress", progress }),
 			});
 		}
 
@@ -372,6 +409,7 @@ auditRoutes.openapi(createAuditRoute, async (c) => {
 			pagesFound: audit.pagesFound,
 			sitemapUrlCount: audit.sitemapUrlCount,
 			currentRankings: null,
+			progress: null,
 			createdAt: audit.createdAt.toISOString(),
 			completedAt: audit.completedAt?.toISOString() ?? null,
 		},
@@ -435,6 +473,7 @@ auditRoutes.openapi(getAuditRoute, async (c) => {
 			pagesFound: audit.pagesFound,
 			sitemapUrlCount: audit.sitemapUrlCount,
 			currentRankings: storedAnalysis?.currentRankings ?? null,
+			progress: toProgressResponse(audit.progress as AuditProgress | null),
 			createdAt: audit.createdAt.toISOString(),
 			completedAt: audit.completedAt?.toISOString() ?? null,
 		},

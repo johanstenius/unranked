@@ -46,11 +46,13 @@ import {
 	finalizeOpportunities,
 	runExternalComponents,
 	runLocalComponents,
+	runPipeline,
 } from "../services/seo/pipeline-runner.js";
 import {
 	type AuditProgress,
 	createInitialProgress,
 	markComponentCompleted,
+	markComponentRunning,
 } from "../types/audit-progress.js";
 
 const log = createLogger("queue");
@@ -153,6 +155,8 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// ============================================================
 				// PHASE 1: Crawl pages
 				// ============================================================
+				progress = markComponentRunning(progress, "crawl");
+				await auditRepo.updateAudit(auditId, { progress });
 				emitComponentRunning(auditId, "crawl");
 				const limits = tierLimits[audit.tier];
 				const sectionsFilter =
@@ -242,6 +246,9 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				};
 
 				// Run local components (always succeed)
+				progress = markComponentRunning(progress, "technicalIssues");
+				progress = markComponentRunning(progress, "internalLinking");
+				await auditRepo.updateAudit(auditId, { progress });
 				emitComponentRunning(auditId, "technicalIssues");
 				emitComponentRunning(auditId, "internalLinking");
 				const localPipelineResult = await runLocalComponents(pipelineInput);
@@ -293,7 +300,10 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				);
 
 				// ============================================================
-				// PHASE 2.5: Run Core Web Vitals with streaming
+				// PHASE 2.5: CWV + Rankings + Opportunities (max parallelism)
+				// - CWV runs independently (slow, streams results)
+				// - Rankings runs in parallel (fast)
+				// - As soon as Rankings finishes, Opportunities starts
 				// ============================================================
 				const tierConfig: TierConfig = {
 					tier: audit.tier as "FREE" | "SCAN" | "AUDIT" | "DEEP_DIVE",
@@ -306,86 +316,129 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				const cwvUrls = selectPagesToAnalyze(result.pages, tierConfig);
 				jobLog.info(
 					{ cwvPages: cwvUrls.length, urls: cwvUrls },
-					"Starting CWV analysis",
+					"Starting parallel phase: CWV + Rankings → Opportunities",
 				);
 
-				emitComponentRunning(auditId, "coreWebVitals");
-				const seenUrls = new Set<string>();
-				const cwvResults = await streamCWV(
-					cwvUrls,
-					CWV_CONCURRENCY,
-					async (pageResult) => {
-						const isDuplicate = seenUrls.has(pageResult.url);
-						seenUrls.add(pageResult.url);
-
-						jobLog.info(
-							{
-								url: pageResult.url,
-								performance: pageResult.performance,
-								status: pageResult.status,
-								error: pageResult.error,
-								isDuplicate,
-								hasListeners: listenerCount(auditId),
-							},
-							"CWV page result",
-						);
-
-						// Save to DB
-						await crawledPageRepo.updateCWV(
-							auditId,
-							pageResult.url,
-							pageResult,
-						);
-						// Emit SSE event
-						emitCWVPage(auditId, pageResult);
-					},
-				);
-
-				// Build CWV summary
-				const coreWebVitals: CoreWebVitalsData = {
-					pages: cwvResults,
-					summary: summarizeCWV(cwvResults),
-				};
-
-				// Mark CWV completed and emit
-				progress = markComponentCompleted(progress, "coreWebVitals");
+				// Mark both as running simultaneously
+				progress = markComponentRunning(progress, "coreWebVitals");
+				progress = markComponentRunning(progress, "currentRankings");
 				await auditRepo.updateAudit(auditId, { progress });
-				emitComponentCompleted(auditId, "coreWebVitals");
-				jobLog.info(
-					{
-						totalPages: cwvResults.length,
-						summary: coreWebVitals.summary,
-						hasListeners: listenerCount(auditId),
-					},
-					"Emitting CWV complete",
-				);
-				emitCWVComplete(auditId, coreWebVitals);
+				emitComponentRunning(auditId, "coreWebVitals");
+				emitComponentRunning(auditId, "currentRankings");
+
+				// CWV task - runs independently, doesn't block other components
+				const cwvTask = (async () => {
+					const seenUrls = new Set<string>();
+					const cwvResults = await streamCWV(
+						cwvUrls,
+						CWV_CONCURRENCY,
+						async (pageResult) => {
+							const isDuplicate = seenUrls.has(pageResult.url);
+							seenUrls.add(pageResult.url);
+							jobLog.info(
+								{
+									url: pageResult.url,
+									performance: pageResult.performance,
+									status: pageResult.status,
+									isDuplicate,
+									hasListeners: listenerCount(auditId),
+								},
+								"CWV page result",
+							);
+							await crawledPageRepo.updateCWV(
+								auditId,
+								pageResult.url,
+								pageResult,
+							);
+							emitCWVPage(auditId, pageResult);
+						},
+					);
+
+					const coreWebVitals: CoreWebVitalsData = {
+						pages: cwvResults,
+						summary: summarizeCWV(cwvResults),
+					};
+
+					progress = markComponentCompleted(progress, "coreWebVitals");
+					await auditRepo.updateAudit(auditId, { progress });
+					emitComponentCompleted(auditId, "coreWebVitals");
+					jobLog.info(
+						{ totalPages: cwvResults.length, summary: coreWebVitals.summary },
+						"CWV complete",
+					);
+					emitCWVComplete(auditId, coreWebVitals);
+					return coreWebVitals;
+				})();
+
+				// Rankings → External components chain
+				// Rankings runs, then immediately triggers Opportunities etc.
+				const rankingsAndExternalTask = (async () => {
+					// First: run Rankings
+					const rankingsResult = await runPipeline(
+						pipelineInput,
+						["currentRankings"],
+						localPipelineResult.results,
+						localPipelineResult.usage,
+						{
+							onComponentComplete: async (key) => {
+								progress = markComponentCompleted(progress, key);
+								await auditRepo.updateAudit(auditId, { progress });
+								emitComponentCompleted(auditId, key);
+							},
+						},
+					);
+
+					jobLog.info(
+						{ rankingsOk: rankingsResult.completed.length > 0 },
+						"Rankings complete, starting Opportunities immediately",
+					);
+
+					// Immediately start external components (Opportunities, etc.)
+					const externalResult = await runExternalComponents(
+						pipelineInput,
+						{ ...localPipelineResult.results, ...rankingsResult.results },
+						rankingsResult.usage,
+						{
+							onComponentStart: async (key) => {
+								progress = markComponentRunning(progress, key);
+								await auditRepo.updateAudit(auditId, { progress });
+								emitComponentRunning(auditId, key);
+							},
+							onComponentComplete: async (key) => {
+								progress = markComponentCompleted(progress, key);
+								await auditRepo.updateAudit(auditId, { progress });
+								emitComponentCompleted(auditId, key);
+							},
+						},
+					);
+
+					return externalResult;
+				})();
+
+				// Wait for both CWV and the rankings→external chain
+				const [coreWebVitals, pipelineResult] = await Promise.all([
+					cwvTask,
+					rankingsAndExternalTask,
+				]);
 
 				jobLog.info(
 					{
-						cwvPages: cwvResults.length,
+						cwvPages: coreWebVitals.pages.length,
 						avgPerformance: coreWebVitals.summary.avgPerformance,
+						completed: pipelineResult.completed.length,
+						failed: pipelineResult.failed.length,
 					},
-					"CWV complete",
+					"All parallel tasks complete",
 				);
 
-				// Add CWV to local results for pipeline
+				// Merge CWV into results
 				const resultsWithCWV = {
-					...localPipelineResult.results,
+					...pipelineResult.results,
 					coreWebVitals,
 				};
 
-				// Run external components (may fail, retryable)
-				emitComponentRunning(auditId, "currentRankings");
-				emitComponentRunning(auditId, "keywordOpportunities");
-				const pipelineResult = await runExternalComponents(
-					pipelineInput,
-					resultsWithCWV,
-					localPipelineResult.usage,
-				);
-
 				// Finalize opportunities
-				const finalResults = finalizeOpportunities(pipelineResult.results);
+				const finalResults = finalizeOpportunities(resultsWithCWV);
 
 				// Calculate health score
 				const healthScore = calculateHealthScore(
@@ -422,13 +475,6 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					healthScore,
 					apiUsage: pipelineResult.usage,
 				});
-
-				// Update progress for completed external components and emit events
-				for (const completed of pipelineResult.completed) {
-					progress = markComponentCompleted(progress, completed);
-					emitComponentCompleted(auditId, completed);
-				}
-				await auditRepo.updateAudit(auditId, { progress });
 
 				jobLog.info(
 					{

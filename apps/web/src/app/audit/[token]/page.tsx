@@ -1,12 +1,12 @@
 "use client";
 
 import {
+	AnalysisProgressCard,
 	BriefsTab,
 	CannibalizationSummary,
 	CompetitorAnalysis,
 	HealthScoreCard,
 	InternalLinkingSummary,
-	LiveAnalysisCard,
 	OpportunitiesTab,
 	OverviewTab,
 	PerformanceTab,
@@ -121,13 +121,39 @@ function AuditContent() {
 										prev ? { ...prev, status: event.status } : prev,
 									);
 									break;
+								case "progress":
+									setAudit((prev) =>
+										prev ? { ...prev, progress: event.progress } : prev,
+									);
+									break;
 								case "component":
+									console.log(
+										"[SSE] component event:",
+										event.key,
+										event.status,
+									);
 									setAudit((prev) => {
-										if (!prev || !prev.progress) return prev;
+										if (!prev) return prev;
+										const currentProgress = prev.progress ?? {
+											crawl: "pending" as const,
+											technicalIssues: "pending" as const,
+											internalLinking: "pending" as const,
+											duplicateContent: "pending" as const,
+											redirectChains: "pending" as const,
+											coreWebVitals: "pending" as const,
+											currentRankings: "pending" as const,
+											competitorAnalysis: "pending" as const,
+											keywordOpportunities: "pending" as const,
+											intentClassification: "pending" as const,
+											keywordClustering: "pending" as const,
+											quickWins: "pending" as const,
+											briefs: "pending" as const,
+											retryCount: 0,
+										};
 										return {
 											...prev,
 											progress: {
-												...prev.progress,
+												...currentProgress,
 												[event.key]: event.status,
 											},
 										};
@@ -147,13 +173,18 @@ function AuditContent() {
 									setHealthScore(event.score);
 									break;
 								case "partial-ready":
-									// Fetch partial analysis to show results view
-									getAuditAnalysis(token)
-										.then((analysisData) => {
+									// Fetch partial analysis + updated audit (for pagesFound)
+									// Preserve SSE-updated progress to avoid race condition
+									Promise.all([getAuditAnalysis(token), getAudit(token)])
+										.then(([analysisData, auditData]) => {
 											setAnalysis(analysisData);
+											setAudit((prev) => ({
+												...auditData,
+												progress: prev?.progress ?? auditData.progress,
+											}));
 										})
 										.catch((err) => {
-											console.error("Failed to fetch partial analysis:", err);
+											console.error("Failed to fetch partial data:", err);
 										});
 									break;
 								case "complete":
@@ -272,13 +303,17 @@ function AuditContent() {
 
 					{audit.status !== "FAILED" && (
 						<>
-							{/* Live analysis card - shows progress during processing */}
+							{/* Unified progress card during analysis */}
 							{isProcessing && (
-								<LiveAnalysisCard
+								<AnalysisProgressCard
 									audit={audit}
 									progress={audit.progress}
 									cwvPages={cwvPages}
-									cwvTotal={tierInfo[audit.tier].pages}
+									cwvTotal={Math.min(
+										audit.pagesFound ?? tierInfo[audit.tier].pages,
+										tierInfo[audit.tier].pages,
+									)}
+									healthScore={healthScore}
 								/>
 							)}
 
@@ -317,15 +352,15 @@ function AuditContent() {
 								</div>
 							</div>
 
-							{/* Health score - show building state during analysis */}
-							<HealthScoreCard
-								healthScore={healthScore}
-								progress={isProcessing ? audit.progress : undefined}
-								expanded={healthScoreExpanded}
-								onToggle={() => setHealthScoreExpanded(!healthScoreExpanded)}
-								isFreeTier={isFreeTier}
-								isBuilding={isProcessing}
-							/>
+							{/* Health score - only show when completed */}
+							{!isProcessing && (
+								<HealthScoreCard
+									healthScore={healthScore}
+									expanded={healthScoreExpanded}
+									onToggle={() => setHealthScoreExpanded(!healthScoreExpanded)}
+									isFreeTier={isFreeTier}
+								/>
+							)}
 
 							{isFreeTier && analysis && (
 								<UpgradeBanner auditToken={token} analysis={analysis} />

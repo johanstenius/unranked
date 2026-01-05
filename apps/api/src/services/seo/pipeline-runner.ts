@@ -91,6 +91,15 @@ function buildContext(input: PipelineInput, usage: ApiUsage): ComponentContext {
 	};
 }
 
+export type PipelineCallbacks = {
+	onComponentStart?: (key: ComponentKey) => void | Promise<void>;
+	onComponentComplete?: (key: ComponentKey) => void | Promise<void>;
+	onComponentFailed?: (
+		key: ComponentKey,
+		error: string,
+	) => void | Promise<void>;
+};
+
 /**
  * Run all specified components in dependency order
  */
@@ -99,6 +108,7 @@ export async function runPipeline(
 	componentsToRun: ComponentKey[],
 	existingResults: ComponentResults = {},
 	existingUsage?: ApiUsage,
+	callbacks?: PipelineCallbacks,
 ): Promise<PipelineResult> {
 	const usage = existingUsage ?? createEmptyUsage();
 	const ctx = buildContext(input, usage);
@@ -159,6 +169,9 @@ export async function runPipeline(
 		const component = COMPONENT_REGISTRY[key];
 		log.info({ component: key }, "Running component");
 
+		// Emit start callback
+		await callbacks?.onComponentStart?.(key);
+
 		try {
 			const result = await component.run(ctx, results);
 
@@ -167,9 +180,12 @@ export async function runPipeline(
 				completedSet.add(key);
 				completed.push(key);
 				log.info({ component: key }, "Component completed");
+				// Emit complete callback
+				await callbacks?.onComponentComplete?.(key);
 			} else {
 				failed.push({ key, error: result.error });
 				log.warn({ component: key, error: result.error }, "Component failed");
+				await callbacks?.onComponentFailed?.(key, result.error);
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown error";
@@ -178,6 +194,7 @@ export async function runPipeline(
 				{ component: key, error: message },
 				"Component threw exception",
 			);
+			await callbacks?.onComponentFailed?.(key, message);
 		}
 	}
 
@@ -211,6 +228,7 @@ export async function runExternalComponents(
 	input: PipelineInput,
 	existingResults: ComponentResults,
 	existingUsage?: ApiUsage,
+	callbacks?: PipelineCallbacks,
 ): Promise<PipelineResult> {
 	// Note: coreWebVitals is run separately in audit.jobs.ts with SSE streaming
 	const externalComponents: ComponentKey[] = [
@@ -225,7 +243,13 @@ export async function runExternalComponents(
 		"actionPlan", // Runs last, aggregates all results
 	];
 
-	return runPipeline(input, externalComponents, existingResults, existingUsage);
+	return runPipeline(
+		input,
+		externalComponents,
+		existingResults,
+		existingUsage,
+		callbacks,
+	);
 }
 
 /**

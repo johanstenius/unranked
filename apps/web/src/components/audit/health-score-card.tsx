@@ -78,6 +78,13 @@ function getComponentStatus(
 ): ComponentStatus {
 	if (!progress) return "pending";
 	const value = progress[key];
+
+	// Handle object format from backend { status: "running", startedAt: "..." }
+	if (value && typeof value === "object" && "status" in value) {
+		const objStatus = (value as { status: string }).status;
+		return isComponentStatus(objStatus) ? objStatus : "pending";
+	}
+
 	return isComponentStatus(value) ? value : "pending";
 }
 

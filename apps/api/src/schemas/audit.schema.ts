@@ -99,6 +99,33 @@ export const currentRankingSchema = z.object({
 });
 export type CurrentRankingResponse = z.infer<typeof currentRankingSchema>;
 
+export const componentStatusSchema = z.enum([
+	"pending",
+	"running",
+	"completed",
+	"retrying",
+	"failed",
+]);
+
+export const auditProgressSchema = z.object({
+	crawl: componentStatusSchema,
+	technicalIssues: componentStatusSchema,
+	internalLinking: componentStatusSchema,
+	duplicateContent: componentStatusSchema,
+	redirectChains: componentStatusSchema,
+	coreWebVitals: componentStatusSchema,
+	currentRankings: componentStatusSchema,
+	competitorAnalysis: componentStatusSchema,
+	keywordOpportunities: componentStatusSchema,
+	intentClassification: componentStatusSchema,
+	keywordClustering: componentStatusSchema,
+	quickWins: componentStatusSchema,
+	briefs: componentStatusSchema,
+	lastRetryAt: z.string().optional(),
+	retryCount: z.number(),
+});
+export type AuditProgressResponse = z.infer<typeof auditProgressSchema>;
+
 export const auditResponseSchema = z.object({
 	accessToken: z.string(),
 	status: auditStatusSchema,
@@ -111,6 +138,7 @@ export const auditResponseSchema = z.object({
 	pagesFound: z.number().nullable(),
 	sitemapUrlCount: z.number().nullable(),
 	currentRankings: z.array(currentRankingSchema).nullable(),
+	progress: auditProgressSchema.nullable(),
 	createdAt: z.string(),
 	completedAt: z.string().nullable(),
 });

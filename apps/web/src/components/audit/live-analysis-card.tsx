@@ -53,13 +53,28 @@ function getPhaseStatus(
 	key: string,
 ): ComponentStatus {
 	if (!progress) return "pending";
-	const status = progress[key as keyof AuditProgress];
-	if (
-		typeof status === "string" &&
-		["pending", "running", "completed", "failed", "retrying"].includes(status)
-	) {
-		return status as ComponentStatus;
+	const value = progress[key as keyof AuditProgress];
+
+	// Handle object format from backend { status: "running", startedAt: "..." }
+	if (value && typeof value === "object" && "status" in value) {
+		const objStatus = (value as { status: string }).status;
+		if (
+			["pending", "running", "completed", "failed", "retrying"].includes(
+				objStatus,
+			)
+		) {
+			return objStatus as ComponentStatus;
+		}
 	}
+
+	// Handle simple string format
+	if (
+		typeof value === "string" &&
+		["pending", "running", "completed", "failed", "retrying"].includes(value)
+	) {
+		return value as ComponentStatus;
+	}
+
 	return "pending";
 }
 

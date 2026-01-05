@@ -64,9 +64,16 @@ export function emit(auditId: string, event: AuditSSEEvent): void {
 	const auditListeners = listeners.get(auditId);
 	const count = auditListeners?.size ?? 0;
 
-	if (event.type === "cwv" || event.type === "cwv-complete") {
+	if (
+		event.type === "cwv" ||
+		event.type === "cwv-complete" ||
+		event.type === "component"
+	) {
 		console.log(
 			`[audit-events] emit ${event.type} for ${auditId}, listeners: ${count}`,
+			event.type === "component"
+				? { key: event.key, status: event.status }
+				: undefined,
 		);
 	}
 
