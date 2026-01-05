@@ -300,6 +300,7 @@ export type Analysis = {
 	healthScore: HealthScore | null;
 	discoveredCompetitors: DiscoveredCompetitor[];
 	actionPlan?: PrioritizedAction[];
+	coreWebVitals?: CoreWebVitalsData;
 };
 
 // API input/output types
@@ -362,6 +363,7 @@ export type AuditSSEEventCWVComplete = {
 	data: CoreWebVitalsData;
 };
 export type AuditSSEEventHealth = { type: "health"; score: HealthScore };
+export type AuditSSEEventPartialReady = { type: "partial-ready" };
 export type AuditSSEEventComplete = { type: "complete" };
 export type AuditSSEEventError = { type: "error"; message: string };
 export type AuditSSEEventHeartbeat = { type: "heartbeat"; timestamp: number };
@@ -376,6 +378,7 @@ export type AuditSSEEvent =
 	| AuditSSEEventCWV
 	| AuditSSEEventCWVComplete
 	| AuditSSEEventHealth
+	| AuditSSEEventPartialReady
 	| AuditSSEEventComplete
 	| AuditSSEEventError
 	| AuditSSEEventHeartbeat

@@ -11,10 +11,14 @@
 
 import type PgBoss from "pg-boss";
 import {
+	emit,
 	emitCWVComplete,
 	emitCWVPage,
+	emitComponentCompleted,
+	emitComponentRunning,
 	emitHealth,
 	emitStatus,
+	listenerCount,
 } from "../lib/audit-events.js";
 import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
@@ -149,6 +153,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// ============================================================
 				// PHASE 1: Crawl pages
 				// ============================================================
+				emitComponentRunning(auditId, "crawl");
 				const limits = tierLimits[audit.tier];
 				const sectionsFilter =
 					audit.sections.length > 0 ? audit.sections : undefined;
@@ -207,6 +212,7 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// Mark crawl completed
 				progress = markComponentCompleted(progress, "crawl");
 				await auditRepo.updateAudit(auditId, { progress });
+				emitComponentCompleted(auditId, "crawl");
 
 				jobLog.info({ pagesFound: result.pages.length }, "Crawl complete");
 
@@ -236,21 +242,54 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				};
 
 				// Run local components (always succeed)
+				emitComponentRunning(auditId, "technicalIssues");
+				emitComponentRunning(auditId, "internalLinking");
 				const localPipelineResult = await runLocalComponents(pipelineInput);
 
-				// Mark local components completed
+				// Mark local components completed and emit events
 				progress = markComponentCompleted(progress, "technicalIssues");
+				emitComponentCompleted(auditId, "technicalIssues");
 				progress = markComponentCompleted(progress, "internalLinking");
+				emitComponentCompleted(auditId, "internalLinking");
 				progress = markComponentCompleted(progress, "duplicateContent");
+				emitComponentCompleted(auditId, "duplicateContent");
 				progress = markComponentCompleted(progress, "redirectChains");
-				await auditRepo.updateAudit(auditId, { progress });
+				emitComponentCompleted(auditId, "redirectChains");
+
+				// Store partial results so frontend can show results page
+				const partialResults = {
+					technicalIssues: localPipelineResult.results.technicalIssues ?? [],
+					internalLinkingIssues: localPipelineResult.results
+						.internalLinkingIssues ?? {
+						orphanPages: [],
+						underlinkedPages: [],
+					},
+					// Initialize empty arrays for data that will come later
+					currentRankings: [],
+					opportunities: [],
+					opportunityClusters: [],
+					quickWins: [],
+					competitorGaps: [],
+					cannibalizationIssues: [],
+					snippetOpportunities: [],
+					discoveredCompetitors: [],
+					actionPlan: [],
+				};
+
+				await auditRepo.updateAudit(auditId, {
+					progress,
+					opportunities: partialResults,
+				});
+
+				// Emit event so frontend knows partial results are ready
+				emit(auditId, { type: "partial-ready" as const });
 
 				jobLog.info(
 					{
 						technicalIssues:
 							localPipelineResult.results.technicalIssues?.length ?? 0,
 					},
-					"Local components complete",
+					"Local components complete, partial results stored",
 				);
 
 				// ============================================================
@@ -265,12 +304,32 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				};
 
 				const cwvUrls = selectPagesToAnalyze(result.pages, tierConfig);
-				jobLog.info({ cwvPages: cwvUrls.length }, "Starting CWV analysis");
+				jobLog.info(
+					{ cwvPages: cwvUrls.length, urls: cwvUrls },
+					"Starting CWV analysis",
+				);
 
+				emitComponentRunning(auditId, "coreWebVitals");
+				const seenUrls = new Set<string>();
 				const cwvResults = await streamCWV(
 					cwvUrls,
 					CWV_CONCURRENCY,
 					async (pageResult) => {
+						const isDuplicate = seenUrls.has(pageResult.url);
+						seenUrls.add(pageResult.url);
+
+						jobLog.info(
+							{
+								url: pageResult.url,
+								performance: pageResult.performance,
+								status: pageResult.status,
+								error: pageResult.error,
+								isDuplicate,
+								hasListeners: listenerCount(auditId),
+							},
+							"CWV page result",
+						);
+
 						// Save to DB
 						await crawledPageRepo.updateCWV(
 							auditId,
@@ -291,6 +350,15 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				// Mark CWV completed and emit
 				progress = markComponentCompleted(progress, "coreWebVitals");
 				await auditRepo.updateAudit(auditId, { progress });
+				emitComponentCompleted(auditId, "coreWebVitals");
+				jobLog.info(
+					{
+						totalPages: cwvResults.length,
+						summary: coreWebVitals.summary,
+						hasListeners: listenerCount(auditId),
+					},
+					"Emitting CWV complete",
+				);
 				emitCWVComplete(auditId, coreWebVitals);
 
 				jobLog.info(
@@ -308,6 +376,8 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 				};
 
 				// Run external components (may fail, retryable)
+				emitComponentRunning(auditId, "currentRankings");
+				emitComponentRunning(auditId, "keywordOpportunities");
 				const pipelineResult = await runExternalComponents(
 					pipelineInput,
 					resultsWithCWV,
@@ -353,9 +423,10 @@ export async function registerAuditJobs(boss: PgBoss): Promise<void> {
 					apiUsage: pipelineResult.usage,
 				});
 
-				// Update progress for completed external components
+				// Update progress for completed external components and emit events
 				for (const completed of pipelineResult.completed) {
 					progress = markComponentCompleted(progress, completed);
+					emitComponentCompleted(auditId, completed);
 				}
 				await auditRepo.updateAudit(auditId, { progress });
 

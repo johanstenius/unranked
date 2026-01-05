@@ -24,9 +24,12 @@ type Severity = (typeof SEVERITY)[keyof typeof SEVERITY];
 
 const THRESHOLDS = {
 	readability: { technical: 12, general: 8 },
-	title: { warning: 60, error: 70 },
+	title: { warning: 60, error: 70, min: 30 },
 	metaDesc: { warning: 155, error: 170 },
+	h1: { max: 70 },
 	wordCount: { critical: 100, thin: 300, short: 500 },
+	links: { max: 100 },
+	url: { warning: 200, maxParams: 2 },
 } as const;
 
 const TECHNICAL_SECTIONS = new Set([
@@ -56,21 +59,38 @@ function hasDifferentCanonical(page: CrawledPage): boolean {
 	}
 }
 
+function countOccurrences(values: string[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const v of values) {
+		counts.set(v, (counts.get(v) || 0) + 1);
+	}
+	return counts;
+}
+
+function normalize(s: string): string {
+	return s.toLowerCase().trim();
+}
+
+function isDuplicate(counts: Map<string, number>, value: string): boolean {
+	return (counts.get(normalize(value)) || 0) > 1;
+}
+
 function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 	const issues: TechnicalIssue[] = [];
-	const titlesByPage = new Map<string, string>();
 
-	// First pass: collect titles for duplicate detection
-	for (const page of pages) {
-		if (page.title && !hasDifferentCanonical(page)) {
-			titlesByPage.set(page.url, page.title.toLowerCase().trim());
-		}
-	}
-
-	const titleCounts = new Map<string, number>();
-	for (const title of titlesByPage.values()) {
-		titleCounts.set(title, (titleCounts.get(title) || 0) + 1);
-	}
+	// Collect values for duplicate detection (only from indexable pages)
+	const indexablePages = pages.filter((p) => !hasDifferentCanonical(p));
+	const titleCounts = countOccurrences(
+		indexablePages.flatMap((p) => (p.title ? [normalize(p.title)] : [])),
+	);
+	const metaDescCounts = countOccurrences(
+		indexablePages.flatMap((p) =>
+			p.metaDescription ? [normalize(p.metaDescription)] : [],
+		),
+	);
+	const h1Counts = countOccurrences(
+		indexablePages.flatMap((p) => (p.h1 ? [normalize(p.h1)] : [])),
+	);
 
 	for (const page of pages) {
 		// Title checks
@@ -78,6 +98,13 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 			issues.push({
 				url: page.url,
 				issue: "Missing title tag",
+				severity: SEVERITY.HIGH,
+			});
+		} else if (page.title.trim() === "") {
+			// Empty title (exists but empty string)
+			issues.push({
+				url: page.url,
+				issue: "Empty title tag",
 				severity: SEVERITY.HIGH,
 			});
 		} else if (!hasDifferentCanonical(page)) {
@@ -93,9 +120,15 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 					issue: `Title may be truncated (${THRESHOLDS.title.warning}-${THRESHOLDS.title.error} characters)`,
 					severity: SEVERITY.LOW,
 				});
+			} else if (page.title.length < THRESHOLDS.title.min) {
+				// Title too short
+				issues.push({
+					url: page.url,
+					issue: `Title too short (under ${THRESHOLDS.title.min} characters)`,
+					severity: SEVERITY.MEDIUM,
+				});
 			}
-			const normalizedTitle = page.title.toLowerCase().trim();
-			if ((titleCounts.get(normalizedTitle) || 0) > 1) {
+			if (isDuplicate(titleCounts, page.title)) {
 				issues.push({
 					url: page.url,
 					issue: "Duplicate title tag",
@@ -121,8 +154,19 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 			} else if (page.metaDescription.length > THRESHOLDS.metaDesc.warning) {
 				issues.push({
 					url: page.url,
-					issue: `Meta description may be truncated (${THRESHOLDS.metaDesc.warning}-${THRESHOLDS.metaDesc.warning} characters)`,
+					issue: `Meta description may be truncated (${THRESHOLDS.metaDesc.warning}-${THRESHOLDS.metaDesc.error} characters)`,
 					severity: SEVERITY.LOW,
+				});
+			}
+			// Duplicate meta description check
+			if (
+				page.metaDescription &&
+				isDuplicate(metaDescCounts, page.metaDescription)
+			) {
+				issues.push({
+					url: page.url,
+					issue: "Duplicate meta description",
+					severity: SEVERITY.MEDIUM,
 				});
 			}
 		}
@@ -134,12 +178,38 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 				issue: "Missing H1 heading",
 				severity: SEVERITY.MEDIUM,
 			});
-		} else if (page.h2s && page.h2s.length === 0) {
+		} else if (page.h1.trim() === "") {
+			// Empty H1 (exists but empty string)
 			issues.push({
 				url: page.url,
-				issue: "No H2 headings (poor structure)",
-				severity: SEVERITY.LOW,
+				issue: "Empty H1 heading",
+				severity: SEVERITY.MEDIUM,
 			});
+		} else if (!hasDifferentCanonical(page)) {
+			// H1 length check
+			if (page.h1.length > THRESHOLDS.h1.max) {
+				issues.push({
+					url: page.url,
+					issue: `H1 too long (over ${THRESHOLDS.h1.max} characters)`,
+					severity: SEVERITY.LOW,
+				});
+			}
+			// Duplicate H1 check
+			if (isDuplicate(h1Counts, page.h1)) {
+				issues.push({
+					url: page.url,
+					issue: "Duplicate H1 heading across pages",
+					severity: SEVERITY.MEDIUM,
+				});
+			}
+			// No H2s check (only if H1 exists)
+			if (page.h2s && page.h2s.length === 0) {
+				issues.push({
+					url: page.url,
+					issue: "No H2 headings (poor structure)",
+					severity: SEVERITY.LOW,
+				});
+			}
 		}
 
 		// Thin content
@@ -241,6 +311,60 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 				issue: "Skipped heading level (H1 → H3, missing H2)",
 				severity: SEVERITY.LOW,
 			});
+		}
+
+		// Too many links on page
+		if (page.outboundLinks.length > THRESHOLDS.links.max) {
+			issues.push({
+				url: page.url,
+				issue: `Too many links on page (${page.outboundLinks.length}, recommended max ${THRESHOLDS.links.max})`,
+				severity: SEVERITY.LOW,
+			});
+		}
+
+		// URL checks
+		try {
+			const urlObj = new URL(page.url);
+			const pathname = urlObj.pathname;
+
+			// URL too long
+			if (page.url.length > THRESHOLDS.url.warning) {
+				issues.push({
+					url: page.url,
+					issue: `URL too long (${page.url.length} characters, recommended max ${THRESHOLDS.url.warning})`,
+					severity: SEVERITY.LOW,
+				});
+			}
+
+			// URL with underscores (should use hyphens)
+			if (pathname.includes("_")) {
+				issues.push({
+					url: page.url,
+					issue: "URL contains underscores (use hyphens instead)",
+					severity: SEVERITY.LOW,
+				});
+			}
+
+			// URL with uppercase letters
+			if (pathname !== pathname.toLowerCase()) {
+				issues.push({
+					url: page.url,
+					issue: "URL contains uppercase letters (use lowercase)",
+					severity: SEVERITY.LOW,
+				});
+			}
+
+			// Too many URL parameters
+			const paramCount = urlObj.searchParams.size;
+			if (paramCount > THRESHOLDS.url.maxParams) {
+				issues.push({
+					url: page.url,
+					issue: `Too many URL parameters (${paramCount}, recommended max ${THRESHOLDS.url.maxParams})`,
+					severity: SEVERITY.LOW,
+				});
+			}
+		} catch {
+			// Invalid URL, skip URL checks
 		}
 
 		// BreadcrumbList schema

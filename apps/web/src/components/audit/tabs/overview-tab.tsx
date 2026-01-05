@@ -22,6 +22,7 @@ import { ActionPlanCard } from "../action-plan-card";
 type OverviewTabProps = {
 	analysis: Analysis;
 	onViewAllOpportunities: () => void;
+	onViewPerformance?: () => void;
 	isFreeTier?: boolean;
 };
 
@@ -48,6 +49,7 @@ function IntentBadge({ intent }: { intent: string }) {
 export function OverviewTab({
 	analysis,
 	onViewAllOpportunities,
+	onViewPerformance,
 	isFreeTier = false,
 }: OverviewTabProps) {
 	return (
@@ -260,6 +262,70 @@ export function OverviewTab({
 					</CardContent>
 				</Card>
 			)}
+
+			{/* Performance Overview */}
+			{analysis.coreWebVitals &&
+				analysis.coreWebVitals.pages.length > 0 &&
+				onViewPerformance && (
+					<Card className="border-border rounded-xl">
+						<CardHeader className="pb-4">
+							<CardTitle className="font-display text-xl font-bold">
+								Performance Overview
+							</CardTitle>
+							<CardDescription>
+								Core Web Vitals across {analysis.coreWebVitals.pages.length}{" "}
+								pages
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="grid grid-cols-3 gap-4 mb-4">
+								<div className="text-center p-3 rounded-lg bg-status-good/10">
+									<p className="text-2xl font-bold text-status-good tabular-nums">
+										{analysis.coreWebVitals.summary.good}
+									</p>
+									<p className="text-xs text-text-tertiary">Good</p>
+								</div>
+								<div className="text-center p-3 rounded-lg bg-status-warn/10">
+									<p className="text-2xl font-bold text-status-warn tabular-nums">
+										{analysis.coreWebVitals.summary.needsImprovement}
+									</p>
+									<p className="text-xs text-text-tertiary">Needs Work</p>
+								</div>
+								<div className="text-center p-3 rounded-lg bg-status-crit/10">
+									<p className="text-2xl font-bold text-status-crit tabular-nums">
+										{analysis.coreWebVitals.summary.poor}
+									</p>
+									<p className="text-xs text-text-tertiary">Poor</p>
+								</div>
+							</div>
+
+							{analysis.coreWebVitals.summary.avgPerformance !== null && (
+								<p className="text-sm text-text-secondary text-center mb-4">
+									Average score:{" "}
+									<span
+										className={`font-medium ${
+											analysis.coreWebVitals.summary.avgPerformance >= 90
+												? "text-status-good"
+												: analysis.coreWebVitals.summary.avgPerformance >= 50
+													? "text-status-warn"
+													: "text-status-crit"
+										}`}
+									>
+										{analysis.coreWebVitals.summary.avgPerformance.toFixed(0)}
+									</span>
+								</p>
+							)}
+
+							<button
+								type="button"
+								onClick={onViewPerformance}
+								className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+							>
+								View all {analysis.coreWebVitals.pages.length} pages →
+							</button>
+						</CardContent>
+					</Card>
+				)}
 		</>
 	);
 }

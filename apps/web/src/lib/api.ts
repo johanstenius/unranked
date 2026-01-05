@@ -164,6 +164,7 @@ export function subscribeToAudit(
 	eventSource.addEventListener("cwv", handleMessage);
 	eventSource.addEventListener("cwv-complete", handleMessage);
 	eventSource.addEventListener("health", handleMessage);
+	eventSource.addEventListener("partial-ready", handleMessage);
 	eventSource.addEventListener("complete", handleMessage);
 	eventSource.addEventListener("error", (e) => {
 		try {

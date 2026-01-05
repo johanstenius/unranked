@@ -1,14 +1,16 @@
 "use client";
 
-import { AnalysisProgress } from "@/components/analysis-progress";
 import {
 	BriefsTab,
 	CannibalizationSummary,
 	CompetitorAnalysis,
 	HealthScoreCard,
 	InternalLinkingSummary,
+	LiveAnalysisCard,
 	OpportunitiesTab,
 	OverviewTab,
+	PerformanceTab,
+	ProgressiveStats,
 	QuickWinsTab,
 	TechnicalTab,
 	UpgradeBanner,
@@ -50,6 +52,7 @@ type TabType =
 	| "opportunities"
 	| "quickwins"
 	| "technical"
+	| "performance"
 	| "briefs";
 
 const TAB_LABELS: Record<TabType, string> = {
@@ -57,6 +60,7 @@ const TAB_LABELS: Record<TabType, string> = {
 	opportunities: "Opportunities",
 	quickwins: "Quick Wins",
 	technical: "Technical Issues",
+	performance: "Performance",
 	briefs: "Content Briefs",
 };
 
@@ -130,7 +134,11 @@ function AuditContent() {
 									});
 									break;
 								case "cwv":
-									setCwvPages((prev) => [...prev, event.page]);
+									setCwvPages((prev) => {
+										const exists = prev.some((p) => p.url === event.page.url);
+										if (exists) return prev;
+										return [...prev, event.page];
+									});
 									break;
 								case "cwv-complete":
 									setCwvData(event.data);
@@ -138,24 +146,37 @@ function AuditContent() {
 								case "health":
 									setHealthScore(event.score);
 									break;
+								case "partial-ready":
+									// Fetch partial analysis to show results view
+									getAuditAnalysis(token)
+										.then((analysisData) => {
+											setAnalysis(analysisData);
+										})
+										.catch((err) => {
+											console.error("Failed to fetch partial analysis:", err);
+										});
+									break;
 								case "complete":
 									// Fetch full data on completion
 									Promise.all([
 										getAuditBriefs(token),
 										getAuditAnalysis(token),
 										getAudit(token),
-									]).then(([briefsData, analysisData, auditData]) => {
-										setBriefs(briefsData);
-										setAnalysis(analysisData);
-										setAudit(auditData);
-										setHealthScore(analysisData.healthScore);
-									});
+									])
+										.then(([briefsData, analysisData, auditData]) => {
+											setBriefs(briefsData);
+											setAnalysis(analysisData);
+											setAudit(auditData);
+											setHealthScore(analysisData.healthScore);
+										})
+										.catch((err) => {
+											console.error(
+												"Failed to fetch completed audit data:",
+												err,
+											);
+											setError("Failed to load audit results");
+										});
 									sseConnection?.close();
-									break;
-								case "progress":
-									setAudit((prev) =>
-										prev ? { ...prev, progress: event.progress } : prev,
-									);
 									break;
 							}
 						},
@@ -201,11 +222,6 @@ function AuditContent() {
 	const isProcessing =
 		audit.status !== "COMPLETED" && audit.status !== "FAILED";
 	const isFreeTier = audit.tier === "FREE";
-	const totalOpportunityVolume =
-		analysis?.opportunities.reduce((sum, o) => sum + o.searchVolume, 0) ?? 0;
-	const totalEstTraffic =
-		analysis?.currentRankings.reduce((sum, r) => sum + r.estimatedTraffic, 0) ??
-		0;
 	const hostname = new URL(audit.siteUrl).hostname;
 
 	return (
@@ -242,10 +258,6 @@ function AuditContent() {
 						</div>
 					)}
 
-					{isProcessing && (
-						<AnalysisProgress audit={audit} hostname={hostname} />
-					)}
-
 					{audit.status === "FAILED" && (
 						<div className="p-8 bg-status-crit-bg border border-status-crit rounded">
 							<h2 className="font-display text-xl font-semibold text-status-crit mb-2">
@@ -258,12 +270,24 @@ function AuditContent() {
 						</div>
 					)}
 
-					{audit.status === "COMPLETED" && (
+					{audit.status !== "FAILED" && (
 						<>
+							{/* Live analysis card - shows progress during processing */}
+							{isProcessing && (
+								<LiveAnalysisCard
+									audit={audit}
+									progress={audit.progress}
+									cwvPages={cwvPages}
+									cwvTotal={tierInfo[audit.tier].pages}
+								/>
+							)}
+
 							<div className="flex items-start justify-between mb-10">
 								<div>
 									<div className="text-sm text-text-tertiary mb-2">
-										Analysis completed
+										{isProcessing
+											? "Analysis in progress"
+											: "Analysis completed"}
 									</div>
 									<h1 className="font-display text-3xl text-text-primary font-bold">
 										{hostname}
@@ -279,7 +303,7 @@ function AuditContent() {
 									</p>
 								</div>
 								<div className="flex gap-2">
-									{tierInfo[audit.tier].pdfExport && (
+									{!isProcessing && tierInfo[audit.tier].pdfExport && (
 										<button
 											type="button"
 											onClick={handleExportPdf}
@@ -293,82 +317,26 @@ function AuditContent() {
 								</div>
 							</div>
 
-							{analysis?.healthScore && (
-								<HealthScoreCard
-									healthScore={analysis.healthScore}
-									expanded={healthScoreExpanded}
-									onToggle={() => setHealthScoreExpanded(!healthScoreExpanded)}
-									isFreeTier={isFreeTier}
-								/>
-							)}
+							{/* Health score - show building state during analysis */}
+							<HealthScoreCard
+								healthScore={healthScore}
+								progress={isProcessing ? audit.progress : undefined}
+								expanded={healthScoreExpanded}
+								onToggle={() => setHealthScoreExpanded(!healthScoreExpanded)}
+								isFreeTier={isFreeTier}
+								isBuilding={isProcessing}
+							/>
 
-							{isFreeTier && (
+							{isFreeTier && analysis && (
 								<UpgradeBanner auditToken={token} analysis={analysis} />
 							)}
 
-							{isFreeTier ? (
-								<div className="grid grid-cols-2 gap-4 mb-10">
-									<div className="bg-surface border border-border rounded-xl p-6">
-										<p className="font-display text-4xl tracking-tight text-text-primary font-bold">
-											{audit.pagesFound ?? 0}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Pages crawled
-										</p>
-									</div>
-									<div className="bg-surface border border-border rounded-xl p-6">
-										<p className="font-display text-4xl tracking-tight text-text-primary font-bold">
-											{analysis?.technicalIssues.length ?? 0}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Technical issues
-										</p>
-									</div>
-								</div>
-							) : (
-								<div className="grid grid-cols-5 gap-4 mb-10">
-									<div className="bg-surface border border-border rounded-xl p-5">
-										<p className="font-display text-3xl tracking-tight text-text-primary font-bold">
-											{audit.pagesFound ?? 0}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Pages crawled
-										</p>
-									</div>
-									<div className="bg-surface border border-border rounded-xl p-5">
-										<p className="font-display text-3xl tracking-tight text-text-primary font-bold">
-											{analysis?.currentRankings.length ?? 0}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Keywords ranking
-										</p>
-									</div>
-									<div className="bg-surface border border-border rounded-xl p-5">
-										<p className="font-display text-3xl tracking-tight text-accent-teal font-bold">
-											~{totalEstTraffic.toLocaleString()}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Est. monthly traffic
-										</p>
-									</div>
-									<div className="bg-surface border border-border rounded-xl p-5">
-										<p className="font-display text-3xl tracking-tight text-accent-indigo font-bold">
-											{analysis?.opportunities.length ?? 0}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Opportunities
-										</p>
-									</div>
-									<div className="bg-surface border border-border rounded-xl p-5">
-										<p className="font-display text-3xl tracking-tight text-text-primary font-bold">
-											~{totalOpportunityVolume.toLocaleString()}
-										</p>
-										<p className="text-sm text-text-secondary mt-2">
-											Potential traffic
-										</p>
-									</div>
-								</div>
-							)}
+							<ProgressiveStats
+								audit={audit}
+								analysis={analysis}
+								isProcessing={isProcessing}
+								isFreeTier={isFreeTier}
+							/>
 
 							<div className="flex gap-1 mb-10">
 								{(Object.keys(TAB_LABELS) as TabType[])
@@ -377,10 +345,12 @@ function AuditContent() {
 										if (tab === "briefs" && tierInfo[audit.tier].briefs === 0) {
 											return false;
 										}
-										// Hide opportunities and quickwins for FREE tier (no DataForSEO/AI)
+										// Hide opportunities, quickwins, and performance for FREE tier
 										if (
 											isFreeTier &&
-											(tab === "opportunities" || tab === "quickwins")
+											(tab === "opportunities" ||
+												tab === "quickwins" ||
+												tab === "performance")
 										) {
 											return false;
 										}
@@ -410,6 +380,11 @@ function AuditContent() {
 											onViewAllOpportunities={() =>
 												setActiveTab("opportunities")
 											}
+											onViewPerformance={
+												!isFreeTier
+													? () => setActiveTab("performance")
+													: undefined
+											}
 										/>
 									)}
 									{activeTab === "opportunities" && analysis && (
@@ -420,6 +395,18 @@ function AuditContent() {
 									)}
 									{activeTab === "technical" && analysis && (
 										<TechnicalTab analysis={analysis} />
+									)}
+									{activeTab === "performance" && (
+										<PerformanceTab
+											data={cwvData ?? analysis?.coreWebVitals ?? null}
+											streamingPages={cwvPages}
+											isAnalyzing={
+												isProcessing &&
+												(!audit.progress?.coreWebVitals ||
+													audit.progress?.coreWebVitals === "running" ||
+													audit.progress?.coreWebVitals === "pending")
+											}
+										/>
 									)}
 									{activeTab === "briefs" && (
 										<BriefsTab briefs={briefs} auditToken={token} />

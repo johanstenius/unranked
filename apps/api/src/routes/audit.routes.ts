@@ -80,6 +80,7 @@ function buildAnalysisResponse(
 	siteUrl: string,
 	healthScore: HealthScoreResponse | null,
 	tier: AuditTier,
+	coreWebVitals?: AnalysisResult["coreWebVitals"],
 ) {
 	const sectionStats: SectionStatsResponse[] = detectedSections.map((s) => {
 		const sectionRankings = (analysis.currentRankings ?? []).filter(
@@ -127,6 +128,7 @@ function buildAnalysisResponse(
 		healthScore,
 		discoveredCompetitors: analysis.discoveredCompetitors ?? [],
 		upgradeHints: buildUpgradeHints(tier, allOpportunities.length),
+		coreWebVitals,
 	};
 }
 
@@ -497,6 +499,7 @@ auditRoutes.openapi(getAuditAnalysisRoute, async (c) => {
 			audit.siteUrl,
 			healthScore,
 			audit.tier,
+			analysis.coreWebVitals,
 		),
 		200,
 	);

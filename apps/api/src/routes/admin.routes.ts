@@ -7,8 +7,8 @@ import * as adminService from "../services/admin.service.js";
 
 export const adminRoutes = new OpenAPIHono<AdminContext>();
 
-// Apply admin middleware to all routes
-adminRoutes.use("*", requireAdmin);
+// Apply admin middleware to admin routes only
+adminRoutes.use("/admin/*", requireAdmin);
 
 // ============================================================================
 // Schemas

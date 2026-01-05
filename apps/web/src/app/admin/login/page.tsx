@@ -79,7 +79,7 @@ export default function AdminLoginPage() {
 	}
 
 	return (
-		<div className="min-h-screen flex items-center justify-center bg-bg-primary px-4">
+		<div className="min-h-screen flex items-center justify-center bg-canvas px-4">
 			<div className="max-w-sm w-full">
 				<div className="text-center mb-8">
 					<h1 className="text-2xl font-bold text-text-primary">Admin Login</h1>
@@ -104,14 +104,14 @@ export default function AdminLoginPage() {
 								autoComplete="one-time-code"
 								value={totpCode}
 								onChange={(e) => setTotpCode(e.target.value)}
-								className="w-full px-3 py-2 border border-border-subtle rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+								className="w-full px-3 py-2 border border-border-subtle rounded-md bg-subtle text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
 								placeholder="Enter 6-digit code"
 								required
 							/>
 						</div>
 
 						{error && (
-							<div className="text-sm text-status-error bg-red-500/10 px-3 py-2 rounded">
+							<div className="text-sm text-status-crit bg-status-crit-bg px-3 py-2 rounded">
 								{error}
 							</div>
 						)}
@@ -119,7 +119,7 @@ export default function AdminLoginPage() {
 						<button
 							type="submit"
 							disabled={isLoading}
-							className="w-full py-2 px-4 bg-brand-primary text-white rounded-md font-medium hover:bg-brand-primary/90 disabled:opacity-50"
+							className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md font-medium hover:bg-accent-hover disabled:opacity-50"
 						>
 							{isLoading ? "Verifying..." : "Verify"}
 						</button>
@@ -146,7 +146,7 @@ export default function AdminLoginPage() {
 								type="email"
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
-								className="w-full px-3 py-2 border border-border-subtle rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+								className="w-full px-3 py-2 border border-border-subtle rounded-md bg-subtle text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
 								placeholder="admin@example.com"
 								required
 							/>
@@ -164,13 +164,13 @@ export default function AdminLoginPage() {
 								type="password"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
-								className="w-full px-3 py-2 border border-border-subtle rounded-md bg-bg-secondary text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+								className="w-full px-3 py-2 border border-border-subtle rounded-md bg-subtle text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
 								required
 							/>
 						</div>
 
 						{error && (
-							<div className="text-sm text-status-error bg-red-500/10 px-3 py-2 rounded">
+							<div className="text-sm text-status-crit bg-status-crit-bg px-3 py-2 rounded">
 								{error}
 							</div>
 						)}
@@ -178,7 +178,7 @@ export default function AdminLoginPage() {
 						<button
 							type="submit"
 							disabled={isLoading}
-							className="w-full py-2 px-4 bg-brand-primary text-white rounded-md font-medium hover:bg-brand-primary/90 disabled:opacity-50"
+							className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md font-medium hover:bg-accent-hover disabled:opacity-50"
 						>
 							{isLoading ? "Signing in..." : "Sign in"}
 						</button>

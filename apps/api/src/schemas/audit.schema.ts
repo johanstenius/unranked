@@ -341,6 +341,29 @@ export const upgradeHintsSchema = z.object({
 });
 export type UpgradeHints = z.infer<typeof upgradeHintsSchema>;
 
+// Core Web Vitals schemas
+export const cwvPageResultSchema = z.object({
+	url: z.string(),
+	lcp: z.number().nullable(),
+	cls: z.number().nullable(),
+	inp: z.number().nullable(),
+	performance: z.number().nullable(),
+	status: z.enum(["success", "failed"]),
+	error: z.string().optional(),
+});
+export type CWVPageResultResponse = z.infer<typeof cwvPageResultSchema>;
+
+export const coreWebVitalsSchema = z.object({
+	pages: z.array(cwvPageResultSchema),
+	summary: z.object({
+		good: z.number(),
+		needsImprovement: z.number(),
+		poor: z.number(),
+		avgPerformance: z.number().nullable(),
+	}),
+});
+export type CoreWebVitalsResponse = z.infer<typeof coreWebVitalsSchema>;
+
 export const analysisResponseSchema = z.object({
 	currentRankings: z.array(currentRankingSchema),
 	opportunities: z.array(opportunitySchema),
@@ -355,6 +378,7 @@ export const analysisResponseSchema = z.object({
 	healthScore: healthScoreSchema.nullable(),
 	discoveredCompetitors: z.array(discoveredCompetitorSchema),
 	upgradeHints: upgradeHintsSchema.optional(),
+	coreWebVitals: coreWebVitalsSchema.optional(),
 });
 export type AnalysisResponse = z.infer<typeof analysisResponseSchema>;
 

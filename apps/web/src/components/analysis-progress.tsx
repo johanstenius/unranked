@@ -48,21 +48,15 @@ const PAID_STATUS_STEPS: StatusStep[] = [
 	},
 	{
 		status: "CRAWLING",
-		label: "Crawling docs",
+		label: "Crawling your docs",
 		activeLabel: "Crawling your docs",
 		description: "Discovering and indexing pages",
 	},
 	{
 		status: "ANALYZING",
-		label: "Finding opportunities",
-		activeLabel: "Analyzing SEO opportunities",
-		description: "Evaluating keywords and rankings",
-	},
-	{
-		status: "GENERATING_BRIEFS",
-		label: "Generating briefs",
-		activeLabel: "Creating content briefs",
-		description: "AI-powered content recommendations",
+		label: "Analyzing",
+		activeLabel: "Analyzing your content",
+		description: "Running technical SEO checks",
 	},
 ];
 

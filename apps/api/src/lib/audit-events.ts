@@ -24,6 +24,7 @@ export type AuditSSEEvent =
 	| { type: "cwv"; page: CWVPageResult }
 	| { type: "cwv-complete"; data: CoreWebVitalsData }
 	| { type: "health"; score: HealthScore }
+	| { type: "partial-ready" }
 	| { type: "complete" }
 	| { type: "error"; message: string };
 
@@ -61,6 +62,14 @@ export function subscribe(
  */
 export function emit(auditId: string, event: AuditSSEEvent): void {
 	const auditListeners = listeners.get(auditId);
+	const count = auditListeners?.size ?? 0;
+
+	if (event.type === "cwv" || event.type === "cwv-complete") {
+		console.log(
+			`[audit-events] emit ${event.type} for ${auditId}, listeners: ${count}`,
+		);
+	}
+
 	if (auditListeners) {
 		for (const callback of auditListeners) {
 			try {
