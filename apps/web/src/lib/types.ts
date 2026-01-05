@@ -287,6 +287,7 @@ export type HealthScore = {
 };
 
 export type Analysis = {
+	isNewSite?: boolean;
 	currentRankings: CurrentRanking[];
 	opportunities: Opportunity[];
 	opportunityClusters: OpportunityCluster[];
@@ -464,6 +465,7 @@ export type AuditState = {
 	cwvStream: CWVPageResult[];
 
 	// Derived data (computed after components complete)
+	isNewSite?: boolean;
 	opportunityClusters?: OpportunityCluster[];
 	actionPlan?: PrioritizedAction[];
 	healthScore: HealthScore | null;

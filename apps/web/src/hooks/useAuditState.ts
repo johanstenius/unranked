@@ -66,14 +66,20 @@ function applyEvent(state: AuditState, event: AuditSSEEvent): AuditState {
 				},
 			};
 
-		case "component:complete":
-			return {
+		case "component:complete": {
+			const newState = {
 				...state,
 				components: {
 					...state.components,
 					[event.key]: { status: "completed", data: event.data },
 				},
 			};
+			// Derive isNewSite when rankings complete
+			if (event.key === "rankings" && Array.isArray(event.data)) {
+				newState.isNewSite = event.data.length === 0;
+			}
+			return newState;
+		}
 
 		case "component:fail":
 			return {

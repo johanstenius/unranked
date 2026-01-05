@@ -198,7 +198,11 @@ export const currentRankingsComponent: ComponentEntry<CurrentRanking[]> = {
 	key: "currentRankings",
 	dependencies: [],
 	run: runCurrentRankings,
-	store: (results, data) => ({ ...results, currentRankings: data }),
+	store: (results, data) => ({
+		...results,
+		currentRankings: data,
+		isNewSite: data.length === 0,
+	}),
 	sseKey: "rankings",
 	getSSEData: (results) => results.currentRankings ?? [],
 };
@@ -369,6 +373,7 @@ async function runCompetitorAnalysis(
 
 	const currentRankings = results.currentRankings ?? [];
 	const existingOpportunities = results.opportunities ?? [];
+	const isNewSite = currentRankings.length === 0;
 
 	try {
 		let discoveredCompetitors: DiscoveredCompetitor[] = [];
@@ -413,13 +418,16 @@ async function runCompetitorAnalysis(
 			normalizedUrls.map(async (competitorUrl) => {
 				try {
 					const domain = new URL(competitorUrl).hostname;
+					// For new sites, don't filter by difficulty - show full competitive landscape
 					const keywords = await dataForSeo.getDomainRankedKeywords(
 						domain,
 						{
 							limit: 200,
 							maxPosition: 30,
 							minVolume: LIMITS.MIN_SEARCH_VOLUME,
-							maxDifficulty: LIMITS.REALISTIC_DIFFICULTY,
+							...(isNewSite
+								? {}
+								: { maxDifficulty: LIMITS.REALISTIC_DIFFICULTY }),
 						},
 						ctx.usage,
 					);

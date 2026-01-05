@@ -365,6 +365,10 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		),
 	};
 
+	// Derive isNewSite from rankings
+	const currentRankings = analysis?.currentRankings ?? [];
+	const isNewSite = currentRankings.length === 0;
+
 	return {
 		id: audit.id,
 		accessToken: audit.accessToken,
@@ -377,6 +381,7 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		sitemapUrlCount: audit.sitemapUrlCount,
 		components,
 		cwvStream: [], // Populated via SSE during analysis
+		isNewSite,
 		opportunityClusters: analysis?.opportunityClusters,
 		actionPlan: analysis?.actionPlan,
 		healthScore,

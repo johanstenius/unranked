@@ -35,6 +35,7 @@ export type StoredHealthScore = {
 };
 
 export type StoredAnalysisData = {
+	isNewSite?: boolean;
 	currentRankings?: StoredRanking[];
 	opportunities?: StoredOpportunity[];
 	opportunityClusters?: OpportunityCluster[];

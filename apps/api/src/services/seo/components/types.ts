@@ -172,6 +172,9 @@ export type CoreWebVitalsData = {
  * Components read from here and write to here.
  */
 export type ComponentResults = {
+	// Site status
+	isNewSite?: boolean; // true if site has no rankings (derived from currentRankings)
+
 	// Local
 	technicalIssues?: TechnicalIssue[];
 	internalLinkingIssues?: InternalLinkingIssues;
