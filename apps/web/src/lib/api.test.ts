@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { tierInfo } from "./api";
+import { TIERS } from "./api";
 
-describe("tierInfo", () => {
+describe("TIERS", () => {
 	it("should have 4 tiers", () => {
-		expect(Object.keys(tierInfo)).toHaveLength(4);
+		expect(Object.keys(TIERS)).toHaveLength(4);
 	});
 
 	it("should have FREE tier", () => {
-		expect(tierInfo.FREE.name).toBe("Free");
-		expect(tierInfo.FREE.price).toBe(0);
+		expect(TIERS.FREE.name).toBe("Technical");
+		expect(TIERS.FREE.price).toBe(0);
 	});
 
 	it("should have SCAN tier", () => {
-		expect(tierInfo.SCAN.name).toBe("Scan");
-		expect(tierInfo.SCAN.price).toBe(9);
+		expect(TIERS.SCAN.name).toBe("Scan");
+		expect(TIERS.SCAN.price).toBe(9);
 	});
 });

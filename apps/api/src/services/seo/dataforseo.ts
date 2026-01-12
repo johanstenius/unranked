@@ -253,6 +253,10 @@ function checkCircuitBreaker(): ApiResult<never> | null {
 	if (circuitState === "open") {
 		const elapsed = Date.now() - (circuitOpenedAt ?? 0);
 		if (elapsed < CIRCUIT_BREAKER.resetMs) {
+			log.warn(
+				{ elapsed, resetMs: CIRCUIT_BREAKER.resetMs },
+				"Circuit breaker OPEN - blocking request",
+			);
 			return {
 				ok: false,
 				error: "circuit_open",
@@ -325,6 +329,26 @@ async function apiRequest<T>(
 					trackDataforseoRequest(usage, endpoint);
 				}
 				const data = (await response.json()) as T;
+				// Debug: log raw response structure for ranked_keywords
+				if (endpoint.includes("ranked_keywords")) {
+					const d = data as Record<string, unknown>;
+					const tasks = d.tasks as Array<Record<string, unknown>> | undefined;
+					const task = tasks?.[0];
+					log.info(
+						{
+							endpoint,
+							statusCode: task?.status_code,
+							statusMessage: task?.status_message,
+							resultCount: (task?.result as unknown[])?.length ?? 0,
+							itemsCount:
+								(
+									(task?.result as Array<Record<string, unknown>>)?.[0]
+										?.items as unknown[]
+								)?.length ?? 0,
+						},
+						"DataForSEO ranked_keywords raw response",
+					);
+				}
 				return { ok: true, data };
 			}
 
@@ -400,6 +424,8 @@ export type RelatedKeyword = {
 
 type DataForSeoResponse<T> = {
 	tasks: Array<{
+		status_code?: number;
+		status_message?: string;
 		result: T[] | null;
 	}>;
 };
@@ -443,7 +469,7 @@ type RelatedKeywordResult = {
 export async function getKeywordData(
 	keywords: string[],
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<KeywordData[]> {
 	if (env.TEST_MODE) {
@@ -567,7 +593,7 @@ async function fetchSerpWithFeatures(
 export async function getSerpResults(
 	keyword: string,
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<SerpResult[]> {
 	if (env.TEST_MODE) {
@@ -586,7 +612,7 @@ export async function getSerpResults(
 export async function getSerpWithPaa(
 	keyword: string,
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<SerpWithPaa> {
 	if (env.TEST_MODE) {
@@ -605,7 +631,7 @@ export async function getSerpWithPaa(
 export async function getSerpWithFeatures(
 	keyword: string,
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<SerpWithFeatures> {
 	if (env.TEST_MODE) {
@@ -618,7 +644,7 @@ export async function getSerpWithFeatures(
 export async function getRelatedKeywords(
 	keyword: string,
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<RelatedKeyword[]> {
 	if (env.TEST_MODE) {
@@ -666,7 +692,7 @@ export async function getRelatedKeywords(
 export async function getPeopleAlsoAsk(
 	keyword: string,
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<string[]> {
 	if (env.TEST_MODE) {
@@ -698,6 +724,7 @@ export type DiscoveredCompetitor = {
 };
 
 type RankedKeywordResult = {
+	total_count?: number;
 	items?: Array<{
 		keyword_data?: {
 			keyword?: string;
@@ -736,7 +763,7 @@ export async function getDomainRankedKeywords(
 
 	const {
 		location = "United States",
-		language = "en",
+		language = "English",
 		limit = 200,
 		maxPosition = 50,
 		minVolume = 10,
@@ -775,13 +802,50 @@ export async function getDomainRankedKeywords(
 		usage,
 	);
 
-	if (!response.ok || !response.data?.tasks?.[0]?.result?.[0]?.items) {
-		log.debug({ domain }, "No ranked keywords found");
+	// Handle API errors
+	if (!response.ok) {
+		log.error(
+			{
+				domain,
+				error: response.error,
+				message: response.message,
+			},
+			"DataForSEO API error for ranked_keywords",
+		);
 		return [];
 	}
 
-	const items = response.data.tasks[0].result[0].items;
-	log.debug({ domain, count: items.length }, "Found ranked keywords");
+	const task = response.data?.tasks?.[0];
+	const result = task?.result?.[0];
+	const items = result?.items;
+
+	// Log API response status
+	if (task?.status_code !== 20000) {
+		log.warn(
+			{
+				domain,
+				statusCode: task?.status_code,
+				statusMessage: task?.status_message,
+			},
+			"DataForSEO task failed",
+		);
+		return [];
+	}
+
+	// Handle empty results (valid response, just no data)
+	if (!items || items.length === 0) {
+		log.info(
+			{
+				domain,
+				totalCount: result?.total_count ?? 0,
+				statusCode: task?.status_code,
+			},
+			"DataForSEO returned 0 keywords (domain may have no rankings)",
+		);
+		return [];
+	}
+
+	log.info({ domain, count: items.length }, "Found ranked keywords");
 
 	return items
 		.filter((item) => item.keyword_data?.keyword)
@@ -823,7 +887,11 @@ export async function discoverCompetitors(
 		return mockDataforseo.discoverCompetitors(domain, options);
 	}
 
-	const { location = "United States", language = "en", limit = 10 } = options;
+	const {
+		location = "United States",
+		language = "English",
+		limit = 10,
+	} = options;
 
 	log.debug({ domain }, "Discovering competitors");
 
@@ -880,7 +948,7 @@ export async function getDomainRankedKeywordsTyped(
 
 	const {
 		location = "United States",
-		language = "en",
+		language = "English",
 		limit = 200,
 		maxPosition = 50,
 		minVolume = 10,
@@ -946,7 +1014,11 @@ export async function discoverCompetitorsTyped(
 		return { ok: true, data };
 	}
 
-	const { location = "United States", language = "en", limit = 10 } = options;
+	const {
+		location = "United States",
+		language = "English",
+		limit = 10,
+	} = options;
 
 	const result = await apiRequest<DataForSeoResponse<CompetitorDomainResult>>(
 		"/dataforseo_labs/google/competitors_domain/live",
@@ -986,7 +1058,7 @@ export async function discoverCompetitorsTyped(
 export async function getKeywordDataTyped(
 	keywords: string[],
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<ApiResult<KeywordData[]>> {
 	if (env.TEST_MODE) {
@@ -1031,7 +1103,7 @@ export async function getKeywordDataTyped(
 export async function getSerpResultsTyped(
 	keyword: string,
 	location = "United States",
-	language = "en",
+	language = "English",
 	usage?: ApiUsage,
 ): Promise<ApiResult<SerpResult[]>> {
 	if (env.TEST_MODE) {
@@ -1077,4 +1149,78 @@ export async function getSerpResultsTyped(
 		}));
 
 	return { ok: true, data: serp };
+}
+
+// ============================================================================
+// Pre-flight Check
+// ============================================================================
+
+export type PreflightRanking = {
+	url: string;
+	keyword: string;
+	position: number;
+	searchVolume: number;
+	estimatedTraffic: number;
+};
+
+export type PreflightResult = {
+	isNewSite: boolean;
+	rankings: PreflightRanking[];
+};
+
+/**
+ * Pre-flight check: fetch rankings before pipeline starts.
+ * Returns isNewSite flag and rankings data for reuse by rankings component.
+ * Only call for paid tiers (FREE doesn't need rankings).
+ */
+export async function preflightRankingsCheck(
+	siteUrl: string,
+	limit: number,
+): Promise<PreflightResult> {
+	const domain = new URL(siteUrl).hostname.replace(/^www\./, "");
+
+	log.info({ domain, limit }, "Running pre-flight rankings check");
+
+	const keywords = await getDomainRankedKeywords(domain, {
+		limit,
+		maxPosition: 100,
+		minVolume: 10,
+	});
+
+	// Transform to CurrentRanking format with estimated traffic
+	const rankings: PreflightRanking[] = keywords.map((kw) => ({
+		url: kw.url,
+		keyword: kw.keyword,
+		position: kw.position,
+		searchVolume: kw.searchVolume,
+		estimatedTraffic: estimateTraffic(kw.searchVolume, kw.position),
+	}));
+
+	const isNewSite = rankings.length === 0;
+
+	log.info(
+		{ domain, rankingsCount: rankings.length, isNewSite },
+		"Pre-flight check complete",
+	);
+
+	return { isNewSite, rankings };
+}
+
+function estimateTraffic(searchVolume: number, position: number): number {
+	// CTR estimates by position (rough industry averages)
+	const ctrByPosition: Record<number, number> = {
+		1: 0.3,
+		2: 0.15,
+		3: 0.1,
+		4: 0.07,
+		5: 0.05,
+		6: 0.04,
+		7: 0.03,
+		8: 0.03,
+		9: 0.02,
+		10: 0.02,
+	};
+
+	const ctr = ctrByPosition[position] ?? (position <= 20 ? 0.01 : 0.005);
+	return Math.round(searchVolume * ctr);
 }

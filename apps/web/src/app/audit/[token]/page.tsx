@@ -1,17 +1,20 @@
 "use client";
 
 import {
+	AITab,
 	AnalysisProgressCard,
 	BriefsTab,
-	CannibalizationSummary,
+	ClusterSelectionCard,
 	CompetitorAnalysis,
+	CompetitorSelectionCard,
 	HealthScoreCard,
 	InternalLinkingSummary,
+	NewSiteBanner,
 	OpportunitiesTab,
 	OverviewTab,
-	PerformanceTab,
 	ProgressiveStats,
 	QuickWinsTab,
+	SelectionLayout,
 	TechnicalTab,
 	UpgradeBanner,
 } from "@/components/audit";
@@ -28,7 +31,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { LoadingScreen, Spinner } from "@/components/ui/spinner";
 import { useAuditState } from "@/hooks/useAuditState";
-import { tierInfo } from "@/lib/api";
+import { type BriefGenerationEvent, TIERS, generateBriefs } from "@/lib/api";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
@@ -38,7 +41,7 @@ type TabType =
 	| "opportunities"
 	| "quickwins"
 	| "technical"
-	| "performance"
+	| "ai"
 	| "briefs";
 
 const TAB_LABELS: Record<TabType, string> = {
@@ -46,7 +49,7 @@ const TAB_LABELS: Record<TabType, string> = {
 	opportunities: "Opportunities",
 	quickwins: "Quick Wins",
 	technical: "Technical Issues",
-	performance: "Performance",
+	ai: "AI",
 	briefs: "Content Briefs",
 };
 
@@ -57,12 +60,13 @@ function AuditContent() {
 	const success = searchParams.get("success") === "true";
 
 	// Use unified state hook
-	const { state, loading, error } = useAuditState(token);
+	const { state, loading, error, refetch } = useAuditState(token);
 
 	// Local UI state
 	const [activeTab, setActiveTab] = useState<TabType>("overview");
 	const [healthScoreExpanded, setHealthScoreExpanded] = useState(false);
 	const [pdfExporting, setPdfExporting] = useState(false);
+	const [isGeneratingBriefs, setIsGeneratingBriefs] = useState(false);
 
 	const handleExportPdf = useCallback(async () => {
 		if (!state) return;
@@ -75,6 +79,30 @@ function AuditContent() {
 			setPdfExporting(false);
 		}
 	}, [state]);
+
+	const handleGenerateBriefs = useCallback(
+		async (clusterTopics: string[]) => {
+			if (!state || isGeneratingBriefs) return;
+			setIsGeneratingBriefs(true);
+
+			try {
+				await generateBriefs(
+					token,
+					clusterTopics,
+					(_event: BriefGenerationEvent) => {
+						// Could show progress here in future
+					},
+				);
+				// Refetch to get updated briefs from server
+				await refetch();
+			} catch (err) {
+				console.error("Brief generation failed:", err);
+			} finally {
+				setIsGeneratingBriefs(false);
+			}
+		},
+		[state, token, isGeneratingBriefs, refetch],
+	);
 
 	if (loading) {
 		return <LoadingScreen message="Loading audit..." />;
@@ -101,14 +129,50 @@ function AuditContent() {
 	const isFreeTier = state.tier === "FREE";
 	const hostname = new URL(state.siteUrl).hostname;
 
-	// CWV data from streaming
-	const cwvPages = state.cwvStream;
-	const cwvData =
-		components.coreWebVitals.status === "completed"
-			? components.coreWebVitals.data
-			: null;
 	const healthScore = state.healthScore;
 
+	// Selection phases: focused layout without dashboard elements
+	if (state.status === "SELECTING_COMPETITORS") {
+		return (
+			<SelectionLayout
+				hostname={hostname}
+				currentStep={1}
+				crawlProgress={{
+					pagesFound: state.pagesFound ?? 0,
+					complete: state.crawlComplete ?? false,
+				}}
+			>
+				<CompetitorSelectionCard
+					suggestions={state.suggestedCompetitors ?? []}
+					maxSelections={state.tierConfig.limits.competitors}
+					accessToken={token}
+					onComplete={refetch}
+				/>
+			</SelectionLayout>
+		);
+	}
+
+	if (state.status === "SELECTING_TOPICS") {
+		return (
+			<SelectionLayout
+				hostname={hostname}
+				currentStep={2}
+				crawlProgress={{
+					pagesFound: state.pagesFound ?? 0,
+					complete: state.crawlComplete ?? false,
+				}}
+			>
+				<ClusterSelectionCard
+					clusters={state.suggestedClusters ?? []}
+					maxSelections={state.tierConfig.limits.briefs}
+					accessToken={token}
+					onComplete={refetch}
+				/>
+			</SelectionLayout>
+		);
+	}
+
+	// Full dashboard layout for non-selection phases
 	return (
 		<div className="min-h-screen bg-canvas">
 			<nav className="h-[60px] bg-canvas/80 backdrop-blur-md border-b border-border sticky top-0 z-50">
@@ -157,18 +221,15 @@ function AuditContent() {
 
 					{state.status !== "FAILED" && (
 						<>
-							{/* Unified progress card during analysis */}
-							{isProcessing && (
+							{/* Show progress card for CRAWLING and ANALYZING states */}
+							{(state.status === "CRAWLING" ||
+								state.status === "ANALYZING") && (
 								<AnalysisProgressCard
 									status={state.status}
 									pagesFound={state.pagesFound}
 									sitemapUrlCount={state.sitemapUrlCount}
 									components={components}
-									cwvPages={cwvPages}
-									cwvTotal={Math.min(
-										state.pagesFound ?? tierInfo[state.tier].pages,
-										tierInfo[state.tier].pages,
-									)}
+									phases={state.tierConfig.phases}
 								/>
 							)}
 
@@ -193,7 +254,7 @@ function AuditContent() {
 									</p>
 								</div>
 								<div className="flex gap-2">
-									{!isProcessing && tierInfo[state.tier].pdfExport && (
+									{!isProcessing && TIERS[state.tier].limits.pdfExport && (
 										<button
 											type="button"
 											onClick={handleExportPdf}
@@ -207,6 +268,11 @@ function AuditContent() {
 								</div>
 							</div>
 
+							{/* New site banner - show when completed and is new site */}
+							{!isProcessing && state.isNewSite && (
+								<NewSiteBanner hostname={hostname} />
+							)}
+
 							{/* Health score - only show when completed */}
 							{!isProcessing && (
 								<HealthScoreCard
@@ -214,6 +280,7 @@ function AuditContent() {
 									expanded={healthScoreExpanded}
 									onToggle={() => setHealthScoreExpanded(!healthScoreExpanded)}
 									isFreeTier={isFreeTier}
+									isNewSite={state.isNewSite}
 								/>
 							)}
 
@@ -237,15 +304,16 @@ function AuditContent() {
 								{(Object.keys(TAB_LABELS) as TabType[])
 									.filter((tab) => {
 										// Hide briefs tab for tiers with 0 briefs
-										if (tab === "briefs" && tierInfo[state.tier].briefs === 0) {
+										if (
+											tab === "briefs" &&
+											TIERS[state.tier].limits.briefs === 0
+										) {
 											return false;
 										}
-										// Hide opportunities, quickwins, and performance for FREE tier
+										// Hide opportunities and quickwins for FREE tier
 										if (
 											isFreeTier &&
-											(tab === "opportunities" ||
-												tab === "quickwins" ||
-												tab === "performance")
+											(tab === "opportunities" || tab === "quickwins")
 										) {
 											return false;
 										}
@@ -273,15 +341,9 @@ function AuditContent() {
 										<OverviewTab
 											rankings={components.rankings}
 											opportunities={components.opportunities}
-											coreWebVitals={components.coreWebVitals}
 											actionPlan={state.actionPlan ?? []}
 											onViewAllOpportunities={() =>
 												setActiveTab("opportunities")
-											}
-											onViewPerformance={
-												!isFreeTier
-													? () => setActiveTab("performance")
-													: undefined
 											}
 											isFreeTier={isFreeTier}
 										/>
@@ -291,47 +353,49 @@ function AuditContent() {
 											opportunities={components.opportunities}
 											clusters={state.opportunityClusters ?? []}
 											snippets={components.snippets}
+											isNewSite={state.isNewSite}
+											briefsLimit={TIERS[state.tier].limits.briefs}
+											existingBriefsCount={
+												components.briefs.status === "completed"
+													? components.briefs.data.length
+													: 0
+											}
+											onGenerateBriefs={handleGenerateBriefs}
+											isGenerating={isGeneratingBriefs}
 										/>
 									)}
 									{activeTab === "quickwins" && (
-										<QuickWinsTab quickWins={components.quickWins} />
+										<QuickWinsTab
+											quickWins={components.quickWins}
+											isNewSite={state.isNewSite}
+										/>
 									)}
 									{activeTab === "technical" && (
 										<TechnicalTab
 											technical={components.technical}
 											internalLinking={components.internalLinking}
-											cannibalization={components.cannibalization}
 										/>
 									)}
-									{activeTab === "performance" && (
-										<PerformanceTab
-											data={cwvData}
-											streamingPages={cwvPages}
-											isAnalyzing={
-												isProcessing &&
-												components.coreWebVitals.status !== "completed"
-											}
-										/>
+									{activeTab === "ai" && (
+										<AITab aiReadiness={components.aiReadiness} />
 									)}
 									{activeTab === "briefs" && (
-										<BriefsTab briefs={components.briefs} auditToken={token} />
+										<BriefsTab
+											briefs={components.briefs}
+											auditToken={token}
+											onGoToOpportunities={() => setActiveTab("opportunities")}
+										/>
 									)}
 								</div>
 
 								<div className="space-y-6">
-									{tierInfo[state.tier].competitors > 0 && (
+									{TIERS[state.tier].limits.competitors > 0 && (
 										<CompetitorAnalysis competitors={components.competitors} />
 									)}
 									<InternalLinkingSummary
 										internalLinking={components.internalLinking}
 										onViewDetails={() => setActiveTab("technical")}
 									/>
-									{!isFreeTier && (
-										<CannibalizationSummary
-											cannibalization={components.cannibalization}
-											onViewDetails={() => setActiveTab("technical")}
-										/>
-									)}
 								</div>
 							</div>
 						</>

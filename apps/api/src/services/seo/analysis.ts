@@ -6,14 +6,15 @@
  */
 
 import type { QuickWinSuggestions, SearchIntent } from "../ai/anthropic.js";
-import type { CoreWebVitalsData } from "./components/types.js";
+import type { AIReadinessData } from "./components/types.js";
 import type { DiscoveredCompetitor } from "./dataforseo.js";
 import type { InternalLinkingIssues } from "./internal-linking.js";
 
 export type OpportunitySource =
 	| "competitor_gap"
 	| "seed_expansion"
-	| "content_extraction";
+	| "content_extraction"
+	| "target_keyword";
 
 export type Opportunity = {
 	keyword: string;
@@ -69,17 +70,6 @@ export type CompetitorGap = {
 	}>;
 };
 
-export type CannibalizationIssue = {
-	keyword: string;
-	searchVolume: number;
-	pages: Array<{
-		url: string;
-		position: number | null;
-		signals: ("title" | "h1" | "content")[];
-	}>;
-	severity: "high" | "medium";
-};
-
 export type SnippetOpportunity = {
 	keyword: string;
 	searchVolume: number;
@@ -105,7 +95,6 @@ export type ActionType =
 	| "add_internal_links"
 	| "optimize_existing"
 	| "create_content"
-	| "fix_cannibalization"
 	| "steal_snippet";
 
 export type ActionCategory =
@@ -138,9 +127,8 @@ export type AnalysisResult = {
 	technicalIssues: TechnicalIssue[];
 	internalLinkingIssues: InternalLinkingIssues;
 	competitorGaps: CompetitorGap[];
-	cannibalizationIssues: CannibalizationIssue[];
 	snippetOpportunities: SnippetOpportunity[];
 	discoveredCompetitors: DiscoveredCompetitor[];
 	actionPlan: PrioritizedAction[];
-	coreWebVitals?: CoreWebVitalsData;
+	aiReadiness?: AIReadinessData;
 };

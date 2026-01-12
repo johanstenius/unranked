@@ -26,7 +26,6 @@ const LIMITS = {
 	MAX_TECHNICAL: 3,
 	MAX_QUICK_WINS: 3,
 	MAX_OPPORTUNITIES: 2,
-	MAX_CANNIBALIZATION: 1,
 	MAX_SNIPPETS: 1,
 } as const;
 
@@ -35,7 +34,6 @@ const EFFORT_SCORES: Record<ActionType, number> = {
 	add_internal_links: 80,
 	optimize_existing: 60,
 	steal_snippet: 50,
-	fix_cannibalization: 40,
 	create_content: 30,
 };
 
@@ -44,7 +42,6 @@ const EFFORT_LABELS: Record<ActionType, "low" | "medium" | "high"> = {
 	add_internal_links: "low",
 	optimize_existing: "medium",
 	steal_snippet: "medium",
-	fix_cannibalization: "medium",
 	create_content: "high",
 };
 
@@ -189,34 +186,6 @@ function collectOpportunityActions(
 		});
 }
 
-function collectCannibalizationActions(
-	results: ComponentResults,
-): PrioritizedAction[] {
-	return (results.cannibalizationIssues ?? [])
-		.filter((i) => i.severity === "high")
-		.slice(0, LIMITS.MAX_CANNIBALIZATION)
-		.map((issue, idx) => {
-			const volumeScore = normalizeScore(issue.searchVolume, 5000);
-			const priority = calculatePriority(
-				volumeScore,
-				70, // position impact (high - fixing helps)
-				60, // medium difficulty
-				EFFORT_SCORES.fix_cannibalization,
-			);
-			return {
-				id: generateId("fix_cannibalization", idx),
-				priority,
-				type: "fix_cannibalization" as const,
-				title: `Fix cannibalization for "${issue.keyword}"`,
-				description: `${issue.pages.length} pages competing - consolidate or differentiate`,
-				keyword: issue.keyword,
-				estimatedImpact: { searchVolume: issue.searchVolume },
-				effort: EFFORT_LABELS.fix_cannibalization,
-				category: "optimization" as const,
-			};
-		});
-}
-
 function collectSnippetActions(results: ComponentResults): PrioritizedAction[] {
 	return (results.snippetOpportunities ?? [])
 		.filter((s) => s.difficulty === "easy")
@@ -259,7 +228,6 @@ async function runActionPlan(
 		allActions.push(
 			...collectQuickWinActions(results),
 			...collectOpportunityActions(results),
-			...collectCannibalizationActions(results),
 			...collectSnippetActions(results),
 		);
 	}
@@ -276,14 +244,9 @@ async function runActionPlan(
 
 export const actionPlanComponent: ComponentEntry<PrioritizedAction[]> = {
 	key: "actionPlan",
-	dependencies: [
-		"technicalIssues",
-		"internalLinking",
-		"quickWins",
-		"keywordOpportunities",
-		"cannibalization",
-		"snippetOpportunities",
-	],
+	// Only hard dependencies - components that MUST run first
+	// Other data is optional (handled with ?? [] in collectors)
+	dependencies: ["technicalIssues", "internalLinking"],
 	run: runActionPlan,
 	store: (results, data) => ({ ...results, actionPlan: data }),
 	sseKey: null, // Action plan sent via separate emitActionPlan event

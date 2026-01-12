@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "@/components/motion";
+import { TIERS } from "@/lib/api";
 import type { AuditTier } from "@/lib/api";
-import { tierInfo } from "@/lib/api";
 import { billingEnabled } from "@/lib/config";
 import Link from "next/link";
 
@@ -12,7 +12,7 @@ type PricingCardProps = {
 };
 
 export function PricingCard({ tier, featured }: PricingCardProps) {
-	const info = tierInfo[tier];
+	const info = TIERS[tier];
 	const isPaidTier = tier !== "FREE";
 	const isDisabled = isPaidTier && !billingEnabled;
 

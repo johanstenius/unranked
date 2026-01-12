@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { env } from "../../config/env.js";
+import { getErrorMessage } from "../../lib/errors.js";
 import { createLogger } from "../../lib/logger.js";
 import { type AuditTier, auditTierSchema } from "../../schemas/audit.schema.js";
 import type {
@@ -250,7 +251,7 @@ export async function issueRefund(orderId: string): Promise<RefundResult> {
 			message: "Refund was not processed",
 		};
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ orderId, error: message }, "Refund exception");
 		return {
 			success: false,

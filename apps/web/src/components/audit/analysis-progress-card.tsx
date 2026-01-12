@@ -1,70 +1,40 @@
 "use client";
 
-import type {
-	AuditStatus,
-	CWVPageResult,
-	ComponentState,
-	ComponentStates,
-} from "@/lib/types";
-import { AnimatePresence, motion } from "framer-motion";
+import type { AuditStatus, ComponentState, ComponentStates } from "@/lib/types";
+import { motion } from "framer-motion";
+
+/**
+ * Phase info from API tierConfig
+ */
+type PhaseInfo = {
+	id: string;
+	label: string;
+	runningLabel: string;
+};
 
 type AnalysisProgressCardProps = {
 	status: AuditStatus;
 	pagesFound: number | null;
 	sitemapUrlCount: number | null;
 	components: ComponentStates;
-	cwvPages: CWVPageResult[];
-	cwvTotal: number;
+	/** Phases to display - from tierConfig */
+	phases: PhaseInfo[];
 };
-
-// Pipeline phases mapped to component state keys
-type Phase = {
-	key: string;
-	label: string;
-	runningLabel: string;
-	componentKey: keyof ComponentStates;
-};
-
-const PHASES: Phase[] = [
-	{
-		key: "crawl",
-		label: "Crawl",
-		runningLabel: "Discovering pages",
-		componentKey: "crawl",
-	},
-	{
-		key: "technical",
-		label: "Technical",
-		runningLabel: "Checking technical SEO",
-		componentKey: "technical",
-	},
-	{
-		key: "performance",
-		label: "Performance",
-		runningLabel: "Measuring page speed",
-		componentKey: "coreWebVitals",
-	},
-	{
-		key: "rankings",
-		label: "Rankings",
-		runningLabel: "Analyzing rankings",
-		componentKey: "rankings",
-	},
-	{
-		key: "opportunities",
-		label: "Opportunities",
-		runningLabel: "Finding opportunities",
-		componentKey: "opportunities",
-	},
-];
 
 type ComponentStatusValue = ComponentState<unknown>["status"];
 
+/**
+ * Get component status for a phase from component states.
+ * The phase.id maps to a component key in ComponentStates.
+ */
 function getPhaseStatus(
 	components: ComponentStates,
-	key: keyof ComponentStates,
+	phaseId: string,
 ): ComponentStatusValue {
-	return components[key].status;
+	// Map phase IDs to component keys (some have different names)
+	const componentKey = phaseId === "aiReadiness" ? "aiReadiness" : phaseId;
+	const component = components[componentKey as keyof ComponentStates];
+	return component?.status ?? "pending";
 }
 
 function PhaseIndicator({ status }: { status: ComponentStatusValue }) {
@@ -112,76 +82,24 @@ function PhaseIndicator({ status }: { status: ComponentStatusValue }) {
 	);
 }
 
-function CWVMiniPreview({ pages }: { pages: CWVPageResult[] }) {
-	const recentPages = pages.slice(-3).reverse();
-
-	if (recentPages.length === 0) return null;
-
-	return (
-		<div className="mt-2 h-[54px] overflow-hidden">
-			<AnimatePresence mode="popLayout">
-				{recentPages.map((page, idx) => {
-					const pathname = new URL(page.url).pathname;
-					const isFirst = idx === 0;
-
-					return (
-						<motion.div
-							key={page.url}
-							initial={{ opacity: 0, x: -8 }}
-							animate={{ opacity: isFirst ? 1 : 0.4, x: 0 }}
-							exit={{ opacity: 0, x: 8 }}
-							transition={{ duration: 0.15 }}
-							className="flex items-center gap-1.5 text-xs h-[18px]"
-						>
-							{page.performance !== null ? (
-								<span
-									className={`font-mono font-semibold w-6 text-right ${
-										page.performance >= 90
-											? "text-status-good"
-											: page.performance >= 50
-												? "text-status-warn"
-												: "text-status-crit"
-									}`}
-								>
-									{Math.round(page.performance)}
-								</span>
-							) : (
-								<span className="font-mono text-text-tertiary w-6 text-right">
-									--
-								</span>
-							)}
-							<span
-								className={`truncate ${isFirst ? "text-text-secondary" : "text-text-tertiary"}`}
-								style={{ maxWidth: "140px" }}
-							>
-								{pathname}
-							</span>
-						</motion.div>
-					);
-				})}
-			</AnimatePresence>
-		</div>
-	);
-}
-
 export function AnalysisProgressCard({
 	status,
 	pagesFound,
 	sitemapUrlCount,
 	components,
-	cwvPages,
-	cwvTotal,
+	phases,
 }: AnalysisProgressCardProps) {
-	const completedCount = PHASES.filter(
-		(p) => getPhaseStatus(components, p.componentKey) === "completed",
+	const completedCount = phases.filter(
+		(p) => getPhaseStatus(components, p.id) === "completed",
 	).length;
 
 	// Find all running phases (can be multiple due to parallelism)
-	const runningPhases = PHASES.filter(
-		(p) => getPhaseStatus(components, p.componentKey) === "running",
+	const runningPhases = phases.filter(
+		(p) => getPhaseStatus(components, p.id) === "running",
 	);
 
-	const progressPercent = (completedCount / PHASES.length) * 100;
+	const progressPercent =
+		phases.length > 0 ? (completedCount / phases.length) * 100 : 0;
 
 	function getStatusMessage(): string {
 		if (status === "PENDING") return "Starting analysis...";
@@ -249,7 +167,7 @@ export function AnalysisProgressCard({
 								{getStatusMessage()}
 							</h2>
 							<p className="text-sm text-text-secondary">
-								{completedCount} of {PHASES.length} phases complete
+								{completedCount} of {phases.length} phases complete
 							</p>
 						</div>
 					</div>
@@ -267,17 +185,16 @@ export function AnalysisProgressCard({
 					</motion.div>
 				</div>
 
-				{/* Phases - horizontal flow, no numbers */}
+				{/* Phases - horizontal flow */}
 				<div className="flex items-start gap-2">
-					{PHASES.map((phase, idx) => {
-						const phaseStatus = getPhaseStatus(components, phase.componentKey);
+					{phases.map((phase, idx) => {
+						const phaseStatus = getPhaseStatus(components, phase.id);
 						const isComplete = phaseStatus === "completed";
 						const isRunning = phaseStatus === "running";
-						const isPerformance = phase.key === "performance";
-						const isLast = idx === PHASES.length - 1;
+						const isLast = idx === phases.length - 1;
 
 						return (
-							<div key={phase.key} className="flex items-start flex-1">
+							<div key={phase.id} className="flex items-start flex-1">
 								<div className="flex flex-col items-center flex-1">
 									<PhaseIndicator status={phaseStatus} />
 
@@ -292,35 +209,6 @@ export function AnalysisProgressCard({
 									>
 										{phase.label}
 									</span>
-
-									{/* CWV streaming preview for Performance phase */}
-									{isPerformance && isRunning && cwvTotal > 0 && (
-										<motion.div
-											initial={{ opacity: 0, height: 0 }}
-											animate={{ opacity: 1, height: "auto" }}
-											className="mt-2 text-center"
-										>
-											<div className="text-xs text-text-secondary">
-												<span className="font-mono font-medium text-text-primary">
-													{cwvPages.length}
-												</span>
-												<span className="mx-0.5">/</span>
-												<span className="font-mono">{cwvTotal}</span>
-											</div>
-											<CWVMiniPreview pages={cwvPages} />
-										</motion.div>
-									)}
-
-									{/* Show page count when complete */}
-									{isPerformance && isComplete && cwvPages.length > 0 && (
-										<motion.div
-											initial={{ opacity: 0 }}
-											animate={{ opacity: 1 }}
-											className="mt-1 text-xs text-text-tertiary"
-										>
-											{cwvPages.length} pages
-										</motion.div>
-									)}
 								</div>
 
 								{/* Connector */}

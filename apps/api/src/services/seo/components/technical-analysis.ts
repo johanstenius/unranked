@@ -75,6 +75,43 @@ function isDuplicate(counts: Map<string, number>, value: string): boolean {
 	return (counts.get(normalize(value)) || 0) > 1;
 }
 
+/**
+ * Functional pages where thin content is expected and normal.
+ * These pages serve a UI/interaction purpose, not content.
+ */
+const FUNCTIONAL_PAGE_PATTERNS = [
+	"/login",
+	"/signin",
+	"/signup",
+	"/register",
+	"/logout",
+	"/dashboard",
+	"/admin",
+	"/settings",
+	"/account",
+	"/profile",
+	"/cart",
+	"/checkout",
+	"/password",
+	"/reset",
+	"/verify",
+	"/confirm",
+	"/oauth",
+	"/callback",
+	"/auth",
+];
+
+function isFunctionalPage(url: string): boolean {
+	try {
+		const path = new URL(url).pathname.toLowerCase();
+		return FUNCTIONAL_PAGE_PATTERNS.some(
+			(pattern) => path === pattern || path.startsWith(`${pattern}/`),
+		);
+	} catch {
+		return false;
+	}
+}
+
 function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 	const issues: TechnicalIssue[] = [];
 
@@ -212,25 +249,27 @@ function findPageTechnicalIssues(pages: CrawledPage[]): TechnicalIssue[] {
 			}
 		}
 
-		// Thin content
-		if (page.wordCount < THRESHOLDS.wordCount.critical) {
-			issues.push({
-				url: page.url,
-				issue: `Very thin content (less than ${THRESHOLDS.wordCount.critical} words)`,
-				severity: SEVERITY.HIGH,
-			});
-		} else if (page.wordCount < THRESHOLDS.wordCount.thin) {
-			issues.push({
-				url: page.url,
-				issue: `Thin content (under ${THRESHOLDS.wordCount.thin} words)`,
-				severity: SEVERITY.MEDIUM,
-			});
-		} else if (page.wordCount < THRESHOLDS.wordCount.short) {
-			issues.push({
-				url: page.url,
-				issue: `Short content (under ${THRESHOLDS.wordCount.short} words)`,
-				severity: SEVERITY.LOW,
-			});
+		// Thin content - skip functional pages (login, signup, etc.) where thin content is expected
+		if (!isFunctionalPage(page.url)) {
+			if (page.wordCount < THRESHOLDS.wordCount.critical) {
+				issues.push({
+					url: page.url,
+					issue: `Very thin content (less than ${THRESHOLDS.wordCount.critical} words)`,
+					severity: SEVERITY.HIGH,
+				});
+			} else if (page.wordCount < THRESHOLDS.wordCount.thin) {
+				issues.push({
+					url: page.url,
+					issue: `Thin content (under ${THRESHOLDS.wordCount.thin} words)`,
+					severity: SEVERITY.MEDIUM,
+				});
+			} else if (page.wordCount < THRESHOLDS.wordCount.short) {
+				issues.push({
+					url: page.url,
+					issue: `Short content (under ${THRESHOLDS.wordCount.short} words)`,
+					severity: SEVERITY.LOW,
+				});
+			}
 		}
 
 		// Image accessibility

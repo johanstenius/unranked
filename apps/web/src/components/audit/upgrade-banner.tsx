@@ -2,7 +2,7 @@
 
 import { motion } from "@/components/motion";
 import { Spinner } from "@/components/ui/spinner";
-import { createUpgradeCheckout, tierInfo } from "@/lib/api";
+import { TIERS, createUpgradeCheckout } from "@/lib/api";
 import { billingEnabled } from "@/lib/config";
 import type { ComponentState, Opportunity } from "@/lib/types";
 import { useState } from "react";
@@ -21,11 +21,8 @@ export function UpgradeBanner({
 
 	const opportunitiesCount =
 		opportunities.status === "completed" ? opportunities.data.length : 0;
-	const freeLimit = tierInfo.FREE.opportunities;
-	const hiddenOpportunities =
-		typeof freeLimit === "number"
-			? Math.max(0, opportunitiesCount - freeLimit)
-			: 0;
+	// FREE tier has no opportunities component, so all are "hidden"
+	const hiddenOpportunities = opportunitiesCount;
 
 	async function handleUpgrade(tier: "SCAN" | "AUDIT" | "DEEP_DIVE") {
 		setLoading(true);
@@ -84,7 +81,7 @@ export function UpgradeBanner({
 										<span>Processing...</span>
 									</>
 								) : (
-									<>Upgrade to Audit — ${tierInfo.AUDIT.price}</>
+									<>Upgrade to Audit — €{TIERS.AUDIT.price}</>
 								)}
 							</motion.button>
 
@@ -96,7 +93,7 @@ export function UpgradeBanner({
 								whileTap={{ scale: 0.98 }}
 								className="h-10 px-4 bg-surface border border-border-active text-sm font-medium text-text-primary rounded hover:border-border-focus hover:bg-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 							>
-								Scan — ${tierInfo.SCAN.price}
+								Scan — €{TIERS.SCAN.price}
 							</motion.button>
 						</div>
 					) : (

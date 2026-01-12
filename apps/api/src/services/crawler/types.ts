@@ -59,6 +59,8 @@ export type CrawlResult = {
 	sitemapUrlCount: number;
 	hasRobotsTxt: boolean;
 	hasSitemap: boolean;
+	robotsTxtContent: string | null;
+	hasLlmsTxt: boolean;
 };
 
 export type DiscoverResult = {

@@ -2,9 +2,21 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { z } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 import type { AppEnv } from "../app.js";
-import { type AuditSSEEvent, subscribe } from "../lib/audit-events.js";
+import {
+	type AuditSSEEvent,
+	emitAuditStatus,
+	subscribe,
+} from "../lib/audit-events.js";
+import { createLogger } from "../lib/logger.js";
+
+const log = createLogger("audit.routes");
+import { queueCrawlJob } from "../jobs/crawl.job.js";
+import { queueFinalAnalysisJob } from "../jobs/final-analysis.job.js";
+import { queueFreeAuditJob } from "../jobs/free-audit.job.js";
+import { getQueue } from "../lib/queue.js";
 import * as auditRepo from "../repositories/audit.repository.js";
 import * as briefRepo from "../repositories/brief.repository.js";
+import * as crawledPageRepo from "../repositories/crawled-page.repository.js";
 import {
 	type AuditProgressResponse,
 	type AuditStateResponse,
@@ -14,6 +26,7 @@ import {
 	type SearchIntentResponse,
 	type SectionInfoResponse,
 	type SectionStatsResponse,
+	TIERS,
 	type UpgradeHints,
 	analysisResponseSchema,
 	auditResponseSchema,
@@ -22,45 +35,59 @@ import {
 	createAuditSchema,
 	discoverRequestSchema,
 	discoverResponseSchema,
-	tierLimits,
+	getComponents,
+	getLimits,
+	getPhases,
 } from "../schemas/audit.schema.js";
+import {
+	type GeneratedBrief,
+	generateSingleBrief,
+} from "../services/brief/generator.js";
 import { generateTemplate } from "../services/brief/templates.js";
+import { suggestCompetitors } from "../services/competitor-suggestions.js";
 import {
 	discoverSections,
 	discoverSectionsStream,
 } from "../services/crawler/crawler.js";
-import type { AnalysisResult } from "../services/seo/analysis.js";
-import type { AuditProgress } from "../types/audit-progress.js";
-
+import { analyzeKeywords } from "../services/keyword-analysis.js";
+import type {
+	AnalysisResult,
+	OpportunityCluster,
+} from "../services/seo/analysis.js";
+import { preflightRankingsCheck } from "../services/seo/dataforseo.js";
+import type { PipelineState } from "../types/audit-state.js";
 type StatusString = "pending" | "running" | "completed" | "retrying" | "failed";
 
-function extractStatus(value: unknown): StatusString {
-	if (typeof value === "string") return value as StatusString;
-	if (value && typeof value === "object" && "status" in value) {
-		return (value as { status: string }).status as StatusString;
-	}
-	return "pending";
+type PipelineProgress = Record<string, { status?: string }>;
+
+function getStatus(
+	progress: PipelineProgress | undefined,
+	key: string,
+): StatusString {
+	const comp = progress?.[key];
+	if (!comp?.status) return "pending";
+	return comp.status as StatusString;
 }
 
 function toProgressResponse(
-	progress: AuditProgress | null,
+	pipelineState: { progress?: PipelineProgress; retryCount?: number } | null,
 ): AuditProgressResponse | null {
-	if (!progress) return null;
+	if (!pipelineState) return null;
+	const progress = pipelineState.progress;
 	return {
-		crawl: extractStatus(progress.crawl),
-		technicalIssues: extractStatus(progress.technicalIssues),
-		internalLinking: extractStatus(progress.internalLinking),
-		duplicateContent: extractStatus(progress.duplicateContent),
-		redirectChains: extractStatus(progress.redirectChains),
-		coreWebVitals: extractStatus(progress.coreWebVitals),
-		currentRankings: extractStatus(progress.currentRankings),
-		competitorAnalysis: extractStatus(progress.competitorAnalysis),
-		keywordOpportunities: extractStatus(progress.keywordOpportunities),
-		intentClassification: extractStatus(progress.intentClassification),
-		keywordClustering: extractStatus(progress.keywordClustering),
-		quickWins: extractStatus(progress.quickWins),
-		briefs: extractStatus(progress.briefs),
-		retryCount: progress.retryCount ?? 0,
+		crawl: getStatus(progress, "crawl"),
+		technicalIssues: getStatus(progress, "technicalIssues"),
+		internalLinking: getStatus(progress, "internalLinking"),
+		duplicateContent: getStatus(progress, "duplicateContent"),
+		redirectChains: getStatus(progress, "redirectChains"),
+		currentRankings: getStatus(progress, "currentRankings"),
+		competitorAnalysis: getStatus(progress, "competitorAnalysis"),
+		keywordOpportunities: getStatus(progress, "keywordOpportunities"),
+		snippetOpportunities: getStatus(progress, "snippetOpportunities"),
+		quickWins: getStatus(progress, "quickWins"),
+		briefs: getStatus(progress, "briefs"),
+		actionPlan: getStatus(progress, "actionPlan"),
+		retryCount: pipelineState.retryCount ?? 0,
 	};
 }
 
@@ -81,19 +108,18 @@ function buildUpgradeHints(
 	tier: AuditTier,
 	totalOpportunities: number,
 ): UpgradeHints {
-	const limits = tierLimits[tier];
-	const displayedOpportunities =
-		limits.keywords === "all"
-			? totalOpportunities
-			: Math.min(totalOpportunities, limits.keywords);
+	const limits = TIERS[tier].limits;
+	// FREE tier has no opportunities component, paid tiers show all
+	const hasOpportunities = tier !== "FREE";
+	const displayedOpportunities = hasOpportunities ? totalOpportunities : 0;
 
 	const tierUpgrades: UpgradeHints["tierUpgrades"] = {};
-	const tiers: AuditTier[] = ["SCAN", "AUDIT", "DEEP_DIVE"];
-	for (const t of tiers) {
+	const allTiers: AuditTier[] = ["SCAN", "AUDIT", "DEEP_DIVE"];
+	for (const t of allTiers) {
 		if (t !== tier) {
-			const l = tierLimits[t];
+			const l = TIERS[t].limits;
 			tierUpgrades[t] = {
-				keywords: l.keywords,
+				keywords: "all", // Paid tiers always show all
 				briefs: l.briefs,
 				competitors: l.competitors,
 				pdfExport: l.pdfExport,
@@ -117,7 +143,6 @@ function buildAnalysisResponse(
 	siteUrl: string,
 	healthScore: HealthScoreResponse | null,
 	tier: AuditTier,
-	coreWebVitals?: AnalysisResult["coreWebVitals"],
 ) {
 	const sectionStats: SectionStatsResponse[] = detectedSections.map((s) => {
 		const sectionRankings = (analysis.currentRankings ?? []).filter(
@@ -140,13 +165,9 @@ function buildAnalysisResponse(
 	});
 
 	const allOpportunities = analysis.opportunities ?? [];
-	const limits = tierLimits[tier];
 
-	// Filter opportunities based on tier
-	const opportunities =
-		limits.keywords === "all"
-			? allOpportunities
-			: allOpportunities.slice(0, limits.keywords);
+	// FREE tier has no opportunities component, paid tiers show all
+	const opportunities = tier === "FREE" ? [] : allOpportunities;
 
 	return {
 		currentRankings: analysis.currentRankings ?? [],
@@ -159,13 +180,11 @@ function buildAnalysisResponse(
 			underlinkedPages: [],
 		},
 		competitorGaps: analysis.competitorGaps ?? [],
-		cannibalizationIssues: analysis.cannibalizationIssues ?? [],
 		snippetOpportunities: analysis.snippetOpportunities ?? [],
 		sectionStats,
 		healthScore,
 		discoveredCompetitors: analysis.discoveredCompetitors ?? [],
 		upgradeHints: buildUpgradeHints(tier, allOpportunities.length),
-		coreWebVitals,
 	};
 }
 
@@ -235,25 +254,33 @@ type AuditDbModel = {
 	completedAt: Date | null;
 	pagesFound: number | null;
 	sitemapUrlCount: number | null;
-	progress: unknown;
-	opportunities: unknown;
+	pipelineState: unknown;
 	healthScore: unknown;
 	briefs: BriefDbModel[];
+	isNewSite: boolean;
+	// New simplified flow columns
+	crawlComplete: boolean;
+	suggestedCompetitors: unknown;
+	selectedCompetitors: string[];
+	suggestedClusters: unknown;
+	selectedClusters: string[];
 };
 
 type ComponentStatus = "pending" | "running" | "completed" | "failed";
 
+type PipelineStateJson = {
+	progress?: Record<string, { status?: string }>;
+	results?: AnalysisResult;
+};
+
 function getProgressStatus(
-	progress: AuditProgress | null,
-	key: keyof AuditProgress,
+	pipelineState: PipelineStateJson | null,
+	key: string,
 ): ComponentStatus {
-	if (!progress) return "pending";
-	const value = progress[key];
-	if (typeof value === "string") return value as ComponentStatus;
-	if (value && typeof value === "object" && "status" in value) {
-		return (value as { status: string }).status as ComponentStatus;
-	}
-	return "pending";
+	if (!pipelineState?.progress) return "pending";
+	const comp = pipelineState.progress[key];
+	if (!comp?.status) return "pending";
+	return comp.status as ComponentStatus;
 }
 
 function buildComponentState<T>(
@@ -277,66 +304,82 @@ function buildComponentState<T>(
 	}
 }
 
+type PipelineStateWithInteractive = PipelineStateJson & {
+	interactivePhase?: string;
+	suggestedCompetitors?: Array<{
+		domain: string;
+		reason: string;
+		confidence: number;
+	}>;
+	selectedCompetitors?: string[];
+	suggestedClusters?: Array<{
+		id: string;
+		name: string;
+		keywords: Array<{ keyword: string; volume: number }>;
+		totalVolume: number;
+	}>;
+	selectedClusterIds?: string[];
+	crawlComplete?: boolean;
+	interactiveComplete?: boolean;
+};
+
 function buildAuditState(audit: AuditDbModel): AuditStateResponse {
-	const progress = audit.progress as AuditProgress | null;
-	const analysis = audit.opportunities as AnalysisResult | null;
+	const pipelineState =
+		audit.pipelineState as PipelineStateWithInteractive | null;
+	const analysis = pipelineState?.results ?? null;
 	const healthScore = audit.healthScore as HealthScoreResponse | null;
 
-	// Build component states from progress + analysis data
+	// Build component states from pipelineState.progress + pipelineState.results
 	const components: ComponentStatesResponse = {
-		crawl: buildComponentState(getProgressStatus(progress, "crawl"), null),
+		crawl: buildComponentState(getProgressStatus(pipelineState, "crawl"), null),
 		technical: buildComponentState(
-			getProgressStatus(progress, "technicalIssues"),
+			getProgressStatus(pipelineState, "technicalIssues"),
 			analysis?.technicalIssues ?? [],
 		),
 		internalLinking: buildComponentState(
-			getProgressStatus(progress, "internalLinking"),
+			getProgressStatus(pipelineState, "internalLinking"),
 			analysis?.internalLinkingIssues ?? {
 				orphanPages: [],
 				underlinkedPages: [],
 			},
 		),
 		duplicateContent: buildComponentState(
-			getProgressStatus(progress, "duplicateContent"),
+			getProgressStatus(pipelineState, "duplicateContent"),
 			[], // Not stored separately yet
 		),
 		redirectChains: buildComponentState(
-			getProgressStatus(progress, "redirectChains"),
+			getProgressStatus(pipelineState, "redirectChains"),
 			[], // Not stored separately yet
 		),
-		coreWebVitals: buildComponentState(
-			getProgressStatus(progress, "coreWebVitals"),
-			analysis?.coreWebVitals,
+		aiReadiness: buildComponentState(
+			getProgressStatus(pipelineState, "aiReadiness"),
+			analysis?.aiReadiness,
 		),
 		rankings: buildComponentState(
-			getProgressStatus(progress, "currentRankings"),
+			getProgressStatus(pipelineState, "currentRankings"),
 			analysis?.currentRankings ?? [],
 		),
 		opportunities: buildComponentState(
-			getProgressStatus(progress, "keywordOpportunities"),
+			getProgressStatus(pipelineState, "keywordOpportunities"),
 			analysis?.opportunities ?? [],
 		),
 		quickWins: buildComponentState(
-			getProgressStatus(progress, "quickWins"),
+			getProgressStatus(pipelineState, "quickWins"),
 			analysis?.quickWins ?? [],
 		),
 		competitors: buildComponentState(
-			getProgressStatus(progress, "competitorAnalysis"),
+			getProgressStatus(pipelineState, "competitorAnalysis"),
 			{
 				gaps: analysis?.competitorGaps ?? [],
 				discovered: analysis?.discoveredCompetitors ?? [],
 			},
 		),
-		cannibalization: buildComponentState(
-			getProgressStatus(progress, "cannibalization"),
-			analysis?.cannibalizationIssues ?? [],
-		),
 		snippets: buildComponentState(
-			getProgressStatus(progress, "snippetOpportunities"),
+			getProgressStatus(pipelineState, "snippetOpportunities"),
 			analysis?.snippetOpportunities ?? [],
 		),
 		briefs: buildComponentState(
-			getProgressStatus(progress, "briefs"),
+			getProgressStatus(pipelineState, "briefs"),
 			audit.briefs.map((b) => ({
 				id: b.id,
 				keyword: b.keyword,
@@ -365,9 +408,28 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		),
 	};
 
-	// Derive isNewSite from rankings
-	const currentRankings = analysis?.currentRankings ?? [];
-	const isNewSite = currentRankings.length === 0;
+	// Build tier config based on tier and isNewSite
+	const tierConfig = {
+		components: getComponents(audit.tier, audit.isNewSite),
+		phases: getPhases(audit.tier).map((p) => ({
+			id: p.id,
+			label: p.label,
+			runningLabel: p.runningLabel,
+		})),
+		limits: getLimits(audit.tier, audit.isNewSite),
+	};
+
+	// Map status to interactivePhase for frontend compatibility
+	let interactivePhase: AuditStateResponse["interactivePhase"] = undefined;
+	if (audit.status === "SELECTING_COMPETITORS") {
+		interactivePhase = "competitor_selection";
+	} else if (audit.status === "SELECTING_TOPICS") {
+		interactivePhase = "cluster_selection";
+	} else if (audit.status === "ANALYZING") {
+		interactivePhase = "generating";
+	} else if (audit.status === "COMPLETED") {
+		interactivePhase = "complete";
+	}
 
 	return {
 		id: audit.id,
@@ -379,12 +441,23 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		completedAt: audit.completedAt?.toISOString() ?? null,
 		pagesFound: audit.pagesFound,
 		sitemapUrlCount: audit.sitemapUrlCount,
+		tierConfig,
 		components,
-		cwvStream: [], // Populated via SSE during analysis
-		isNewSite,
+		isNewSite: audit.isNewSite,
 		opportunityClusters: analysis?.opportunityClusters,
 		actionPlan: analysis?.actionPlan,
 		healthScore,
+		// Interactive flow state - now from top-level columns
+		interactivePhase,
+		suggestedCompetitors:
+			audit.suggestedCompetitors as AuditStateResponse["suggestedCompetitors"],
+		selectedCompetitors: audit.selectedCompetitors,
+		suggestedClusters:
+			audit.suggestedClusters as AuditStateResponse["suggestedClusters"],
+		selectedClusterIds: audit.selectedClusters,
+		crawlComplete: audit.crawlComplete,
+		interactiveComplete:
+			audit.status === "ANALYZING" || audit.status === "COMPLETED",
 	};
 }
 
@@ -477,9 +550,12 @@ auditRoutes.get("/audits/:token/stream", async (c) => {
 		});
 
 		// Send current progress if available
-		if (audit.progress) {
+		if (audit.pipelineState) {
 			const progress = toProgressResponse(
-				audit.progress as AuditProgress | null,
+				audit.pipelineState as {
+					progress?: PipelineProgress;
+					retryCount?: number;
+				},
 			);
 			await stream.writeSSE({
 				id: String(eventId++),
@@ -497,7 +573,7 @@ auditRoutes.get("/audits/:token/stream", async (c) => {
 					data: JSON.stringify(event),
 				})
 				.catch((err) => {
-					console.error("[audit-stream] Error writing SSE:", err);
+					log.error({ error: err }, "Error writing SSE");
 				});
 		});
 
@@ -556,24 +632,80 @@ const createAuditRoute = createRoute({
 
 auditRoutes.openapi(createAuditRoute, async (c) => {
 	const body = c.req.valid("json");
+	const tier = body.tier as AuditTier;
+	const isPaidTier = tier !== "FREE";
 
+	// Pre-flight rankings check for paid tiers
+	let isNewSite = false;
+	let prefetchedRankings:
+		| {
+				url: string;
+				keyword: string;
+				position: number;
+				searchVolume: number;
+				estimatedTraffic: number;
+		  }[]
+		| null = null;
+
+	if (isPaidTier) {
+		const limits = TIERS[tier].limits;
+		const preflight = await preflightRankingsCheck(body.siteUrl, limits.pages);
+		isNewSite = preflight.isNewSite;
+		prefetchedRankings = preflight.rankings;
+	}
+
+	// Create audit
 	const audit = await auditRepo.createAudit({
 		siteUrl: body.siteUrl,
 		productDesc: body.productDesc,
 		competitors: body.competitors,
 		sections: body.sections ?? [],
+		targetKeywords: body.targetKeywords,
 		tier: body.tier,
 		email: body.email,
+		isNewSite,
+		prefetchedRankings: prefetchedRankings ?? undefined,
 	});
+
+	const queue = await getQueue();
+
+	if (isPaidTier) {
+		// Paid tier: queue background crawl, run competitor suggestions inline
+		await queueCrawlJob(queue, audit.id);
+
+		// Generate competitor suggestions immediately
+		const suggestions = await suggestCompetitors({
+			productDesc: body.productDesc ?? "",
+			seedKeywords: body.targetKeywords ?? [],
+			siteUrl: body.siteUrl,
+		});
+
+		// Update audit with suggestions and set status to SELECTING_COMPETITORS
+		await auditRepo.updateAudit(audit.id, {
+			suggestedCompetitors: suggestions,
+			status: "SELECTING_COMPETITORS",
+			startedAt: new Date(),
+		});
+
+		log.info(
+			{ auditId: audit.id, suggestions: suggestions.length },
+			"Paid tier audit created, competitor selection ready",
+		);
+	} else {
+		// FREE tier: queue full audit job
+		await queueFreeAuditJob(queue, audit.id);
+		log.info({ auditId: audit.id }, "FREE tier audit created and queued");
+	}
 
 	return c.json(
 		{
 			accessToken: audit.accessToken,
-			status: audit.status,
+			status: isPaidTier ? "SELECTING_COMPETITORS" : audit.status,
 			siteUrl: audit.siteUrl,
 			productDesc: audit.productDesc,
 			competitors: audit.competitors,
 			sections: audit.sections,
+			targetKeywords: audit.targetKeywords,
 			detectedSections: null,
 			tier: audit.tier,
 			pagesFound: audit.pagesFound,
@@ -638,10 +770,16 @@ auditRoutes.openapi(getAuditRoute, async (c) => {
 		completedAt: audit.completedAt,
 		pagesFound: audit.pagesFound,
 		sitemapUrlCount: audit.sitemapUrlCount,
-		progress: audit.progress,
-		opportunities: audit.opportunities,
+		pipelineState: audit.pipelineState,
 		healthScore: audit.healthScore,
 		briefs: audit.briefs,
+		isNewSite: audit.isNewSite,
+		// New columns
+		crawlComplete: audit.crawlComplete,
+		suggestedCompetitors: audit.suggestedCompetitors,
+		selectedCompetitors: audit.selectedCompetitors,
+		suggestedClusters: audit.suggestedClusters,
+		selectedClusters: audit.selectedClusters,
 	});
 
 	return c.json(auditState, 200);
@@ -704,7 +842,6 @@ auditRoutes.openapi(getAuditAnalysisRoute, async (c) => {
 			audit.siteUrl,
 			healthScore,
 			audit.tier,
-			analysis.coreWebVitals,
 		),
 		200,
 	);
@@ -791,4 +928,435 @@ auditRoutes.openapi(getBriefRoute, async (c) => {
 	}
 
 	return c.json(mapBriefToResponse(brief), 200);
+});
+
+// ============================================================================
+// Brief Generation Endpoint (On-Demand)
+// ============================================================================
+
+const generateBriefsRequestSchema = z.object({
+	clusterTopics: z
+		.array(z.string())
+		.min(1, "At least one cluster must be selected")
+		.max(15, "Maximum 15 clusters allowed"),
+});
+
+const generateBriefsRoute = createRoute({
+	method: "post",
+	path: "/audits/{token}/briefs/generate",
+	request: {
+		params: z.object({
+			token: z.string(),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: generateBriefsRequestSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			content: {
+				"text/event-stream": {
+					schema: z.any(),
+				},
+			},
+			description: "SSE stream of brief generation progress",
+		},
+		400: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Invalid request or limit exceeded",
+		},
+		404: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Audit not found or expired",
+		},
+	},
+});
+
+auditRoutes.openapi(generateBriefsRoute, async (c) => {
+	const { token } = c.req.valid("param");
+	const { clusterTopics } = c.req.valid("json");
+
+	const audit = await auditRepo.getAuditByAccessToken(token);
+
+	if (!audit) {
+		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
+	}
+
+	const tier = audit.tier as AuditTier;
+	const limits = getLimits(tier, audit.isNewSite);
+
+	// Check how many briefs already exist
+	const existingBriefs = await briefRepo.getBriefsByAuditId(audit.id);
+	const briefsRemaining = limits.briefs - existingBriefs.length;
+
+	if (briefsRemaining <= 0) {
+		return c.json({ error: "Brief limit reached for this tier" }, 400);
+	}
+
+	if (clusterTopics.length > briefsRemaining) {
+		return c.json(
+			{
+				error: `Can only generate ${briefsRemaining} more briefs (limit: ${limits.briefs})`,
+			},
+			400,
+		);
+	}
+
+	// Get clusters from pipeline state
+	const pipelineState = audit.pipelineState as {
+		results?: { opportunityClusters?: OpportunityCluster[] };
+	} | null;
+	const allClusters = pipelineState?.results?.opportunityClusters ?? [];
+
+	if (allClusters.length === 0) {
+		return c.json({ error: "No clusters available" }, 400);
+	}
+
+	// Filter to selected clusters
+	const selectedClusters = allClusters.filter((c) =>
+		clusterTopics.includes(c.topic),
+	);
+
+	if (selectedClusters.length === 0) {
+		return c.json({ error: "No matching clusters found" }, 400);
+	}
+
+	// Get crawled pages for internal linking suggestions
+	const crawledPages = await crawledPageRepo.getCrawledPagesByAuditId(audit.id);
+
+	// Stream brief generation
+	return streamSSE(c, async (stream) => {
+		let generated = 0;
+		let failed = 0;
+
+		for (const cluster of selectedClusters) {
+			try {
+				// Send progress event
+				await stream.writeSSE({
+					event: "progress",
+					data: JSON.stringify({
+						current: generated + 1,
+						total: selectedClusters.length,
+						topic: cluster.topic,
+					}),
+				});
+
+				// Generate the brief
+				const brief = await generateSingleBrief(
+					cluster,
+					audit.productDesc,
+					crawledPages.map((p) => ({
+						url: p.url,
+						title: p.title ?? "",
+						h1: p.h1 ?? "",
+						content: p.content ?? "",
+						wordCount: p.wordCount ?? 0,
+						section: p.section ?? "/",
+						outboundLinks: (p.outboundLinks as string[]) ?? [],
+						readabilityScore: p.readabilityScore ?? null,
+						codeBlockCount: p.codeBlockCount ?? 0,
+						imageCount: p.imageCount ?? 0,
+						codeBlocks: (p.codeBlocks as string[]) ?? [],
+						metaDescription: p.metaDescription ?? undefined,
+						canonicalUrl: p.canonicalUrl ?? undefined,
+						ogTitle: p.ogTitle ?? undefined,
+						ogDescription: p.ogDescription ?? undefined,
+						ogImage: p.ogImage ?? undefined,
+						h1Count: p.h1Count ?? 1,
+						h2s: (p.h2s as string[]) ?? [],
+						h3s: (p.h3s as string[]) ?? [],
+						imagesWithoutAlt: p.imagesWithoutAlt ?? 0,
+						hasSchemaOrg: p.hasSchemaOrg ?? false,
+						schemaTypes: (p.schemaTypes as string[]) ?? [],
+						hasViewport: p.hasViewport ?? false,
+					})),
+				);
+
+				// Store brief in database
+				const storedBrief = await briefRepo.createBrief({
+					auditId: audit.id,
+					keyword: brief.keyword,
+					searchVolume: brief.searchVolume,
+					difficulty: brief.difficulty,
+					title: brief.title,
+					structure: brief.structure,
+					questions: brief.questions,
+					relatedKw: brief.relatedKw,
+					competitors: brief.competitors,
+					suggestedInternalLinks: brief.suggestedInternalLinks,
+					clusteredKeywords: brief.clusteredKeywords,
+					totalClusterVolume: brief.totalClusterVolume,
+					intent: brief.intent,
+					estimatedEffort: brief.estimatedEffort,
+				});
+
+				// Send brief event
+				await stream.writeSSE({
+					event: "brief",
+					data: JSON.stringify(
+						mapBriefToResponse({
+							...storedBrief,
+							competitors: brief.competitors,
+						}),
+					),
+				});
+
+				generated++;
+			} catch (error) {
+				log.error({ error, topic: cluster.topic }, "Brief generation failed");
+				failed++;
+
+				await stream.writeSSE({
+					event: "error",
+					data: JSON.stringify({
+						topic: cluster.topic,
+						error: error instanceof Error ? error.message : "Unknown error",
+					}),
+				});
+			}
+		}
+
+		// Send completion event
+		await stream.writeSSE({
+			event: "done",
+			data: JSON.stringify({ generated, failed }),
+		});
+	});
+});
+
+// ============================================================================
+// Interactive Flow Selection Endpoints
+// ============================================================================
+
+const selectCompetitorsRequestSchema = z.object({
+	competitors: z
+		.array(z.string())
+		.min(1, "Must select at least one competitor")
+		.max(5, "Maximum 5 competitors allowed"),
+});
+
+const selectCompetitorsRoute = createRoute({
+	method: "post",
+	path: "/audits/{token}/competitors/select",
+	request: {
+		params: z.object({
+			token: z.string(),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: selectCompetitorsRequestSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: z.object({ success: z.boolean() }),
+				},
+			},
+			description: "Competitors selected, keyword analysis started",
+		},
+		400: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Invalid selection or wrong phase",
+		},
+		404: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Audit not found or expired",
+		},
+	},
+});
+
+auditRoutes.openapi(selectCompetitorsRoute, async (c) => {
+	const { token } = c.req.valid("param");
+	const { competitors } = c.req.valid("json");
+
+	const audit = await auditRepo.getAuditByAccessToken(token);
+
+	if (!audit) {
+		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
+	}
+
+	// Verify we're in the right status
+	if (audit.status !== "SELECTING_COMPETITORS") {
+		return c.json(
+			{
+				error: `Invalid status: ${audit.status}, expected SELECTING_COMPETITORS`,
+			},
+			400,
+		);
+	}
+
+	// Check tier limits
+	const tier = audit.tier as AuditTier;
+	const limits = getLimits(tier, audit.isNewSite);
+
+	if (competitors.length > limits.competitors) {
+		return c.json(
+			{ error: `Max ${limits.competitors} competitors for ${tier} tier` },
+			400,
+		);
+	}
+
+	// Run keyword analysis with selected competitors
+	log.info(
+		{ auditId: audit.id, competitors: competitors.length },
+		"Running keyword analysis",
+	);
+
+	const keywordResult = await analyzeKeywords({
+		competitors,
+		seedKeywords: audit.targetKeywords,
+	});
+
+	// Update audit with selected competitors, clusters, and new status
+	await auditRepo.updateAudit(audit.id, {
+		selectedCompetitors: competitors,
+		competitors, // Also update the legacy competitors field
+		suggestedClusters: keywordResult.clusters,
+		status: "SELECTING_TOPICS",
+	});
+
+	emitAuditStatus(audit.id, "SELECTING_TOPICS");
+
+	log.info(
+		{ auditId: audit.id, clusters: keywordResult.clusters.length },
+		"Competitors selected, topic selection ready",
+	);
+
+	return c.json({ success: true }, 200);
+});
+
+const selectClustersRequestSchema = z.object({
+	clusterIds: z
+		.array(z.string())
+		.min(1, "Must select at least one cluster")
+		.max(15, "Maximum 15 clusters allowed"),
+});
+
+const selectClustersRoute = createRoute({
+	method: "post",
+	path: "/audits/{token}/clusters/select",
+	request: {
+		params: z.object({
+			token: z.string(),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: selectClustersRequestSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: z.object({ success: z.boolean() }),
+				},
+			},
+			description: "Clusters selected, merge point check triggered",
+		},
+		400: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Invalid selection or wrong phase",
+		},
+		404: {
+			content: {
+				"application/json": {
+					schema: z.object({ error: z.string() }),
+				},
+			},
+			description: "Audit not found or expired",
+		},
+	},
+});
+
+auditRoutes.openapi(selectClustersRoute, async (c) => {
+	const { token } = c.req.valid("param");
+	const { clusterIds } = c.req.valid("json");
+
+	const audit = await auditRepo.getAuditByAccessToken(token);
+
+	if (!audit) {
+		return c.json({ error: "Audit not found" }, 404);
+	}
+
+	if (audit.expiresAt < new Date()) {
+		return c.json({ error: "Audit link has expired" }, 404);
+	}
+
+	// Verify we're in the right status
+	if (audit.status !== "SELECTING_TOPICS") {
+		return c.json(
+			{ error: `Invalid status: ${audit.status}, expected SELECTING_TOPICS` },
+			400,
+		);
+	}
+
+	// Check tier limits
+	const tier = audit.tier as AuditTier;
+	const limits = getLimits(tier, audit.isNewSite);
+
+	if (clusterIds.length > limits.briefs) {
+		return c.json(
+			{ error: `Max ${limits.briefs} briefs for ${tier} tier` },
+			400,
+		);
+	}
+
+	// Update audit with selected clusters and set status to ANALYZING
+	await auditRepo.updateAudit(audit.id, {
+		selectedClusters: clusterIds,
+		status: "ANALYZING",
+	});
+
+	emitAuditStatus(audit.id, "ANALYZING");
+
+	// Queue final analysis job
+	const queue = await getQueue();
+	await queueFinalAnalysisJob(queue, audit.id);
+
+	log.info(
+		{ auditId: audit.id, clusters: clusterIds.length },
+		"Clusters selected, final analysis queued",
+	);
+
+	return c.json({ success: true }, 200);
 });

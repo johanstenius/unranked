@@ -12,7 +12,6 @@ import type {
 	RedirectChain,
 } from "../../crawler/types.js";
 import type {
-	CannibalizationIssue,
 	CompetitorGap,
 	CurrentRanking,
 	Opportunity,
@@ -30,44 +29,42 @@ import type { InternalLinkingIssues } from "../internal-linking.js";
 // ============================================================================
 
 export type ComponentKey =
+	| "crawl"
 	| "technicalIssues"
 	| "internalLinking"
 	| "duplicateContent"
-	| "coreWebVitals"
 	| "currentRankings"
 	| "keywordOpportunities"
 	| "competitorAnalysis"
-	| "cannibalization"
-	| "intentClassification"
-	| "keywordClustering"
-	| "quickWins"
 	| "snippetOpportunities"
+	| "quickWins"
 	| "briefs"
-	| "actionPlan";
+	| "actionPlan"
+	| "aiReadiness";
 
 /**
  * Component dependency graph.
  * Key = component, Value = components that must complete first.
  */
 export const COMPONENT_DEPENDENCIES: Record<ComponentKey, ComponentKey[]> = {
-	// Local - no deps on other components
-	technicalIssues: [],
-	internalLinking: [],
-	duplicateContent: [],
+	// Crawl - first component, no deps
+	crawl: [],
 
-	// External APIs - no deps on other components
-	coreWebVitals: [],
-	currentRankings: [],
+	// Local - depend on crawl (need pages)
+	technicalIssues: ["crawl"],
+	internalLinking: ["crawl"],
+	duplicateContent: ["crawl"],
+	aiReadiness: ["crawl"],
+
+	// External APIs - depend on crawl (need pages/hostname)
+	currentRankings: ["crawl"],
 	keywordOpportunities: ["currentRankings"],
 	competitorAnalysis: ["currentRankings"],
-	cannibalization: ["currentRankings"],
 	snippetOpportunities: ["currentRankings", "competitorAnalysis"],
 
 	// AI - depends on DataForSEO
-	intentClassification: ["keywordOpportunities", "competitorAnalysis"],
-	keywordClustering: ["intentClassification"],
 	quickWins: ["currentRankings"],
-	briefs: ["keywordClustering"],
+	briefs: ["keywordOpportunities", "competitorAnalysis"],
 
 	// Aggregation - runs after all data is collected
 	actionPlan: [
@@ -75,33 +72,49 @@ export const COMPONENT_DEPENDENCIES: Record<ComponentKey, ComponentKey[]> = {
 		"internalLinking",
 		"quickWins",
 		"keywordOpportunities",
-		"cannibalization",
 		"snippetOpportunities",
 	],
 };
 
 /**
- * Components that require external APIs (retryable on failure)
+ * Components that require external APIs or network (retryable on failure)
  */
 export const EXTERNAL_COMPONENTS: readonly ComponentKey[] = [
-	"coreWebVitals",
+	"crawl", // Network requests to crawl site
 	"currentRankings",
 	"keywordOpportunities",
 	"competitorAnalysis",
 	"snippetOpportunities",
-	"intentClassification",
-	"keywordClustering",
 	"quickWins",
 	"briefs",
 ] as const;
 
 /**
- * Components that are local-only (always succeed)
+ * Components that are local-only (always succeed, no network)
  */
 export const LOCAL_COMPONENTS: readonly ComponentKey[] = [
 	"technicalIssues",
 	"internalLinking",
 	"duplicateContent",
+	"aiReadiness",
+	"actionPlan",
+] as const;
+
+/**
+ * All component keys in execution order
+ */
+export const ALL_COMPONENTS: readonly ComponentKey[] = [
+	"crawl",
+	"technicalIssues",
+	"internalLinking",
+	"duplicateContent",
+	"aiReadiness",
+	"currentRankings",
+	"keywordOpportunities",
+	"competitorAnalysis",
+	"snippetOpportunities",
+	"quickWins",
+	"briefs",
 	"actionPlan",
 ] as const;
 
@@ -114,6 +127,8 @@ export type CrawlMetadata = {
 	hasSitemap: boolean;
 	redirectChains: RedirectChain[];
 	brokenLinks: BrokenLink[];
+	robotsTxtContent: string | null;
+	hasLlmsTxt: boolean;
 };
 
 export type TierConfig = {
@@ -122,6 +137,18 @@ export type TierConfig = {
 	maxSeeds: number;
 	maxBriefs: number;
 	maxSnippets: number;
+};
+
+/**
+ * Pre-fetched ranking data from pre-flight check.
+ * Reused by rankings component to avoid duplicate API calls.
+ */
+export type PrefetchedRanking = {
+	url: string;
+	keyword: string;
+	position: number;
+	searchVolume: number;
+	estimatedTraffic: number;
 };
 
 /**
@@ -134,33 +161,68 @@ export type ComponentContext = {
 	pages: CrawledPage[];
 	crawlMetadata: CrawlMetadata;
 	competitors: string[];
+	targetKeywords: string[];
 	productDesc: string | null;
 	tier: TierConfig;
 	usage: ApiUsage;
+	/** Pre-fetched rankings from pre-flight check (paid tiers only) */
+	prefetchedRankings: PrefetchedRanking[] | null;
 };
 
 // ============================================================================
-// Core Web Vitals Types
+// AI Readiness Types
 // ============================================================================
 
-export type CWVPageResult = {
-	url: string;
-	lcp: number | null; // Largest Contentful Paint (ms)
-	cls: number | null; // Cumulative Layout Shift (score)
-	inp: number | null; // Interaction to Next Paint (ms)
-	performance: number | null; // Overall performance score (0-100)
-	status: "success" | "failed";
-	error?: string;
+export type AIBotStatus = {
+	bot: string;
+	provider: string;
+	purpose: "training" | "search" | "live" | "indexing";
+	status: "allowed" | "blocked" | "not_specified";
+	rule?: string;
 };
 
-export type CoreWebVitalsData = {
-	pages: CWVPageResult[];
+export type RobotsTxtAnalysis = {
+	exists: boolean;
+	aiBots: AIBotStatus[];
 	summary: {
-		good: number;
-		needsImprovement: number;
-		poor: number;
-		avgPerformance: number | null;
+		allowed: number;
+		blocked: number;
+		unspecified: number;
 	};
+};
+
+export type LlmsTxtInfo = {
+	exists: boolean;
+	url: string | null;
+};
+
+export type ContentStructureAnalysis = {
+	headingHierarchy: {
+		score: number; // 0-100
+		pagesWithProperH1: number;
+		pagesWithMultipleH1: number;
+		pagesWithNoH1: number;
+		avgHeadingsPerPage: number;
+	};
+	structuredData: {
+		pagesWithSchema: number;
+		schemaTypes: string[];
+		hasFAQSchema: boolean;
+		hasArticleSchema: boolean;
+		hasProductSchema: boolean;
+	};
+	contentQuality: {
+		avgWordCount: number;
+		avgReadabilityScore: number | null;
+		pagesWithThinContent: number; // < 300 words
+	};
+};
+
+export type AIReadinessData = {
+	robotsTxtAnalysis: RobotsTxtAnalysis;
+	llmsTxt: LlmsTxtInfo;
+	contentStructure: ContentStructureAnalysis;
+	score: number;
 };
 
 // ============================================================================
@@ -179,16 +241,13 @@ export type ComponentResults = {
 	technicalIssues?: TechnicalIssue[];
 	internalLinkingIssues?: InternalLinkingIssues;
 	duplicateGroups?: Array<{ urls: string[]; type: "exact" | "near" }>;
-
-	// Core Web Vitals (PageSpeed Insights)
-	coreWebVitals?: CoreWebVitalsData;
+	aiReadiness?: AIReadinessData;
 
 	// DataForSEO
 	currentRankings?: CurrentRanking[];
 	opportunities?: Opportunity[];
 	competitorGaps?: CompetitorGap[];
 	discoveredCompetitors?: DiscoveredCompetitor[];
-	cannibalizationIssues?: CannibalizationIssue[];
 	snippetOpportunities?: SnippetOpportunity[];
 
 	// AI
@@ -225,14 +284,13 @@ export type SSEComponentKey =
 	| "internalLinking"
 	| "duplicateContent"
 	| "redirectChains"
-	| "coreWebVitals"
 	| "rankings"
 	| "opportunities"
 	| "quickWins"
 	| "competitors"
-	| "cannibalization"
 	| "snippets"
-	| "briefs";
+	| "briefs"
+	| "aiReadiness";
 
 /**
  * Component registry entry (uses unknown for registry compatibility)

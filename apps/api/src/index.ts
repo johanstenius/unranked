@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
-import { registerAuditJobs } from "./jobs/audit.jobs.js";
+import { registerAllJobs } from "./jobs/index.js";
 import { createLogger } from "./lib/logger.js";
 import { getQueue, stopQueue } from "./lib/queue.js";
 
@@ -12,7 +12,7 @@ async function main() {
 
 	// Initialize job queue
 	const queue = await getQueue();
-	await registerAuditJobs(queue);
+	await registerAllJobs(queue);
 	log.info("Job queue initialized");
 
 	log.info({ port: env.PORT }, "Starting server");

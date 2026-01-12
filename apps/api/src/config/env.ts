@@ -21,9 +21,11 @@ const envSchema = z.object({
 			return val.split(",").map((s) => s.trim());
 		}),
 	ANTHROPIC_API_KEY: z.string().optional(),
+	OPENAI_API_KEY: z.string().optional(),
+	PERPLEXITY_API_KEY: z.string().optional(),
 	// AI models - defaults to latest versions
-	AI_MODEL_FAST: z.string().default("claude-haiku-4-5-20250514"),
-	AI_MODEL_QUALITY: z.string().default("claude-sonnet-4-5-20250514"),
+	AI_MODEL_FAST: z.string().default("claude-haiku-4-5"),
+	AI_MODEL_QUALITY: z.string().default("claude-sonnet-4-5"),
 	// LemonSqueezy billing
 	LEMONSQUEEZY_API_KEY: z.string(),
 	LEMONSQUEEZY_WEBHOOK_SECRET: z.string(),

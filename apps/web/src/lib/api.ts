@@ -12,7 +12,7 @@ import type {
 
 // Re-export all types for backward compatibility
 export * from "./types";
-export { tierInfo } from "./config";
+export { TIERS } from "./config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -86,6 +86,8 @@ export async function discoverSectionsStream(
 export type ValidateUrlResponse = {
 	valid: boolean;
 	error?: string;
+	productDescription?: string;
+	seedKeywords?: string[];
 };
 
 export async function validateUrl(url: string): Promise<ValidateUrlResponse> {
@@ -146,6 +148,78 @@ export async function getAuditState(token: string): Promise<AuditState> {
 	return fetchApi<AuditState>(`/audits/${token}`);
 }
 
+// ============================================================================
+// Brief Generation (On-Demand)
+// ============================================================================
+
+export type BriefGenerationEvent =
+	| { type: "progress"; current: number; total: number; topic: string }
+	| { type: "brief"; brief: Brief }
+	| { type: "error"; topic: string; error: string }
+	| { type: "done"; generated: number; failed: number };
+
+/**
+ * Generate briefs for selected clusters.
+ * Streams progress and briefs as they are generated.
+ */
+export async function generateBriefs(
+	token: string,
+	clusterTopics: string[],
+	onEvent: (event: BriefGenerationEvent) => void,
+): Promise<void> {
+	const response = await fetch(`${API_URL}/audits/${token}/briefs/generate`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ clusterTopics }),
+	});
+
+	if (!response.ok) {
+		const error = await response
+			.json()
+			.catch(() => ({ error: "Unknown error" }));
+		throw new Error(error.error || `API error: ${response.status}`);
+	}
+
+	const reader = response.body?.getReader();
+	if (!reader) throw new Error("No response body");
+
+	const decoder = new TextDecoder();
+	let buffer = "";
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+
+		buffer += decoder.decode(value, { stream: true });
+		const lines = buffer.split("\n");
+		buffer = lines.pop() || "";
+
+		for (const line of lines) {
+			if (line.startsWith("data: ")) {
+				const data = line.slice(6);
+				try {
+					const parsed = JSON.parse(data);
+					// Map SSE event names to our event types
+					if ("current" in parsed) {
+						onEvent({ type: "progress", ...parsed });
+					} else if ("keyword" in parsed) {
+						onEvent({ type: "brief", brief: parsed as Brief });
+					} else if ("topic" in parsed && "error" in parsed) {
+						onEvent({ type: "error", ...parsed });
+					} else if ("generated" in parsed) {
+						onEvent({ type: "done", ...parsed });
+					}
+				} catch {
+					// Skip invalid JSON
+				}
+			} else if (line.startsWith("event: ")) {
+				// Handle event type prefix (SSE format)
+				// The data will come in the next line
+			}
+		}
+	}
+}
+
 /**
  * Subscribe to audit SSE events.
  * Returns an unsubscribe function.
@@ -178,6 +252,18 @@ export function subscribeToAudit(
 	eventSource.addEventListener("action-plan", handleMessage);
 	eventSource.addEventListener("audit:complete", handleMessage);
 	eventSource.addEventListener("audit:error", handleMessage);
+	// Interactive flow events
+	eventSource.addEventListener("interactive:phase", handleMessage);
+	eventSource.addEventListener(
+		"interactive:competitor_suggestions",
+		handleMessage,
+	);
+	eventSource.addEventListener(
+		"interactive:cluster_suggestions",
+		handleMessage,
+	);
+	eventSource.addEventListener("interactive:crawl_complete", handleMessage);
+	eventSource.addEventListener("interactive:waiting_for_crawl", handleMessage);
 
 	eventSource.onerror = () => {
 		onError?.(new Error("SSE connection error"));
@@ -186,4 +272,34 @@ export function subscribeToAudit(
 	return () => {
 		eventSource.close();
 	};
+}
+
+// ============================================================================
+// Interactive Flow Selection
+// ============================================================================
+
+/**
+ * Submit competitor selection for interactive flow
+ */
+export async function selectCompetitors(
+	token: string,
+	competitors: string[],
+): Promise<{ success: boolean }> {
+	return fetchApi<{ success: boolean }>(`/audits/${token}/competitors/select`, {
+		method: "POST",
+		body: JSON.stringify({ competitors }),
+	});
+}
+
+/**
+ * Submit cluster selection for interactive flow
+ */
+export async function selectClusters(
+	token: string,
+	clusterIds: string[],
+): Promise<{ success: boolean }> {
+	return fetchApi<{ success: boolean }>(`/audits/${token}/clusters/select`, {
+		method: "POST",
+		body: JSON.stringify({ clusterIds }),
+	});
 }

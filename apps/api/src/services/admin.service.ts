@@ -4,17 +4,31 @@
  * Business logic for admin operations: audit listing, stats, retry, refund.
  */
 
+import { createLogger } from "../lib/logger.js";
 import * as auditRepo from "../repositories/audit.repository.js";
+import { getPagesByAuditId } from "../repositories/crawled-page.repository.js";
 import type { ApiUsage, CostBreakdown } from "../types/api-usage.js";
 import { calculateCost } from "../types/api-usage.js";
 import {
-	completeAudit,
-	runPendingComponents,
-} from "./audit-pipeline.service.js";
+	type PipelineState,
+	createEmptyPipelineState,
+} from "../types/audit-state.js";
+import {
+	type AuditTier,
+	buildDefaultCrawlMetadata,
+} from "./audit-completion.service.js";
 import {
 	type RefundResult,
 	issueRefund as lsIssueRefund,
 } from "./payments/lemonsqueezy.js";
+import {
+	getComponentsForTier,
+	getPendingComponents,
+	isAllCompleted,
+	runPipeline,
+} from "./seo/pipeline-runner.js";
+
+const log = createLogger("admin-service");
 
 export type AdminAuditListItem = {
 	id: string;
@@ -201,46 +215,93 @@ export async function retryAudit(auditId: string): Promise<RetryResult> {
 		return { success: false, message: "Audit is still in initial processing" };
 	}
 
+	// Load pages
+	const pages = await getPagesByAuditId(auditId);
+	if (pages.length === 0) {
+		return { success: false, message: "No crawled pages found" };
+	}
+
 	// Set status to RETRYING if not already
 	if (audit.status !== "RETRYING") {
 		await auditRepo.updateAuditStatus(auditId, "RETRYING");
 	}
 
-	const result = await runPendingComponents({
-		id: audit.id,
+	// Get or initialize pipeline state
+	let state =
+		(audit.pipelineState as PipelineState | null) ?? createEmptyPipelineState();
+
+	// Get components to run
+	const tier = audit.tier as AuditTier;
+	const allComponents = getComponentsForTier(tier, state.isNewSite);
+	const pendingComponents = getPendingComponents(state, allComponents);
+
+	if (pendingComponents.length === 0) {
+		return { success: true, message: "No pending components to retry" };
+	}
+
+	// Build pipeline input
+	const pipelineInput = {
+		auditId,
 		siteUrl: audit.siteUrl,
+		pages,
 		competitors: audit.competitors,
-		tier: audit.tier,
+		targetKeywords: audit.targetKeywords,
 		productDesc: audit.productDesc,
-		email: audit.email,
-		progress: audit.progress,
-		opportunities: audit.opportunities,
+		tier,
+		crawlMetadata: buildDefaultCrawlMetadata(audit),
+		isNewSite: state.isNewSite,
+	};
+
+	// Run pipeline with state persistence (no SSE in admin context)
+	const componentsRun: string[] = [];
+	const componentsFailed: string[] = [];
+
+	state = await runPipeline(pipelineInput, pendingComponents, state, {
+		onStateUpdate: async (newState) => {
+			state = newState;
+			await auditRepo.updateAudit(auditId, { pipelineState: state });
+		},
+		onComponentComplete: (key) => {
+			componentsRun.push(key);
+		},
+		onComponentFailed: (key, _error) => {
+			componentsFailed.push(key);
+		},
 	});
 
-	if (result.allDone) {
-		await completeAudit(auditId);
+	// Check if all done
+	const allDone = isAllCompleted(state, allComponents);
+
+	if (allDone) {
+		await auditRepo.updateAudit(auditId, {
+			status: "COMPLETED",
+			completedAt: new Date(),
+			retryAfter: null,
+			pipelineState: state,
+			apiUsage: state.usage,
+		});
 		return {
 			success: true,
 			message: "Audit completed successfully",
-			componentsRun: result.componentsRun,
+			componentsRun,
 			componentsFailed: [],
 		};
 	}
 
-	if (result.componentsFailed.length > 0) {
+	if (componentsFailed.length > 0) {
 		return {
 			success: false,
-			message: `Some components failed: ${result.componentsFailed.join(", ")}`,
-			componentsRun: result.componentsRun,
-			componentsFailed: result.componentsFailed,
+			message: `Some components failed: ${componentsFailed.join(", ")}`,
+			componentsRun,
+			componentsFailed,
 		};
 	}
 
 	return {
 		success: true,
-		message: `Retry in progress. Ran: ${result.componentsRun.join(", ")}`,
-		componentsRun: result.componentsRun,
-		componentsFailed: result.componentsFailed,
+		message: `Retry in progress. Ran: ${componentsRun.join(", ")}`,
+		componentsRun,
+		componentsFailed,
 	};
 }
 

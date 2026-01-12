@@ -4,22 +4,15 @@
  * These components are retryable on API failure.
  */
 
+import { getErrorMessage } from "../../../lib/errors.js";
 import { createLogger } from "../../../lib/logger.js";
 import type { ApiUsage } from "../../../types/api-usage.js";
 import {
 	type QuickWinSuggestions,
-	type SemanticCluster,
-	classifyKeywordIntents,
-	clusterKeywordsSemantic,
 	generateQuickWinSuggestions,
 } from "../../ai/anthropic.js";
 import type { CrawledPage } from "../../crawler/types.js";
-import type {
-	CurrentRanking,
-	Opportunity,
-	OpportunityCluster,
-	QuickWin,
-} from "../analysis.js";
+import type { CurrentRanking, QuickWin } from "../analysis.js";
 import * as dataForSeo from "../dataforseo.js";
 import type {
 	ComponentContext,
@@ -48,200 +41,6 @@ const CTR_BY_POSITION: Record<number, number> = {
 	9: 0.03,
 	10: 0.026,
 };
-
-// ============================================================================
-// Intent Classification Component
-// ============================================================================
-
-async function runIntentClassification(
-	ctx: ComponentContext,
-	results: ComponentResults,
-): Promise<ComponentResult<Map<string, string>>> {
-	if (ctx.tier.tier === "FREE") {
-		return { ok: true, data: new Map() };
-	}
-
-	const opportunities = results.opportunities ?? [];
-	if (opportunities.length === 0) {
-		return { ok: true, data: new Map() };
-	}
-
-	try {
-		log.info(
-			{ count: opportunities.length },
-			"Classifying intents for opportunities",
-		);
-
-		const intentMap = await classifyKeywordIntents(
-			opportunities.map((o) => o.keyword),
-			ctx.usage,
-		);
-
-		// Apply intents to opportunities in-place
-		for (const opp of opportunities) {
-			opp.intent = intentMap.get(opp.keyword.toLowerCase());
-		}
-
-		log.info({ count: intentMap.size }, "Intent classification complete");
-		return { ok: true, data: intentMap };
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		log.error({ error: message }, "Intent classification failed");
-		return { ok: false, error: message };
-	}
-}
-
-export const intentClassificationComponent: ComponentEntry<
-	Map<string, string>
-> = {
-	key: "intentClassification",
-	dependencies: ["keywordOpportunities", "competitorAnalysis"],
-	run: runIntentClassification,
-	// Intent data is applied to opportunities in-place, no separate storage needed
-	store: (results, _data) => results,
-	sseKey: null, // No SSE emission - modifies opportunities in place
-	getSSEData: () => null,
-};
-
-// ============================================================================
-// Keyword Clustering Component
-// ============================================================================
-
-function findMatchingPage(
-	clusterKeywords: string[],
-	pages: CrawledPage[],
-): string | undefined {
-	const keywordsLower = clusterKeywords.map((k) => k.toLowerCase());
-
-	for (const page of pages) {
-		const titleLower = page.title?.toLowerCase() ?? "";
-		const h1Lower = page.h1?.toLowerCase() ?? "";
-
-		for (const kw of keywordsLower) {
-			if (titleLower.includes(kw) || h1Lower.includes(kw)) {
-				return page.url;
-			}
-		}
-	}
-	return undefined;
-}
-
-function determineSuggestedAction(
-	existingPage: string | undefined,
-	clusterKeywords: string[],
-	currentRankings: CurrentRanking[],
-): "create" | "optimize" | "expand" {
-	if (!existingPage) return "create";
-
-	const rankedKeywords = currentRankings.filter((r) =>
-		clusterKeywords.some((k) => k.toLowerCase() === r.keyword.toLowerCase()),
-	);
-
-	if (rankedKeywords.length === 0) return "optimize";
-
-	const bestPosition = Math.min(...rankedKeywords.map((r) => r.position));
-	return bestPosition <= 10 ? "expand" : "optimize";
-}
-
-async function runKeywordClustering(
-	ctx: ComponentContext,
-	results: ComponentResults,
-): Promise<ComponentResult<OpportunityCluster[]>> {
-	if (ctx.tier.tier === "FREE") {
-		return { ok: true, data: [] };
-	}
-
-	const opportunities = results.opportunities ?? [];
-	const currentRankings = results.currentRankings ?? [];
-
-	if (opportunities.length === 0) {
-		return { ok: true, data: [] };
-	}
-
-	try {
-		log.info({ count: opportunities.length }, "Creating semantic clusters");
-
-		// Call AI for semantic clustering
-		const keywords = opportunities.map((o) => ({
-			keyword: o.keyword,
-			searchVolume: o.searchVolume,
-		}));
-
-		const semanticClusters = await clusterKeywordsSemantic(keywords, ctx.usage);
-
-		// Map opportunities by keyword for quick lookup
-		const oppsByKeyword = new Map<string, Opportunity>();
-		for (const opp of opportunities) {
-			oppsByKeyword.set(opp.keyword.toLowerCase(), opp);
-		}
-
-		const clusters: OpportunityCluster[] = [];
-
-		for (const sc of semanticClusters) {
-			// Get opportunities for this cluster
-			const clusterOpps: Opportunity[] = [];
-			for (const kw of sc.keywords) {
-				const opp = oppsByKeyword.get(kw.toLowerCase());
-				if (opp) {
-					clusterOpps.push({ ...opp, cluster: sc.topic });
-				}
-			}
-
-			if (clusterOpps.length === 0) continue;
-
-			// Calculate aggregate stats
-			const totalVolume = clusterOpps.reduce(
-				(sum, o) => sum + o.searchVolume,
-				0,
-			);
-			const avgDifficulty =
-				clusterOpps.reduce((sum, o) => sum + o.difficulty, 0) /
-				clusterOpps.length;
-
-			// Find existing page and determine action
-			const existingPage = findMatchingPage(sc.keywords, ctx.pages);
-			const suggestedAction = determineSuggestedAction(
-				existingPage,
-				sc.keywords,
-				currentRankings,
-			);
-
-			// Sort opportunities within cluster by impact
-			clusterOpps.sort((a, b) => b.impactScore - a.impactScore);
-
-			clusters.push({
-				topic: sc.topic,
-				opportunities: clusterOpps,
-				totalVolume,
-				avgDifficulty: Math.round(avgDifficulty),
-				suggestedAction,
-				existingPage,
-			});
-		}
-
-		// Sort clusters by total volume
-		const sortedClusters = clusters.sort(
-			(a, b) => b.totalVolume - a.totalVolume,
-		);
-
-		log.info({ count: sortedClusters.length }, "Clustering complete");
-		return { ok: true, data: sortedClusters };
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		log.error({ error: message }, "Keyword clustering failed");
-		return { ok: false, error: message };
-	}
-}
-
-export const keywordClusteringComponent: ComponentEntry<OpportunityCluster[]> =
-	{
-		key: "keywordClustering",
-		dependencies: ["intentClassification"],
-		run: runKeywordClustering,
-		store: (results, data) => ({ ...results, opportunityClusters: data }),
-		sseKey: null, // Clusters sent via separate emitClusters event
-		getSSEData: () => null,
-	};
 
 // ============================================================================
 // Quick Wins Component
@@ -376,7 +175,7 @@ async function runQuickWins(
 		log.info({ count: quickWins.length }, "Quick wins analysis complete");
 		return { ok: true, data: quickWins };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Quick wins analysis failed");
 		return { ok: false, error: message };
 	}

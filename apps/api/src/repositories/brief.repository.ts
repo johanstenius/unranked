@@ -14,6 +14,7 @@ export type CreateBriefInput = {
 	clusteredKeywords: string[];
 	totalClusterVolume: number;
 	intent?: string;
+	estimatedEffort?: string;
 };
 
 export function createBrief(input: CreateBriefInput) {
@@ -32,6 +33,7 @@ export function createBrief(input: CreateBriefInput) {
 			clusteredKeywords: input.clusteredKeywords,
 			totalClusterVolume: input.totalClusterVolume,
 			intent: input.intent,
+			estimatedEffort: input.estimatedEffort,
 		},
 	});
 }
@@ -52,6 +54,7 @@ export function createManyBriefs(inputs: CreateBriefInput[]) {
 			clusteredKeywords: input.clusteredKeywords,
 			totalClusterVolume: input.totalClusterVolume,
 			intent: input.intent,
+			estimatedEffort: input.estimatedEffort,
 		})),
 	});
 }

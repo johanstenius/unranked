@@ -4,7 +4,6 @@ import type {
 	AuditState,
 	AuditTier,
 	BriefData,
-	CannibalizationIssue,
 	CompetitorGap,
 	HealthScore,
 	HealthScoreBreakdown,
@@ -534,38 +533,6 @@ const styles = StyleSheet.create({
 		color: colors.muted,
 	},
 
-	// Cannibalization
-	cannibalizationCard: {
-		marginBottom: 12,
-		padding: 12,
-		backgroundColor: colors.surface,
-		borderRadius: 6,
-	},
-	cannibalizationKeyword: {
-		fontSize: 10,
-		fontFamily: "Helvetica-Bold",
-		color: colors.navy,
-	},
-	cannibalizationMeta: {
-		flexDirection: "row",
-		gap: 8,
-		marginTop: 4,
-		marginBottom: 8,
-	},
-	cannibalizationPage: {
-		flexDirection: "row",
-		paddingVertical: 2,
-	},
-	cannibalizationUrl: {
-		flex: 1,
-		fontSize: 9,
-		color: colors.slate,
-	},
-	cannibalizationPosition: {
-		fontSize: 9,
-		color: colors.muted,
-	},
-
 	// Section stats
 	sectionStatsTable: {
 		marginTop: 8,
@@ -853,7 +820,6 @@ type PdfAnalysisData = {
 	quickWins: QuickWin[];
 	technicalIssues: TechnicalIssue[];
 	internalLinkingIssues: InternalLinkingIssues;
-	cannibalizationIssues: CannibalizationIssue[];
 	competitorGaps: CompetitorGap[];
 	actionPlan: PrioritizedAction[];
 };
@@ -1509,100 +1475,53 @@ function TechnicalIssuesPage({ hostname, issues }: TechnicalIssuesPageProps) {
 type LinkingIssuesPageProps = {
 	hostname: string;
 	internalLinkingIssues: InternalLinkingIssues;
-	cannibalizationIssues: CannibalizationIssue[];
 };
 
 function LinkingIssuesPage({
 	hostname,
 	internalLinkingIssues,
-	cannibalizationIssues,
 }: LinkingIssuesPageProps) {
 	const hasLinkingIssues =
 		internalLinkingIssues.orphanPages.length > 0 ||
 		internalLinkingIssues.underlinkedPages.length > 0;
-	const hasCannibalization = cannibalizationIssues.length > 0;
 
-	if (!hasLinkingIssues && !hasCannibalization) return null;
+	if (!hasLinkingIssues) return null;
 
 	return (
 		<Page size="A4" style={styles.page}>
 			<PageHeader hostname={hostname} />
 
-			{hasLinkingIssues && (
-				<>
-					<Text style={styles.h2}>Internal Linking Issues</Text>
+			<Text style={styles.h2}>Internal Linking Issues</Text>
 
-					{internalLinkingIssues.orphanPages.length > 0 && (
-						<View style={styles.linkingSection}>
-							<Text style={styles.linkingTitle}>
-								Orphan Pages (0 incoming links)
-							</Text>
-							{internalLinkingIssues.orphanPages.slice(0, 10).map((url) => (
-								<View key={url} style={styles.linkingItem}>
-									<Text style={styles.linkingBullet}>•</Text>
-									<Text style={styles.linkingUrl}>{getPathname(url)}</Text>
-								</View>
-							))}
-						</View>
-					)}
-
-					{internalLinkingIssues.underlinkedPages.length > 0 && (
-						<View style={styles.linkingSection}>
-							<Text style={styles.linkingTitle}>
-								Underlinked Pages (&lt;2 links)
-							</Text>
-							{internalLinkingIssues.underlinkedPages
-								.slice(0, 10)
-								.map((page) => (
-									<View key={page.url} style={styles.linkingItem}>
-										<Text style={styles.linkingBullet}>•</Text>
-										<Text style={styles.linkingUrl}>
-											{getPathname(page.url)}
-										</Text>
-										<Text style={styles.linkingCount}>
-											({page.incomingLinks} links)
-										</Text>
-									</View>
-								))}
-						</View>
-					)}
-				</>
-			)}
-
-			{hasCannibalization && (
-				<>
-					<View style={styles.divider} />
-					<Text style={styles.h2}>Keyword Cannibalization</Text>
-					<Text style={styles.subtitle}>
-						Multiple pages competing for the same keywords
+			{internalLinkingIssues.orphanPages.length > 0 && (
+				<View style={styles.linkingSection}>
+					<Text style={styles.linkingTitle}>
+						Orphan Pages (0 incoming links)
 					</Text>
-
-					{cannibalizationIssues.slice(0, 5).map((issue) => (
-						<View key={issue.keyword} style={styles.cannibalizationCard}>
-							<Text style={styles.cannibalizationKeyword}>
-								"{issue.keyword}"
-							</Text>
-							<View style={styles.cannibalizationMeta}>
-								<Text style={styles.caption}>
-									{formatNumber(issue.searchVolume)}/mo
-								</Text>
-								<Badge variant={issue.severity === "high" ? "coral" : "amber"}>
-									{issue.severity.toUpperCase()}
-								</Badge>
-							</View>
-							{issue.pages.slice(0, 4).map((page) => (
-								<View key={page.url} style={styles.cannibalizationPage}>
-									<Text style={styles.cannibalizationUrl}>
-										{getPathname(page.url)}
-									</Text>
-									<Text style={styles.cannibalizationPosition}>
-										{page.position ? `#${page.position}` : "Not ranking"}
-									</Text>
-								</View>
-							))}
+					{internalLinkingIssues.orphanPages.slice(0, 10).map((url) => (
+						<View key={url} style={styles.linkingItem}>
+							<Text style={styles.linkingBullet}>•</Text>
+							<Text style={styles.linkingUrl}>{getPathname(url)}</Text>
 						</View>
 					))}
-				</>
+				</View>
+			)}
+
+			{internalLinkingIssues.underlinkedPages.length > 0 && (
+				<View style={styles.linkingSection}>
+					<Text style={styles.linkingTitle}>
+						Underlinked Pages (&lt;2 links)
+					</Text>
+					{internalLinkingIssues.underlinkedPages.slice(0, 10).map((page) => (
+						<View key={page.url} style={styles.linkingItem}>
+							<Text style={styles.linkingBullet}>•</Text>
+							<Text style={styles.linkingUrl}>{getPathname(page.url)}</Text>
+							<Text style={styles.linkingCount}>
+								({page.incomingLinks} links)
+							</Text>
+						</View>
+					))}
+				</View>
 			)}
 
 			<PageFooter />
@@ -1753,10 +1672,6 @@ function extractPdfData(state: AuditState): {
 				components.internalLinking.status === "completed"
 					? components.internalLinking.data
 					: { orphanPages: [], underlinkedPages: [] },
-			cannibalizationIssues:
-				components.cannibalization.status === "completed"
-					? components.cannibalization.data
-					: [],
 			competitorGaps:
 				components.competitors.status === "completed"
 					? components.competitors.data.gaps
@@ -1844,11 +1759,10 @@ function AuditPdfDocument({ audit, analysis, briefs }: AuditPdfDocumentProps) {
 				/>
 			)}
 
-			{/* Linking & Cannibalization */}
+			{/* Linking Issues */}
 			<LinkingIssuesPage
 				hostname={hostname}
 				internalLinkingIssues={analysis.internalLinkingIssues}
-				cannibalizationIssues={analysis.cannibalizationIssues}
 			/>
 
 			{/* Briefs */}

@@ -23,9 +23,14 @@ import Link from "next/link";
 type BriefsTabProps = {
 	briefs: ComponentState<BriefData[]>;
 	auditToken: string;
+	onGoToOpportunities?: () => void;
 };
 
-export function BriefsTab({ briefs, auditToken }: BriefsTabProps) {
+export function BriefsTab({
+	briefs,
+	auditToken,
+	onGoToOpportunities,
+}: BriefsTabProps) {
 	if (briefs.status === "pending" || briefs.status === "running") {
 		return (
 			<Card>
@@ -67,7 +72,20 @@ export function BriefsTab({ briefs, auditToken }: BriefsTabProps) {
 			</CardHeader>
 			<CardContent>
 				{briefsList.length === 0 ? (
-					<p className="text-muted-foreground">No briefs generated</p>
+					<div className="text-center py-8">
+						<p className="text-muted-foreground mb-4">
+							No briefs generated yet
+						</p>
+						{onGoToOpportunities && (
+							<button
+								type="button"
+								onClick={onGoToOpportunities}
+								className="text-accent hover:underline text-sm"
+							>
+								Go to Opportunities tab to select topics →
+							</button>
+						)}
+					</div>
 				) : (
 					<Table>
 						<TableHeader>

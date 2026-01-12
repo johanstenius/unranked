@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import readability from "text-readability";
+import { getErrorMessage } from "../../lib/errors.js";
 import { createLogger } from "../../lib/logger.js";
 import { isPrivateHost, validateUrlSecurity } from "../../lib/url.js";
 import type {
@@ -376,21 +377,40 @@ function parsePage(
 type RobotsTxtResult = {
 	exists: boolean;
 	sitemaps: string[];
+	content: string | null;
 };
 
 async function findSitemapsInRobots(baseUrl: string): Promise<RobotsTxtResult> {
 	try {
 		const response = await fetch(`${baseUrl}/robots.txt`);
-		if (!response.ok) return { exists: false, sitemaps: [] };
+		if (!response.ok) return { exists: false, sitemaps: [], content: null };
 
 		const text = await response.text();
 		const matches = [...text.matchAll(/Sitemap:\s*(.+)/gi)];
 		const sitemaps = matches
 			.map((m) => m[1]?.trim())
 			.filter((s): s is string => !!s);
-		return { exists: true, sitemaps };
+		return { exists: true, sitemaps, content: text };
 	} catch {
-		return { exists: false, sitemaps: [] };
+		return { exists: false, sitemaps: [], content: null };
+	}
+}
+
+async function checkLlmsTxt(baseUrl: string): Promise<boolean> {
+	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 5000);
+		try {
+			const response = await fetch(`${baseUrl}/llms.txt`, {
+				signal: controller.signal,
+				headers: { "User-Agent": "Unranked Bot/1.0 (SEO Analysis Tool)" },
+			});
+			return response.ok;
+		} finally {
+			clearTimeout(timeout);
+		}
+	} catch {
+		return false;
 	}
 }
 
@@ -441,6 +461,8 @@ async function fetchSitemapRecursive(
 type SitemapResult = {
 	urls: string[];
 	hasRobotsTxt: boolean;
+	robotsTxtContent: string | null;
+	hasLlmsTxt: boolean;
 };
 
 async function fetchSitemap(baseUrl: string): Promise<SitemapResult> {
@@ -450,17 +472,31 @@ async function fetchSitemap(baseUrl: string): Promise<SitemapResult> {
 		`${baseUrl}/sitemap-0.xml`,
 	];
 
-	const robotsResult = await findSitemapsInRobots(baseUrl);
+	// Fetch robots.txt and llms.txt in parallel
+	const [robotsResult, hasLlmsTxt] = await Promise.all([
+		findSitemapsInRobots(baseUrl),
+		checkLlmsTxt(baseUrl),
+	]);
 	sitemapUrls.unshift(...robotsResult.sitemaps);
 
 	for (const sitemapUrl of sitemapUrls) {
 		const urls = await fetchSitemapRecursive(sitemapUrl, 0);
 		if (urls.length > 0) {
-			return { urls, hasRobotsTxt: robotsResult.exists };
+			return {
+				urls,
+				hasRobotsTxt: robotsResult.exists,
+				robotsTxtContent: robotsResult.content,
+				hasLlmsTxt,
+			};
 		}
 	}
 
-	return { urls: [], hasRobotsTxt: robotsResult.exists };
+	return {
+		urls: [],
+		hasRobotsTxt: robotsResult.exists,
+		robotsTxtContent: robotsResult.content,
+		hasLlmsTxt,
+	};
 }
 
 export async function discoverSections(
@@ -630,7 +666,7 @@ export async function crawlDocs(
 				}
 			}
 		} catch (error) {
-			const msg = error instanceof Error ? error.message : "Unknown error";
+			const msg = getErrorMessage(error);
 			log.debug({ url, error: msg }, "Crawl error");
 			errors.push({ url, error: msg });
 		}
@@ -716,5 +752,7 @@ export async function crawlDocs(
 		sitemapUrlCount: sitemapUrls.length,
 		hasRobotsTxt: sitemapResult.hasRobotsTxt,
 		hasSitemap: sitemapUrls.length > 0,
+		robotsTxtContent: sitemapResult.robotsTxtContent,
+		hasLlmsTxt: sitemapResult.hasLlmsTxt,
 	};
 }

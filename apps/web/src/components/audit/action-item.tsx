@@ -16,7 +16,6 @@ const TYPE_ICONS: Record<ActionType, string> = {
 	add_internal_links: "🔗",
 	optimize_existing: "✨",
 	create_content: "📝",
-	fix_cannibalization: "🎯",
 	steal_snippet: "💎",
 };
 
@@ -25,7 +24,6 @@ const TYPE_LABELS: Record<ActionType, string> = {
 	add_internal_links: "Internal Links",
 	optimize_existing: "Optimize",
 	create_content: "New Content",
-	fix_cannibalization: "Fix Cannibalization",
 	steal_snippet: "Capture Snippet",
 };
 

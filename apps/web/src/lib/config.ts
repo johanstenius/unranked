@@ -1,85 +1,8 @@
-import type {
-	AuditTier,
-	HealthScoreBreakdown,
-	HealthScoreGrade,
-} from "./types";
+import type { HealthScoreBreakdown, HealthScoreGrade } from "./types";
 
-// Tier/pricing configuration
-export type TierInfo = {
-	name: string;
-	price: number;
-	pages: number;
-	opportunities: number | "all";
-	briefs: number | "unlimited";
-	competitors: number;
-	pdfExport: boolean;
-	features: string[];
-};
-
-export const tierInfo: Record<AuditTier, TierInfo> = {
-	FREE: {
-		name: "Technical",
-		price: 0,
-		pages: 50,
-		opportunities: 0,
-		briefs: 0,
-		competitors: 0,
-		pdfExport: false,
-		features: [
-			"50 pages crawled",
-			"Technical issues only",
-			"Internal linking audit",
-			"No keyword opportunities",
-		],
-	},
-	SCAN: {
-		name: "Scan",
-		price: 9,
-		pages: 50,
-		opportunities: "all",
-		briefs: 1,
-		competitors: 0,
-		pdfExport: true,
-		features: [
-			"50 pages crawled",
-			"All keyword opportunities",
-			"1 AI content brief",
-			"PDF export",
-		],
-	},
-	AUDIT: {
-		name: "Audit",
-		price: 29,
-		pages: 200,
-		opportunities: "all",
-		briefs: 5,
-		competitors: 1,
-		pdfExport: true,
-		features: [
-			"200 pages crawled",
-			"All keyword opportunities",
-			"5 AI content briefs",
-			"1 competitor analysis",
-			"PDF export",
-		],
-	},
-	DEEP_DIVE: {
-		name: "Deep Dive",
-		price: 49,
-		pages: 500,
-		opportunities: "all",
-		briefs: "unlimited",
-		competitors: 3,
-		pdfExport: true,
-		features: [
-			"500 pages crawled",
-			"All keyword opportunities",
-			"Unlimited AI briefs",
-			"3 competitor analysis",
-			"PDF export",
-		],
-	},
-};
+// Re-export tier config from shared - single source of truth
+export { TIERS, UNLIMITED, getComponents, getLimits, getPhases } from "./types";
+export type { TierConfig, TierLimits, ComponentId, PhaseInfo } from "./types";
 
 // Health score grade configuration
 export type GradeConfig = {
@@ -124,6 +47,7 @@ export const BREAKDOWN_LABELS: Record<keyof HealthScoreBreakdown, string> = {
 	technicalHealth: "Technical Health",
 	internalLinking: "Internal Linking",
 	contentOpportunity: "Content Opportunity",
+	aiReadiness: "AI Readiness",
 };
 
 // Snippet type configuration

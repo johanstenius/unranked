@@ -8,53 +8,54 @@ datasource db {
 }
 
 model Audit {
-  id          String      @id @default(cuid())
-  status      AuditStatus @default(PENDING)
-  siteUrl     String
-  productDesc String?
-  competitors String[]
-  sections    String[]
-  email       String
+  id                 String        @id @default(cuid())
+  status             AuditStatus   @default(PENDING)
+  siteUrl            String
+  productDesc        String?
+  competitors        String[]
+  sections           String[]
+  email              String
+  pagesFound         Int?
+  sitemapUrlCount    Int?
+  hasRobotsTxt       Boolean?
+  hasSitemap         Boolean?
+  opportunities      Json?
+  detectedSections   Json?
+  healthScore        Json?
+  redirectChains     Json?
+  progress           Json?
+  retryAfter         DateTime?
+  delayEmailSentAt   DateTime?
+  supportAlertSentAt DateTime?
+  apiUsage           Json?
+  stripeSessionId    String?       @unique
+  lsOrderId          String?
+  tier               AuditTier
+  accessToken        String        @unique
+  expiresAt          DateTime
+  reportEmailSentAt  DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  startedAt          DateTime?
+  completedAt        DateTime?
+  targetKeywords     String[]
+  pipelineState      Json?
+  isNewSite          Boolean       @default(false)
 
-  pagesFound       Int?
-  sitemapUrlCount  Int?
-  hasRobotsTxt     Boolean?
-  hasSitemap       Boolean?
-  opportunities    Json?
-  detectedSections Json?
-  healthScore      Json?
-  redirectChains   Json?
-
-  // Resilient pipeline: component-level progress tracking
-  progress           Json?      // AuditProgress object tracking each component's status
-  retryAfter         DateTime?  // When to retry failed components
-  delayEmailSentAt   DateTime?  // When we sent "taking longer" notification
-  supportAlertSentAt DateTime?  // When we alerted support about struggling audit
-
-  // API usage tracking
-  apiUsage Json? // ApiUsage object for cost monitoring
-
-  stripeSessionId  String?   @unique
-  lsOrderId        String?   // LemonSqueezy order ID for refunds
-  tier             AuditTier
-  accessToken      String    @unique
-  expiresAt        DateTime
-  reportEmailSentAt DateTime? // When report email was successfully sent
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  startedAt   DateTime?  // When processing actually began
-  completedAt DateTime?
-
-  briefs       Brief[]
-  crawledPages CrawledPage[]
+  // New simplified flow columns
+  crawlComplete         Boolean       @default(false)
+  suggestedCompetitors  Json?
+  selectedCompetitors   String[]      @default([])
+  suggestedClusters     Json?
+  selectedClusters      String[]      @default([])
+  prefetchedRankings Json?
+  briefs             Brief[]
+  crawledPages       CrawledPage[]
 }
 
 model Brief {
-  id      String @id @default(cuid())
-  auditId String
-  audit   Audit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
-
+  id                     String   @id @default(cuid())
+  auditId                String
   keyword                String
   searchVolume           Int
   difficulty             Int
@@ -68,17 +69,15 @@ model Brief {
   totalClusterVolume     Int      @default(0)
   estimatedEffort        String?
   intent                 String?
-
-  createdAt DateTime @default(now())
+  createdAt              DateTime @default(now())
+  audit                  Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
 
   @@index([auditId])
 }
 
 model CrawledPage {
-  id      String @id @default(cuid())
-  auditId String
-  audit   Audit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
-
+  id               String   @id @default(cuid())
+  auditId          String
   url              String
   title            String?
   h1               String?
@@ -90,8 +89,6 @@ model CrawledPage {
   codeBlockCount   Int      @default(0)
   imageCount       Int      @default(0)
   codeBlocks       String[]
-
-  // SEO meta fields
   metaDescription  String?
   canonicalUrl     String?
   ogTitle          String?
@@ -104,33 +101,13 @@ model CrawledPage {
   hasSchemaOrg     Boolean  @default(false)
   schemaTypes      String[]
   hasViewport      Boolean  @default(false)
-
-  // Core Web Vitals (PageSpeed Insights)
-  coreWebVitals Json?
-
-  createdAt DateTime @default(now())
+  createdAt        DateTime @default(now())
+  coreWebVitals    Json?
+  audit            Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
 
   @@index([auditId])
 }
 
-enum AuditStatus {
-  PENDING
-  CRAWLING
-  ANALYZING
-  GENERATING_BRIEFS
-  RETRYING           // Waiting for background retry of failed components
-  COMPLETED
-  FAILED
-}
-
-enum AuditTier {
-  FREE
-  SCAN
-  AUDIT
-  DEEP_DIVE
-}
-
-// Better Auth tables
 model User {
   id               String    @id
   name             String
@@ -141,8 +118,8 @@ model User {
   twoFactorEnabled Boolean   @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-  sessions         Session[]
   accounts         Account[]
+  sessions         Session[]
 
   @@map("user")
 }
@@ -150,13 +127,13 @@ model User {
 model Session {
   id        String   @id
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
   expiresAt DateTime
   ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("session")
 }
@@ -164,7 +141,6 @@ model Session {
 model Account {
   id                    String    @id
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountId             String
   providerId            String
   accessToken           String?
@@ -176,6 +152,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
@@ -192,10 +169,29 @@ model Verification {
 }
 
 model TwoFactor {
-  id        String @id
-  userId    String
-  secret    String
+  id          String @id
+  userId      String
+  secret      String
   backupCodes String
 
   @@map("twoFactor")
+}
+
+enum AuditStatus {
+  PENDING
+  CRAWLING
+  SELECTING_COMPETITORS
+  SELECTING_TOPICS
+  ANALYZING
+  GENERATING_BRIEFS // Legacy - kept for existing audits
+  RETRYING          // Legacy - kept for existing audits
+  COMPLETED
+  FAILED
+}
+
+enum AuditTier {
+  FREE
+  SCAN
+  AUDIT
+  DEEP_DIVE
 }

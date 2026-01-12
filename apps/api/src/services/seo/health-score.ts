@@ -1,15 +1,27 @@
 import type { AnalysisResult, TechnicalIssue } from "./analysis.js";
-import type { CoreWebVitalsData } from "./components/types.js";
+import type { AIReadinessData } from "./components/types.js";
+
+/** Max points per health score component */
+const POINTS = {
+	OPPORTUNITY_DISCOVERY: 30,
+	RANKING_COVERAGE: 20,
+	POSITION_QUALITY: 15,
+	TECHNICAL_HEALTH: 15,
+	INTERNAL_LINKING: 10,
+	CONTENT_OPPORTUNITY: 10,
+	/** AI readiness max varies by tier: FREE=2, SCAN=5, AUDIT/DEEP_DIVE=10 */
+	AI_READINESS: { FREE: 2, SCAN: 5, AUDIT: 10, DEEP_DIVE: 10 },
+	/** Total max for AUDIT/DEEP_DIVE tier (includes AI readiness) */
+	FULL_MAX: 110,
+	/** Max achievable for new sites (excludes ranking-dependent components) */
+	NEW_SITE_MAX: 75,
+	/** Max for FREE tier (technical + linking + basic AI) */
+	FREE_TIER_MAX: 27,
+} as const;
 
 const THRESHOLDS = {
 	HIGH_IMPACT_SCORE: 50,
 	OPPORTUNITY_SCALE: 10,
-} as const;
-
-// CWV thresholds (based on Google's Core Web Vitals assessment)
-const CWV_THRESHOLDS = {
-	GOOD: 90, // Performance score >= 90 is "good"
-	NEEDS_IMPROVEMENT: 50, // 50-89 is "needs improvement"
 } as const;
 
 const SEVERITY_WEIGHTS = { high: 3, medium: 1, low: 0.5 } as const;
@@ -35,6 +47,7 @@ export type HealthScoreBreakdown = {
 	technicalHealth: HealthScoreComponent & { max: 15 };
 	internalLinking: HealthScoreComponent & { max: 10 };
 	contentOpportunity: HealthScoreComponent & { max: 10 };
+	aiReadiness: HealthScoreComponent; // max varies by tier: FREE=2, SCAN=5, AUDIT+=10
 };
 
 export type HealthScoreGrade = "excellent" | "good" | "needs_work" | "poor";
@@ -129,58 +142,21 @@ function countSeverityWeight(issues: TechnicalIssue[]): number {
 	);
 }
 
-/**
- * Calculate CWV score contribution (0-5 points)
- */
-function calculateCWVScore(cwv: CoreWebVitalsData | undefined): {
-	score: number;
-	detail: string;
-} {
-	if (!cwv || cwv.pages.length === 0) {
-		return { score: 0, detail: "" };
-	}
-
-	const avgPerformance = cwv.summary.avgPerformance;
-	if (avgPerformance == null) {
-		return { score: 0, detail: "CWV: no data" };
-	}
-
-	// 5 points max for CWV
-	if (avgPerformance >= CWV_THRESHOLDS.GOOD) {
-		return { score: 5, detail: `CWV: ${Math.round(avgPerformance)} (good)` };
-	}
-	if (avgPerformance >= CWV_THRESHOLDS.NEEDS_IMPROVEMENT) {
-		return {
-			score: 2.5,
-			detail: `CWV: ${Math.round(avgPerformance)} (needs work)`,
-		};
-	}
-	return { score: 0, detail: `CWV: ${Math.round(avgPerformance)} (poor)` };
-}
-
 function calculateTechnicalHealth(
 	analysis: AnalysisResult,
 	pagesFound: number,
 ): HealthScoreComponent & { max: 15 } {
 	const MAX = 15;
-	const ISSUES_MAX = 10; // 10 points for technical issues
-	const CWV_MAX = 5; // 5 points for Core Web Vitals
 
 	if (pagesFound === 0) {
 		return { score: 0, max: MAX, detail: "No pages crawled" };
 	}
 
-	// Calculate issues score (0-10 points)
+	// Calculate issues score (0-15 points)
 	const issueWeight = countSeverityWeight(analysis.technicalIssues);
 	const maxPossibleWeight = pagesFound * 3;
 	const healthRatio = Math.max(0, 1 - issueWeight / maxPossibleWeight);
-	const issuesScore = Math.round(healthRatio * ISSUES_MAX);
-
-	// Calculate CWV score (0-5 points)
-	const cwvResult = calculateCWVScore(analysis.coreWebVitals);
-	const cwvScore = cwvResult.score;
-
-	const totalScore = Math.round(issuesScore + cwvScore);
+	const score = Math.round(healthRatio * MAX);
 
 	// Build detail string
 	const highCount = analysis.technicalIssues.filter(
@@ -190,24 +166,20 @@ function calculateTechnicalHealth(
 		(i) => i.severity === "medium",
 	).length;
 
-	let issueDetail: string;
+	let detail: string;
 	if (analysis.technicalIssues.length === 0) {
-		issueDetail = "No issues";
+		detail = "No issues";
 	} else if (highCount > 0 && mediumCount > 0) {
-		issueDetail = `${highCount} critical, ${mediumCount} warnings`;
+		detail = `${highCount} critical, ${mediumCount} warnings`;
 	} else if (highCount > 0) {
-		issueDetail = `${highCount} critical`;
+		detail = `${highCount} critical`;
 	} else if (mediumCount > 0) {
-		issueDetail = `${mediumCount} warning${mediumCount > 1 ? "s" : ""}`;
+		detail = `${mediumCount} warning${mediumCount > 1 ? "s" : ""}`;
 	} else {
-		issueDetail = `${analysis.technicalIssues.length} minor`;
+		detail = `${analysis.technicalIssues.length} minor`;
 	}
 
-	const detail = cwvResult.detail
-		? `${issueDetail}; ${cwvResult.detail}`
-		: issueDetail;
-
-	return { score: totalScore, max: MAX, detail };
+	return { score, max: MAX, detail };
 }
 
 function calculateInternalLinking(
@@ -283,7 +255,120 @@ function getGrade(score: number): HealthScoreGrade {
 
 type HealthScoreOptions = {
 	isFreeTier?: boolean;
+	isNewSite?: boolean;
+	tier?: "FREE" | "SCAN" | "AUDIT" | "DEEP_DIVE";
 };
+
+/**
+ * Calculate AI Readiness score contribution
+ * - FREE: 2 pts max (robots.txt AI access only)
+ * - SCAN: 5 pts max (+ llms.txt + content structure)
+ * - AUDIT/DEEP_DIVE: 10 pts max (full analysis)
+ */
+function calculateAIReadiness(
+	aiReadiness: AIReadinessData | undefined,
+	tier: HealthScoreOptions["tier"] = "AUDIT",
+): HealthScoreComponent {
+	// Max points by tier
+	const max = POINTS.AI_READINESS[tier ?? "AUDIT"];
+
+	if (!aiReadiness) {
+		return { score: 0, max, detail: "No AI readiness data" };
+	}
+
+	// Robots.txt score (0-2 pts): ratio of AI bots allowed/unspecified
+	const { summary } = aiReadiness.robotsTxtAnalysis;
+	const totalBots = summary.allowed + summary.blocked + summary.unspecified;
+	const allowedRatio =
+		totalBots > 0 ? (summary.allowed + summary.unspecified) / totalBots : 1;
+	const robotsScore = Math.round(allowedRatio * 2);
+
+	if (tier === "FREE") {
+		// FREE: only robots.txt analysis (max 2 pts)
+		const blockedCount = summary.blocked;
+		const detail =
+			blockedCount === 0
+				? `${summary.allowed + summary.unspecified} AI bots accessible`
+				: `${blockedCount} AI bot${blockedCount > 1 ? "s" : ""} blocked`;
+		return { score: robotsScore, max, detail };
+	}
+
+	// llms.txt score (0-1 pt)
+	const llmsTxtScore = aiReadiness.llmsTxt.exists ? 1 : 0;
+
+	// Content structure score (0-2 pts)
+	const { contentStructure } = aiReadiness;
+	let structureScore = 0;
+	// Heading hierarchy (1 pt if > 70% pages have proper H1)
+	if (contentStructure.headingHierarchy.score >= 70) structureScore += 1;
+	// Structured data (1 pt if any schema present)
+	if (contentStructure.structuredData.pagesWithSchema > 0) structureScore += 1;
+
+	if (tier === "SCAN") {
+		// SCAN: robots + llms.txt + content structure (max 5 pts)
+		const score = robotsScore + llmsTxtScore + structureScore;
+		const detail = buildAIReadinessDetail(aiReadiness, false);
+		return { score, max, detail };
+	}
+
+	// AUDIT/DEEP_DIVE: full analysis (max 10 pts)
+	// Additional content quality points (0-5 pts)
+	let contentQualityScore = 0;
+	// FAQ schema (2 pts)
+	if (contentStructure.structuredData.hasFAQSchema) contentQualityScore += 2;
+	// Good content depth (2 pts for avg > 500 words, 1 pt for > 300)
+	if (contentStructure.contentQuality.avgWordCount >= 500) {
+		contentQualityScore += 2;
+	} else if (contentStructure.contentQuality.avgWordCount >= 300) {
+		contentQualityScore += 1;
+	}
+	// No thin content (1 pt)
+	if (contentStructure.contentQuality.pagesWithThinContent === 0) {
+		contentQualityScore += 1;
+	}
+
+	const score = Math.min(
+		max,
+		robotsScore + llmsTxtScore + structureScore + contentQualityScore,
+	);
+	const detail = buildAIReadinessDetail(aiReadiness, true);
+	return { score, max, detail };
+}
+
+function buildAIReadinessDetail(
+	aiReadiness: AIReadinessData,
+	includeContent: boolean,
+): string {
+	const parts: string[] = [];
+
+	// Robots.txt status
+	const { summary } = aiReadiness.robotsTxtAnalysis;
+	if (summary.blocked > 0) {
+		parts.push(
+			`${summary.blocked} AI bot${summary.blocked > 1 ? "s" : ""} blocked`,
+		);
+	} else {
+		parts.push("AI bots accessible");
+	}
+
+	// llms.txt
+	if (aiReadiness.llmsTxt.exists) {
+		parts.push("llms.txt present");
+	}
+
+	// Content structure (for paid tiers)
+	if (includeContent) {
+		const { structuredData, contentQuality } = aiReadiness.contentStructure;
+		if (structuredData.hasFAQSchema) {
+			parts.push("FAQ schema");
+		}
+		if (contentQuality.pagesWithThinContent > 0) {
+			parts.push(`${contentQuality.pagesWithThinContent} thin pages`);
+		}
+	}
+
+	return parts.join(", ") || "AI readiness analyzed";
+}
 
 function createUpgradeRequiredComponent<T extends number>(
 	max: T,
@@ -291,15 +376,25 @@ function createUpgradeRequiredComponent<T extends number>(
 	return { score: 0, max, detail: "Upgrade for full analysis" };
 }
 
+function createNewSiteComponent<T extends number>(
+	max: T,
+	detail: string,
+): HealthScoreComponent & { max: T } {
+	return { score: 0, max, detail };
+}
+
 export function calculateHealthScore(
 	analysis: AnalysisResult,
 	pagesFound: number,
 	options: HealthScoreOptions = {},
 ): HealthScore {
-	const { isFreeTier = false } = options;
+	const { isFreeTier = false, isNewSite = false, tier = "AUDIT" } = options;
 
-	// Free tier: only technical assessment (technicalHealth + internalLinking)
-	// Paid tiers: full 6-component analysis
+	// Determine effective tier for AI readiness calculation
+	const effectiveTier = isFreeTier ? "FREE" : tier;
+
+	// Free tier: technical assessment + basic AI readiness
+	// Paid tiers: full 7-component analysis
 	const breakdown: HealthScoreBreakdown = isFreeTier
 		? {
 				opportunityDiscovery: createUpgradeRequiredComponent(30),
@@ -308,6 +403,7 @@ export function calculateHealthScore(
 				technicalHealth: calculateTechnicalHealth(analysis, pagesFound),
 				internalLinking: calculateInternalLinking(analysis, pagesFound),
 				contentOpportunity: createUpgradeRequiredComponent(10),
+				aiReadiness: calculateAIReadiness(analysis.aiReadiness, "FREE"),
 			}
 		: {
 				opportunityDiscovery: calculateOpportunityDiscovery(analysis),
@@ -316,15 +412,17 @@ export function calculateHealthScore(
 				technicalHealth: calculateTechnicalHealth(analysis, pagesFound),
 				internalLinking: calculateInternalLinking(analysis, pagesFound),
 				contentOpportunity: calculateContentOpportunity(analysis),
+				aiReadiness: calculateAIReadiness(analysis.aiReadiness, effectiveTier),
 			};
 
 	if (isFreeTier) {
-		// Free tier: score based on technical components only (max 25)
+		// Free tier: technical + linking + basic AI readiness (max 27)
 		// Normalize to 0-100 scale for consistent grading
 		const rawScore =
-			breakdown.technicalHealth.score + breakdown.internalLinking.score;
-		const maxTechnical = 25;
-		const normalizedScore = Math.round((rawScore / maxTechnical) * 100);
+			breakdown.technicalHealth.score +
+			breakdown.internalLinking.score +
+			breakdown.aiReadiness.score;
+		const normalizedScore = Math.round((rawScore / POINTS.FREE_TIER_MAX) * 100);
 
 		return {
 			score: normalizedScore,
@@ -333,17 +431,53 @@ export function calculateHealthScore(
 		};
 	}
 
-	const score =
+	// New site: rankings don't exist yet, so normalize score based on achievable factors
+	// Focus: technical foundation + opportunity discovery (what they CAN improve/measure)
+	if (isNewSite) {
+		// For new sites, ranking-based metrics are N/A - mark them clearly
+		breakdown.rankingCoverage = createNewSiteComponent(
+			20,
+			"Rankings build over time",
+		);
+		breakdown.positionQuality = createNewSiteComponent(
+			15,
+			"No rankings yet (expected)",
+		);
+
+		// Score from achievable components (excludes ranking-dependent)
+		const achievableScore =
+			breakdown.opportunityDiscovery.score +
+			breakdown.technicalHealth.score +
+			breakdown.internalLinking.score +
+			breakdown.contentOpportunity.score +
+			breakdown.aiReadiness.score;
+
+		const normalizedScore = Math.round(
+			(achievableScore / POINTS.NEW_SITE_MAX) * 100,
+		);
+
+		return {
+			score: normalizedScore,
+			grade: getGrade(normalizedScore),
+			breakdown,
+		};
+	}
+
+	// Full analysis: normalize to 100-point scale
+	const rawScore =
 		breakdown.opportunityDiscovery.score +
 		breakdown.rankingCoverage.score +
 		breakdown.positionQuality.score +
 		breakdown.technicalHealth.score +
 		breakdown.internalLinking.score +
-		breakdown.contentOpportunity.score;
+		breakdown.contentOpportunity.score +
+		breakdown.aiReadiness.score;
+
+	const normalizedScore = Math.round((rawScore / POINTS.FULL_MAX) * 100);
 
 	return {
-		score,
-		grade: getGrade(score),
+		score: normalizedScore,
+		grade: getGrade(normalizedScore),
 		breakdown,
 	};
 }

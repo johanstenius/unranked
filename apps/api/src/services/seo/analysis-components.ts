@@ -3,18 +3,15 @@
  * Each function handles one component that can independently succeed/fail.
  */
 
+import { getErrorMessage } from "../../lib/errors.js";
 import { createLogger } from "../../lib/logger.js";
 import type {
 	AuditProgress,
 	ComponentStatus,
 } from "../../types/audit-progress.js";
 import {
-	type AiResult,
 	type QuickWinSuggestions,
 	type SearchIntent,
-	type SemanticCluster,
-	classifyKeywordIntentsTyped,
-	clusterKeywordsSemanticTyped,
 	generateQuickWinSuggestionsTyped,
 } from "../ai/anthropic.js";
 import {
@@ -43,7 +40,6 @@ export type {
 	CurrentRanking,
 	TechnicalIssue,
 	CompetitorGap,
-	CannibalizationIssue,
 	SnippetOpportunity,
 	Opportunity,
 	OpportunityCluster,
@@ -151,72 +147,11 @@ export async function runKeywordData(
 }
 
 /**
- * Classify keyword intents (Claude dependent)
- */
-export async function runIntentClassification(
-	keywords: string[],
-): Promise<ComponentResult<Map<string, SearchIntent>>> {
-	log.info(
-		{ count: keywords.length },
-		"Running intent classification component",
-	);
-
-	if (keywords.length === 0) {
-		return { ok: true, data: new Map() };
-	}
-
-	const result = await classifyKeywordIntentsTyped(keywords);
-
-	if (!result.ok) {
-		const retriable = result.error !== "auth_error";
-		return {
-			ok: false,
-			error: `Claude error: ${result.message}`,
-			retriable,
-		};
-	}
-
-	log.info({ count: result.data.size }, "Intent classification complete");
-	return { ok: true, data: result.data };
-}
-
-/**
- * Cluster keywords semantically (Claude dependent)
- */
-export async function runKeywordClustering(
-	keywords: Array<{ keyword: string; searchVolume: number }>,
-): Promise<ComponentResult<SemanticCluster[]>> {
-	log.info({ count: keywords.length }, "Running keyword clustering component");
-
-	if (keywords.length === 0) {
-		return { ok: true, data: [] };
-	}
-
-	const result = await clusterKeywordsSemanticTyped(keywords);
-
-	if (!result.ok) {
-		const retriable = result.error !== "auth_error";
-		return {
-			ok: false,
-			error: `Claude error: ${result.message}`,
-			retriable,
-		};
-	}
-
-	log.info({ count: result.data.length }, "Keyword clustering complete");
-	return { ok: true, data: result.data };
-}
-
-/**
  * Check if all required components for briefs are ready
  */
 export function canGenerateBriefs(progress: AuditProgress): boolean {
-	// Need keywords and at least intent classification for briefs
-	return (
-		progress.keywordOpportunities.status === "completed" &&
-		(progress.intentClassification.status === "completed" ||
-			progress.keywordClustering.status === "completed")
-	);
+	// Need keyword opportunities for briefs
+	return progress.keywordOpportunities.status === "completed";
 }
 
 /**
@@ -245,10 +180,10 @@ export function determineOverallStatus(
 		"currentRankings",
 		"competitorAnalysis",
 		"keywordOpportunities",
-		"intentClassification",
-		"keywordClustering",
+		"snippetOpportunities",
 		"quickWins",
 		"briefs",
+		"actionPlan",
 	];
 
 	// If any critical component failed, overall is FAILED
@@ -508,7 +443,7 @@ export async function runBriefs(
 		);
 		return { ok: true, data: result };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Briefs generation failed");
 		return { ok: false, error: message, retriable: true };
 	}

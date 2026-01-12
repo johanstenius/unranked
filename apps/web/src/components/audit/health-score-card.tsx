@@ -17,11 +17,13 @@ type HealthScoreCardProps = {
 	onToggle: () => void;
 	isFreeTier?: boolean;
 	isBuilding?: boolean;
+	isNewSite?: boolean;
 };
 
 const FREE_TIER_KEYS: (keyof HealthScoreBreakdown)[] = [
 	"technicalHealth",
 	"internalLinking",
+	"aiReadiness",
 ];
 
 // Circle circumference for r=42: 2 * PI * 42 ≈ 264
@@ -42,7 +44,7 @@ const SCORE_COMPONENTS: ScoreComponent[] = [
 		progressKey: "technicalIssues",
 	},
 	{ key: "linking", label: "Internal Linking", progressKey: "internalLinking" },
-	{ key: "cwv", label: "Core Web Vitals", progressKey: "coreWebVitals" },
+	{ key: "aiReadiness", label: "AI Readiness", progressKey: "aiReadiness" },
 	{ key: "rankings", label: "Rankings", progressKey: "currentRankings" },
 	{
 		key: "opportunities",
@@ -55,6 +57,7 @@ const SCORE_COMPONENTS: ScoreComponent[] = [
 const FREE_SCORE_COMPONENTS: ScoreComponent[] = [
 	{ key: "technical", label: "Technical", progressKey: "technicalIssues" },
 	{ key: "linking", label: "Linking", progressKey: "internalLinking" },
+	{ key: "aiReadiness", label: "AI Ready", progressKey: "aiReadiness" },
 ];
 
 const VALID_STATUSES: ComponentStatus[] = [
@@ -319,11 +322,13 @@ function CompletedState({
 	expanded,
 	onToggle,
 	isFreeTier,
+	isNewSite,
 }: {
 	healthScore: HealthScore;
 	expanded: boolean;
 	onToggle: () => void;
 	isFreeTier: boolean;
+	isNewSite: boolean;
 }) {
 	const grade = GRADE_CONFIG[healthScore.grade];
 
@@ -334,7 +339,11 @@ function CompletedState({
 		][]
 	).filter(([key]) => !isFreeTier || FREE_TIER_KEYS.includes(key));
 
-	const factorCount = isFreeTier ? 2 : 6;
+	const factorCount = isFreeTier ? 3 : isNewSite ? 5 : 7;
+	const scoreLabel = isNewSite ? "Foundation Score" : "SEO Health Score";
+	const scoreDescription = isNewSite
+		? "Based on technical foundation, AI readiness, and opportunity discovery (ranking metrics excluded for new sites)"
+		: `Based on ${factorCount} key factors affecting your SEO performance`;
 
 	return (
 		<div className="bg-surface border border-border rounded-xl p-8 mb-8">
@@ -383,17 +392,20 @@ function CompletedState({
 				<div className="flex-1">
 					<div className="flex items-center gap-3 mb-2">
 						<h3 className="font-display text-xl text-text-primary font-bold">
-							SEO Health Score
+							{scoreLabel}
 						</h3>
 						<span
 							className={`px-3 py-1 text-xs font-medium rounded-full ${grade.bgColor} ${grade.color}`}
 						>
 							{grade.label}
 						</span>
+						{isNewSite && (
+							<span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent">
+								New Site
+							</span>
+						)}
 					</div>
-					<p className="text-text-secondary mb-4">
-						Based on {factorCount} key factors affecting your SEO performance
-					</p>
+					<p className="text-text-secondary mb-4">{scoreDescription}</p>
 					<button
 						type="button"
 						onClick={onToggle}
@@ -467,6 +479,7 @@ export function HealthScoreCard({
 	onToggle,
 	isFreeTier = false,
 	isBuilding = false,
+	isNewSite = false,
 }: HealthScoreCardProps) {
 	// Show building state if explicitly building or if no health score yet
 	if (isBuilding || !healthScore) {
@@ -479,6 +492,7 @@ export function HealthScoreCard({
 			expanded={expanded}
 			onToggle={onToggle}
 			isFreeTier={isFreeTier}
+			isNewSite={isNewSite}
 		/>
 	);
 }

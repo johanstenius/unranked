@@ -41,9 +41,9 @@ export type BillingProvider = {
 };
 
 export const tierPrices: Record<Exclude<AuditTier, "FREE">, number> = {
-	SCAN: 900, // $9 in cents
-	AUDIT: 2900, // $29 in cents
-	DEEP_DIVE: 4900, // $49 in cents
+	SCAN: 900, // €9 in cents
+	AUDIT: 2900, // €29 in cents
+	DEEP_DIVE: 4900, // €49 in cents
 };
 
 export function isValidUpgrade(

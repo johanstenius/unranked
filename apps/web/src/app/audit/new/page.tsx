@@ -4,21 +4,14 @@ import { FormNav } from "@/components/form-nav";
 import { AnimatePresence, SlideUp, motion } from "@/components/motion";
 import { Input } from "@/components/ui/input";
 import { LoadingScreen, Spinner } from "@/components/ui/spinner";
-import {
-	createCheckout,
-	devStartAudit,
-	tierInfo,
-	validateUrl,
-} from "@/lib/api";
+import { TIERS, createCheckout, devStartAudit, validateUrl } from "@/lib/api";
 import { billingEnabled } from "@/lib/config";
 import type { AuditTier } from "@/lib/types";
 import { normalizeUrl } from "@/lib/url";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useId, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 
-const TIERS: AuditTier[] = ["FREE", "SCAN", "AUDIT", "DEEP_DIVE"];
-
-type CompetitorInput = { id: string; value: string; error?: string };
+const TIER_OPTIONS: AuditTier[] = ["FREE", "SCAN", "AUDIT", "DEEP_DIVE"];
 
 function ChevronIcon({ open }: { open: boolean }) {
 	return (
@@ -41,60 +34,39 @@ function ChevronIcon({ open }: { open: boolean }) {
 
 const isDev = process.env.NODE_ENV === "development";
 
-function validateCompetitor(value: string): string | undefined {
-	const trimmed = value.trim();
-	if (!trimmed) return undefined;
-
-	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-		try {
-			new URL(trimmed);
-			return undefined;
-		} catch {
-			return "Invalid URL format";
-		}
-	}
-
-	if (trimmed.includes(".")) {
-		return undefined;
-	}
-
-	return "Enter full domain (e.g., competitor.com)";
-}
-
 function AuditNewForm() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
-	const baseId = useId();
 
 	const siteParam = searchParams.get("site") || "";
 	const tierParam = searchParams.get("tier") as AuditTier | null;
 	const initialTier =
-		tierParam && TIERS.includes(tierParam) ? tierParam : "AUDIT";
+		tierParam && TIER_OPTIONS.includes(tierParam) ? tierParam : "AUDIT";
 
 	const [site, setSite] = useState(siteParam);
 	const [tier, setTier] = useState<AuditTier>(initialTier);
 	const [email, setEmail] = useState("");
 	const [productDesc, setProductDesc] = useState("");
-	const [competitors, setCompetitors] = useState<CompetitorInput[]>([
-		{ id: `${baseId}-0`, value: "" },
-	]);
+	const [extractedDesc, setExtractedDesc] = useState<string | null>(null);
+	const [seedKeywords, setSeedKeywords] = useState<string[]>([]);
+	const [targetKeywords, setTargetKeywords] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [nextId, setNextId] = useState(1);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [siteError, setSiteError] = useState<string | null>(null);
 	const [validatingSite, setValidatingSite] = useState(false);
 	const [siteValidated, setSiteValidated] = useState(false);
 
-	const selectedTier = tierInfo[tier];
+	const selectedTier = TIERS[tier];
 	const isPaid = tier !== "FREE";
-	const hasCompetitors = selectedTier.competitors > 0;
 
 	const handleSiteBlur = useCallback(async () => {
 		const trimmed = site.trim();
 		if (!trimmed) {
 			setSiteError(null);
 			setSiteValidated(false);
+			setExtractedDesc(null);
+			setSeedKeywords([]);
 			return;
 		}
 
@@ -106,53 +78,47 @@ function AuditNewForm() {
 			const result = await validateUrl(normalizeUrl(trimmed));
 			if (!result.valid) {
 				setSiteError(result.error ?? "Site unreachable");
+				setExtractedDesc(null);
+				setSeedKeywords([]);
 			} else {
 				setSiteValidated(true);
+				// Store extracted info
+				if (result.productDescription) {
+					setExtractedDesc(result.productDescription);
+					// Auto-fill if user hasn't edited
+					if (!productDesc) {
+						setProductDesc(result.productDescription);
+					}
+				}
+				if (result.seedKeywords) {
+					setSeedKeywords(result.seedKeywords);
+				}
 			}
 		} catch {
 			setSiteError("Failed to validate URL");
 		} finally {
 			setValidatingSite(false);
 		}
-	}, [site]);
+	}, [site, productDesc]);
 
 	function handleSiteChange(value: string) {
 		setSite(value);
 		setSiteValidated(false);
 		setSiteError(null);
-	}
-
-	function handleAddCompetitor() {
-		if (competitors.length < selectedTier.competitors) {
-			setCompetitors([
-				...competitors,
-				{ id: `${baseId}-${nextId}`, value: "" },
-			]);
-			setNextId(nextId + 1);
-		}
-	}
-
-	function handleRemoveCompetitor(id: string) {
-		setCompetitors(competitors.filter((c) => c.id !== id));
-	}
-
-	function handleCompetitorChange(id: string, value: string) {
-		const error = validateCompetitor(value);
-		setCompetitors(
-			competitors.map((c) => (c.id === id ? { ...c, value, error } : c)),
-		);
+		setExtractedDesc(null);
+		setSeedKeywords([]);
 	}
 
 	function getFormData() {
-		const validCompetitors = competitors
-			.filter((c) => c.value.trim() !== "" && !c.error)
-			.map((c) => c.value);
+		// seedKeywords now contains both auto-detected and user-added keywords
+		const keywords = seedKeywords.slice(0, 10);
+
 		return {
 			siteUrl: normalizeUrl(site),
 			email,
 			tier,
 			productDesc: isPaid && productDesc ? productDesc : undefined,
-			competitors: validCompetitors.length > 0 ? validCompetitors : undefined,
+			targetKeywords: keywords.length > 0 ? keywords : undefined,
 		};
 	}
 
@@ -170,6 +136,13 @@ function AuditNewForm() {
 					return;
 				}
 				setSiteValidated(true);
+				// Store extracted info if available
+				if (result.productDescription && !productDesc) {
+					setProductDesc(result.productDescription);
+				}
+				if (result.seedKeywords) {
+					setSeedKeywords(result.seedKeywords);
+				}
 			} catch {
 				setSiteError("Failed to validate URL");
 				setLoading(false);
@@ -203,6 +176,13 @@ function AuditNewForm() {
 					return;
 				}
 				setSiteValidated(true);
+				// Store extracted info if available
+				if (result.productDescription && !productDesc) {
+					setProductDesc(result.productDescription);
+				}
+				if (result.seedKeywords) {
+					setSeedKeywords(result.seedKeywords);
+				}
 			} catch {
 				setSiteError("Failed to validate URL");
 				setLoading(false);
@@ -223,41 +203,41 @@ function AuditNewForm() {
 		site.trim() && email.trim() && !siteError && !validatingSite;
 
 	// Build feature summary for selected tier
-	function getFeatureSummary() {
-		const parts: string[] = [];
-		parts.push(`${selectedTier.pages} pages`);
+	// Returns array of { text: string, note?: string }
+	function getFeatureSummary(): Array<{ text: string; note?: string }> {
+		const parts: Array<{ text: string; note?: string }> = [];
+		const limits = selectedTier.limits;
+		parts.push({ text: `${limits.pages} pages` });
 
 		// FREE tier: emphasize it's technical only
 		if (tier === "FREE") {
-			parts.push("technical issues");
-			parts.push("internal links");
+			parts.push({ text: "technical issues" });
+			parts.push({ text: "internal links" });
+			parts.push({ text: "AI readiness" });
 			return parts;
 		}
 
 		// Paid tiers: show what's included
-		if (selectedTier.opportunities === "all") {
-			parts.push("all opportunities");
-		} else if (
-			typeof selectedTier.opportunities === "number" &&
-			selectedTier.opportunities > 0
-		) {
-			parts.push(`${selectedTier.opportunities} opportunities`);
+		parts.push({ text: "all opportunities" });
+
+		// Briefs: -1 means unlimited
+		if (limits.briefs === -1) {
+			parts.push({ text: "unlimited briefs" });
+		} else if (limits.briefs > 0) {
+			parts.push({
+				text: `${limits.briefs} brief${limits.briefs > 1 ? "s" : ""}`,
+			});
 		}
-		if (selectedTier.briefs === "unlimited") {
-			parts.push("unlimited briefs");
-		} else if (
-			typeof selectedTier.briefs === "number" &&
-			selectedTier.briefs > 0
-		) {
-			parts.push(
-				`${selectedTier.briefs} brief${selectedTier.briefs > 1 ? "s" : ""}`,
-			);
+		if (limits.competitors > 0) {
+			parts.push({
+				text: `${limits.competitors} competitor${limits.competitors > 1 ? "s" : ""}`,
+			});
 		}
-		if (selectedTier.competitors > 0) {
-			parts.push(
-				`${selectedTier.competitors} competitor${selectedTier.competitors > 1 ? "s" : ""}`,
-			);
-		}
+		// Add note about ranking-dependent features
+		parts.push({
+			text: "quick wins",
+			note: "with rankings",
+		});
 		return parts;
 	}
 
@@ -315,10 +295,10 @@ function AuditNewForm() {
 							Choose your plan
 						</span>
 						<div className="grid grid-cols-4 gap-2">
-							{TIERS.map((t) => {
+							{TIER_OPTIONS.map((t) => {
 								const isSelected = tier === t;
 								const isRecommended = t === "AUDIT";
-								const info = tierInfo[t];
+								const info = TIERS[t];
 								return (
 									<motion.button
 										key={t}
@@ -363,11 +343,16 @@ function AuditNewForm() {
 						>
 							{getFeatureSummary().map((feature) => (
 								<span
-									key={feature}
+									key={feature.text}
 									className="inline-flex items-center gap-1 text-xs text-text-secondary"
 								>
 									<span className="text-status-good">✓</span>
-									{feature}
+									{feature.text}
+									{feature.note && (
+										<span className="text-text-tertiary text-2xs">
+											({feature.note})
+										</span>
+									)}
 								</span>
 							))}
 						</motion.div>
@@ -445,7 +430,7 @@ function AuditNewForm() {
 							</p>
 						</SlideUp>
 
-						{/* Product Description - paid tiers only */}
+						{/* Product Description - paid tiers only, auto-filled from URL */}
 						<AnimatePresence>
 							{isPaid && (
 								<motion.div
@@ -460,24 +445,42 @@ function AuditNewForm() {
 											htmlFor="productDesc"
 											className="block text-sm font-medium text-foreground mb-2"
 										>
-											What does your product do? (1 sentence)
+											What does your product do?
+											{extractedDesc && (
+												<span className="ml-2 text-xs font-normal text-status-good">
+													Auto-detected
+												</span>
+											)}
 										</label>
 										<Input
 											id="productDesc"
 											type="text"
 											value={productDesc}
 											onChange={(e) => setProductDesc(e.target.value)}
-											placeholder="Developer tool for building APIs"
+											placeholder={
+												validatingSite
+													? "Reading your site..."
+													: "Developer tool for building APIs"
+											}
 											className="h-12"
 										/>
+										{extractedDesc && productDesc !== extractedDesc && (
+											<button
+												type="button"
+												onClick={() => setProductDesc(extractedDesc)}
+												className="text-xs text-text-secondary hover:text-text-primary mt-1"
+											>
+												Reset to auto-detected
+											</button>
+										)}
 									</SlideUp>
 								</motion.div>
 							)}
 						</AnimatePresence>
 
-						{/* Competitors - AUDIT/DEEP_DIVE only */}
+						{/* Advanced: Target Keywords - for paid tiers */}
 						<AnimatePresence>
-							{hasCompetitors && (
+							{isPaid && (
 								<motion.div
 									initial={{ height: 0, opacity: 0 }}
 									animate={{ height: "auto", opacity: 1 }}
@@ -492,7 +495,18 @@ function AuditNewForm() {
 											className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
 										>
 											<ChevronIcon open={showAdvanced} />
-											Add competitors (optional)
+											<span>Target keywords</span>
+											{!showAdvanced &&
+												(validatingSite ? (
+													<span className="flex items-center gap-1.5 text-xs text-text-tertiary">
+														<span className="inline-block w-3 h-3 border-2 border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
+														detecting...
+													</span>
+												) : seedKeywords.length > 0 ? (
+													<span className="text-xs text-status-good">
+														{seedKeywords.length} detected
+													</span>
+												) : null)}
 										</button>
 										<AnimatePresence>
 											{showAdvanced && (
@@ -503,58 +517,123 @@ function AuditNewForm() {
 													transition={{ duration: 0.2 }}
 													className="overflow-hidden"
 												>
-													<div className="pt-4">
-														<p className="text-xs text-muted-foreground mb-3">
-															We auto-discover competitors. Add up to{" "}
-															{selectedTier.competitors} here if you want.
-														</p>
-														{competitors.map((comp) => (
-															<div key={comp.id} className="mb-2">
-																<div className="flex gap-2">
-																	<Input
-																		type="text"
-																		value={comp.value}
-																		onChange={(e) =>
-																			handleCompetitorChange(
-																				comp.id,
-																				e.target.value,
-																			)
-																		}
-																		placeholder="competitor.com"
-																		className={`flex-1 h-12 ${
-																			comp.error
-																				? "border-destructive focus-visible:ring-destructive"
-																				: ""
-																		}`}
-																	/>
-																	{competitors.length > 1 && (
-																		<button
-																			type="button"
-																			onClick={() =>
-																				handleRemoveCompetitor(comp.id)
-																			}
-																			className="w-12 h-12 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-																		>
-																			×
-																		</button>
-																	)}
+													<div className="pt-4 space-y-3">
+														{/* Loading skeleton */}
+														{validatingSite && seedKeywords.length === 0 && (
+															<div className="space-y-2">
+																<p className="text-xs text-text-tertiary">
+																	Reading your site for keywords...
+																</p>
+																<div className="flex flex-wrap gap-2">
+																	{[1, 2, 3, 4].map((i) => (
+																		<div
+																			key={i}
+																			className="h-7 rounded-md bg-surface animate-pulse"
+																			style={{
+																				width: `${60 + i * 20}px`,
+																				animationDelay: `${i * 100}ms`,
+																			}}
+																		/>
+																	))}
 																</div>
-																{comp.error && (
-																	<p className="text-xs text-destructive mt-1">
-																		{comp.error}
-																	</p>
-																)}
 															</div>
-														))}
-														{competitors.length < selectedTier.competitors && (
-															<button
-																type="button"
-																onClick={handleAddCompetitor}
-																className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-															>
-																+ Add competitor
-															</button>
 														)}
+
+														{/* Detected keywords as tags */}
+														{seedKeywords.length > 0 && (
+															<div className="space-y-2">
+																<p className="text-xs text-text-secondary">
+																	We found these keywords on your site:
+																</p>
+																<div className="flex flex-wrap gap-1.5">
+																	<AnimatePresence mode="popLayout">
+																		{seedKeywords.map((kw, idx) => (
+																			<motion.span
+																				key={kw}
+																				initial={{ opacity: 0, scale: 0.8 }}
+																				animate={{ opacity: 1, scale: 1 }}
+																				exit={{ opacity: 0, scale: 0.8 }}
+																				transition={{
+																					delay: idx * 0.03,
+																					duration: 0.15,
+																				}}
+																				className="group inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-surface border border-border rounded-md text-text-primary hover:border-border-active transition-colors"
+																			>
+																				{kw}
+																				<button
+																					type="button"
+																					onClick={() =>
+																						setSeedKeywords(
+																							seedKeywords.filter(
+																								(k) => k !== kw,
+																							),
+																						)
+																					}
+																					className="opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-text-primary -mr-0.5"
+																					aria-label={`Remove ${kw}`}
+																				>
+																					<svg
+																						className="w-3.5 h-3.5"
+																						fill="none"
+																						viewBox="0 0 24 24"
+																						stroke="currentColor"
+																						aria-hidden="true"
+																					>
+																						<path
+																							strokeLinecap="round"
+																							strokeLinejoin="round"
+																							strokeWidth={2}
+																							d="M6 18L18 6M6 6l12 12"
+																						/>
+																					</svg>
+																				</button>
+																			</motion.span>
+																		))}
+																	</AnimatePresence>
+																</div>
+															</div>
+														)}
+
+														{/* Add custom keywords */}
+														<div className="space-y-1.5">
+															{seedKeywords.length > 0 ? (
+																<p className="text-xs text-text-tertiary">
+																	Add more keywords:
+																</p>
+															) : !validatingSite ? (
+																<p className="text-xs text-text-secondary">
+																	Enter keywords you want to rank for:
+																</p>
+															) : null}
+															{!validatingSite && (
+																<Input
+																	id="targetKeywords"
+																	type="text"
+																	value={targetKeywords}
+																	onChange={(e) =>
+																		setTargetKeywords(e.target.value)
+																	}
+																	onKeyDown={(e) => {
+																		if (e.key === "Enter" || e.key === ",") {
+																			e.preventDefault();
+																			const newKw = targetKeywords.trim();
+																			if (
+																				newKw &&
+																				!seedKeywords.includes(newKw)
+																			) {
+																				setSeedKeywords([
+																					...seedKeywords,
+																					newKw,
+																				]);
+																				setTargetKeywords("");
+																			}
+																		}
+																	}}
+																	placeholder="Type and press Enter to add"
+																	className="h-10 text-sm"
+																/>
+															)}
+														</div>
 													</div>
 												</motion.div>
 											)}

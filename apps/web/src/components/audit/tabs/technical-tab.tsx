@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/tooltip";
 import { getRuleInfo } from "@/lib/rule-catalog";
 import type {
-	CannibalizationIssue,
 	ComponentState,
 	InternalLinkingIssues,
 	TechnicalIssue,
@@ -28,7 +27,6 @@ import { useState } from "react";
 type TechnicalTabProps = {
 	technical: ComponentState<TechnicalIssue[]>;
 	internalLinking: ComponentState<InternalLinkingIssues>;
-	cannibalization: ComponentState<CannibalizationIssue[]>;
 };
 
 type PageWithDetail = {
@@ -319,7 +317,6 @@ function ErrorCard({ title, error }: { title: string; error: string }) {
 export function TechnicalTab({
 	technical,
 	internalLinking,
-	cannibalization,
 }: TechnicalTabProps) {
 	// Technical issues section
 	const technicalContent = (() => {
@@ -477,120 +474,10 @@ export function TechnicalTab({
 		);
 	})();
 
-	// Cannibalization section
-	const cannibalizationContent = (() => {
-		if (
-			cannibalization.status === "pending" ||
-			cannibalization.status === "running"
-		) {
-			return (
-				<LoadingCard
-					title="Keyword Cannibalization"
-					description="Analyzing keyword conflicts..."
-				/>
-			);
-		}
-		if (cannibalization.status === "failed") {
-			return (
-				<ErrorCard
-					title="Keyword Cannibalization"
-					error={cannibalization.error}
-				/>
-			);
-		}
-		const issues = cannibalization.data;
-		return (
-			<Card className="border-border rounded-xl">
-				<CardHeader className="pb-4">
-					<CardTitle className="font-display text-xl font-bold">
-						Keyword Cannibalization
-					</CardTitle>
-					<CardDescription>
-						Multiple pages competing for the same keyword
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{issues.length === 0 ? (
-						<div className="flex flex-col items-center justify-center py-12 text-center">
-							<div className="w-12 h-12 rounded-full bg-status-good-bg flex items-center justify-center mb-4">
-								<CheckCircle2 className="w-6 h-6 text-status-good" />
-							</div>
-							<p className="font-medium text-text-primary mb-1">No conflicts</p>
-							<p className="text-sm text-text-secondary">
-								No keyword cannibalization detected
-							</p>
-						</div>
-					) : (
-						<div className="space-y-3">
-							{issues.map((issue) => (
-								<CannibalizationCard key={issue.keyword} issue={issue} />
-							))}
-						</div>
-					)}
-				</CardContent>
-			</Card>
-		);
-	})();
-
 	return (
 		<div className="space-y-6">
 			{technicalContent}
 			{linkingContent}
-			{cannibalizationContent}
-		</div>
-	);
-}
-
-function CannibalizationCard({ issue }: { issue: CannibalizationIssue }) {
-	return (
-		<div
-			className={cn(
-				"rounded-lg border border-border/60 border-l-[3px] overflow-hidden",
-				issue.severity === "high"
-					? "border-l-status-crit"
-					: "border-l-status-warn",
-			)}
-		>
-			<div className="p-4">
-				<div className="flex items-center justify-between mb-3">
-					<div className="flex items-center gap-3">
-						<AlertTriangle
-							className={cn(
-								"w-4 h-4 shrink-0",
-								issue.severity === "high"
-									? "text-status-crit"
-									: "text-status-warn",
-							)}
-						/>
-						<span className="font-medium text-text-primary">
-							&ldquo;{issue.keyword}&rdquo;
-						</span>
-						<span className="text-sm text-text-tertiary">
-							{issue.searchVolume.toLocaleString()} monthly searches
-						</span>
-					</div>
-				</div>
-				<div className="pl-7 space-y-2">
-					{issue.pages.map((page) => (
-						<div
-							key={page.url}
-							className="flex items-center justify-between text-sm"
-						>
-							<span className="text-text-secondary truncate font-mono max-w-[280px]">
-								{stripOrigin(page.url)}
-							</span>
-							<div className="flex items-center gap-4 shrink-0 ml-4">
-								<span className="text-text-tertiary tabular-nums">
-									{page.position ? `#${page.position}` : "Not ranking"}
-								</span>
-								<span className="text-2xs text-text-tertiary bg-subtle px-1.5 py-0.5 rounded">
-									{page.signals.join(", ")}
-								</span>
-							</div>
-						</div>
-					))}
-				</div>
-			</div>
 		</div>
 	);
 }

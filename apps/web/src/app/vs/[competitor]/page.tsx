@@ -4,7 +4,7 @@ import {
 	competitorSlugs,
 	getCompetitor,
 } from "@/content/comparisons/competitors";
-import { tierInfo } from "@/lib/config";
+import { TIERS } from "@/lib/config";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -95,7 +95,7 @@ export default async function ComparisonPage({ params }: Props) {
 		notFound();
 	}
 
-	const unrankedPrice = `€${tierInfo.AUDIT.price}`;
+	const unrankedPrice = `€${TIERS.AUDIT.price}`;
 
 	// Schema markup for comparison
 	const comparisonSchema = {
@@ -113,11 +113,11 @@ export default async function ComparisonPage({ params }: Props) {
 						"SEO audit tool with keyword opportunities and AI content briefs",
 					offers: {
 						"@type": "Offer",
-						price: tierInfo.AUDIT.price,
+						price: TIERS.AUDIT.price,
 						priceCurrency: "EUR",
 						priceSpecification: {
 							"@type": "UnitPriceSpecification",
-							price: tierInfo.AUDIT.price,
+							price: TIERS.AUDIT.price,
 							priceCurrency: "EUR",
 							unitText: "one-time",
 						},
@@ -384,7 +384,7 @@ export default async function ComparisonPage({ params }: Props) {
 								<span className="opacity-70">→</span>
 							</Link>
 							<p className="text-sm text-text-tertiary mt-4">
-								From €{tierInfo.SCAN.price} for a full audit
+								From €{TIERS.SCAN.price} for a full audit
 							</p>
 						</div>
 

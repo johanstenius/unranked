@@ -5,14 +5,11 @@
  */
 
 import { actionPlanComponent } from "./action-plan.js";
+import { aiReadinessComponent } from "./ai-readiness.js";
+import { quickWinsComponent } from "./ai.js";
+import { briefsComponent } from "./briefs.js";
+import { crawlComponent } from "./crawl.js";
 import {
-	intentClassificationComponent,
-	keywordClusteringComponent,
-	quickWinsComponent,
-} from "./ai.js";
-import { coreWebVitalsComponent } from "./cwv.js";
-import {
-	cannibalizationComponent,
 	competitorAnalysisComponent,
 	currentRankingsComponent,
 	keywordOpportunitiesComponent,
@@ -27,7 +24,6 @@ import type {
 	ComponentEntry,
 	ComponentKey,
 	ComponentRegistry,
-	ComponentResults,
 } from "./types.js";
 
 export * from "./types.js";
@@ -37,38 +33,28 @@ export * from "./types.js";
  * Cast to unknown to allow mixed component types in the registry.
  */
 export const COMPONENT_REGISTRY: ComponentRegistry = {
-	// Technical analysis components (no external deps)
+	// Crawl - first component, fetches pages
+	crawl: crawlComponent as ComponentEntry<unknown>,
+
+	// Technical analysis components (depend on crawl)
 	technicalIssues: technicalIssuesComponent as ComponentEntry<unknown>,
 	internalLinking: internalLinkingComponent as ComponentEntry<unknown>,
 	duplicateContent: duplicateContentComponent as ComponentEntry<unknown>,
-
-	// Core Web Vitals (PageSpeed Insights API)
-	coreWebVitals: coreWebVitalsComponent as ComponentEntry<unknown>,
+	aiReadiness: aiReadinessComponent as ComponentEntry<unknown>,
 
 	// DataForSEO components
 	currentRankings: currentRankingsComponent as ComponentEntry<unknown>,
 	keywordOpportunities:
 		keywordOpportunitiesComponent as ComponentEntry<unknown>,
 	competitorAnalysis: competitorAnalysisComponent as ComponentEntry<unknown>,
-	cannibalization: cannibalizationComponent as ComponentEntry<unknown>,
 	snippetOpportunities:
 		snippetOpportunitiesComponent as ComponentEntry<unknown>,
 
 	// AI components
-	intentClassification:
-		intentClassificationComponent as ComponentEntry<unknown>,
-	keywordClustering: keywordClusteringComponent as ComponentEntry<unknown>,
 	quickWins: quickWinsComponent as ComponentEntry<unknown>,
 
-	// Briefs handled separately (has its own flow)
-	briefs: {
-		key: "briefs",
-		dependencies: ["keywordClustering"],
-		run: async () => ({ ok: true as const, data: null }),
-		store: (results: ComponentResults) => results,
-		sseKey: "briefs",
-		getSSEData: () => [], // Briefs fetched via separate API
-	},
+	// Briefs - generates content briefs
+	briefs: briefsComponent as ComponentEntry<unknown>,
 
 	// Aggregation component - runs last
 	actionPlan: actionPlanComponent as ComponentEntry<unknown>,

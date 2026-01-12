@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "@hono/zod-openapi";
 import { env } from "../../config/env.js";
+import { getErrorMessage } from "../../lib/errors.js";
 import { createLogger } from "../../lib/logger.js";
 import { type ApiUsage, trackClaudeUsage } from "../../types/api-usage.js";
 import * as mockAi from "./anthropic.mock.js";
@@ -129,6 +130,112 @@ export type BriefStructure = {
 	secondaryKeywords?: string[];
 };
 
+// ============================================================================
+// TOOL SCHEMAS FOR STRUCTURED OUTPUT
+// ============================================================================
+
+const briefStructureTool: Anthropic.Tool = {
+	name: "generate_brief",
+	description: "Generate a content brief structure",
+	input_schema: {
+		type: "object" as const,
+		properties: {
+			title: {
+				type: "string",
+				description: "Compelling page title under 60 chars",
+			},
+			structure: {
+				type: "object",
+				properties: {
+					metaDescription: {
+						type: "string",
+						description: "Meta description 150-160 chars",
+					},
+					wordCount: { type: "number", description: "Recommended word count" },
+					primaryKeywords: {
+						type: "array",
+						items: { type: "string" },
+						description: "Main keywords to target",
+					},
+					secondaryKeywords: {
+						type: "array",
+						items: { type: "string" },
+						description: "Related keywords",
+					},
+					h2s: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								title: { type: "string" },
+								h3s: { type: "array", items: { type: "string" } },
+								keyPoints: { type: "array", items: { type: "string" } },
+							},
+							required: ["title"],
+						},
+						description: "H2 headings with optional H3s and key points",
+					},
+				},
+				required: ["metaDescription", "wordCount", "h2s"],
+			},
+		},
+		required: ["title", "structure"],
+	},
+};
+
+const quickWinTool: Anthropic.Tool = {
+	name: "suggest_quick_wins",
+	description: "Suggest quick win improvements for a page",
+	input_schema: {
+		type: "object" as const,
+		properties: {
+			contentGaps: {
+				type: "array",
+				items: { type: "string" },
+				description: "Specific sections or topics to add",
+			},
+			questionsToAnswer: {
+				type: "array",
+				items: { type: "string" },
+				description: "Questions from PAA to answer",
+			},
+			internalLinksToAdd: {
+				type: "array",
+				items: {
+					type: "object",
+					properties: {
+						fromPage: { type: "string", description: "URL of linking page" },
+						suggestedAnchor: {
+							type: "string",
+							description: "Anchor text to use",
+						},
+					},
+					required: ["fromPage", "suggestedAnchor"],
+				},
+				description: "Internal links to add",
+			},
+			estimatedNewPosition: {
+				type: "number",
+				description: "Expected position after improvements",
+			},
+		},
+		required: [
+			"contentGaps",
+			"questionsToAnswer",
+			"internalLinksToAdd",
+			"estimatedNewPosition",
+		],
+	},
+};
+
+function extractToolInput<T>(response: Anthropic.Message): T {
+	const toolUse = response.content.find((c) => c.type === "tool_use");
+	if (!toolUse || toolUse.type !== "tool_use") {
+		throw new Error("No tool use in AI response");
+	}
+	return toolUse.input as T;
+}
+
 type GenerateStructureInput = {
 	keyword: string;
 	productDesc: string | null;
@@ -175,44 +282,19 @@ Create a comprehensive content brief with:
 4. H2/H3 structure that covers the topic better than competitors
 5. Primary and secondary keywords to target
 
-Respond in JSON format:
-{
-  "title": "Page title here",
-  "structure": {
-    "metaDescription": "Compelling meta description under 160 chars",
-    "wordCount": 1500,
-    "primaryKeywords": ["main keyword", "close variant"],
-    "secondaryKeywords": ["related term 1", "related term 2"],
-    "h2s": [
-      {
-        "title": "H2 heading",
-        "h3s": ["H3 subheading 1", "H3 subheading 2"],
-        "keyPoints": ["Key point to cover", "What competitors miss"]
-      }
-    ]
-  }
-}`;
+Use the generate_brief tool to provide the structured output.`;
 
 	const response = await getClient().messages.create({
 		model: getModel("quality"),
-		max_tokens: 1024,
+		max_tokens: 2048,
+		tools: [briefStructureTool],
+		tool_choice: { type: "tool", name: "generate_brief" },
 		messages: [{ role: "user", content: prompt }],
 	});
 
-	const textContent = response.content.find((c) => c.type === "text");
-	if (!textContent || textContent.type !== "text") {
-		throw new Error("No text response from AI");
-	}
-
-	const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-	if (!jsonMatch) {
-		throw new Error("No JSON found in AI response");
-	}
-
-	return JSON.parse(jsonMatch[0]) as {
-		title: string;
-		structure: BriefStructure;
-	};
+	return extractToolInput<{ title: string; structure: BriefStructure }>(
+		response,
+	);
 }
 
 export type QuickWinSuggestions = {
@@ -270,21 +352,17 @@ ${input.relatedQuestions.map((q) => `- ${q}`).join("\n")}
 OTHER PAGES ON THIS SITE (for internal linking):
 ${existingPagesList}
 
-Analyze why this page ranks #${input.currentPosition} instead of higher, and provide specific, actionable suggestions to improve rankings.
+Analyze why this page ranks #${input.currentPosition} instead of higher, and provide specific, actionable suggestions.
 
-Respond in JSON format:
-{
-  "contentGaps": ["Specific section or topic to add based on what competitors cover"],
-  "questionsToAnswer": ["Specific questions from the PAA list that should be answered"],
-  "internalLinksToAdd": [{"fromPage": "URL of page that should link to this", "suggestedAnchor": "anchor text to use"}],
-  "estimatedNewPosition": 5
-}
+Be specific. Don't give generic advice like "add more content" - say exactly what to add.
 
-Be specific. Don't give generic advice like "add more content" - instead say exactly what content to add based on what competitors cover.`;
+Use the suggest_quick_wins tool to provide the structured output.`;
 
 	const response = await getClient().messages.create({
 		model: getModel("quality"),
 		max_tokens: 1024,
+		tools: [quickWinTool],
+		tool_choice: { type: "tool", name: "suggest_quick_wins" },
 		messages: [{ role: "user", content: prompt }],
 	});
 
@@ -296,17 +374,7 @@ Be specific. Don't give generic advice like "add more content" - instead say exa
 		);
 	}
 
-	const textContent = response.content.find((c) => c.type === "text");
-	if (!textContent || textContent.type !== "text") {
-		throw new Error("No text response from AI");
-	}
-
-	const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-	if (!jsonMatch) {
-		throw new Error("No JSON found in AI response");
-	}
-
-	return JSON.parse(jsonMatch[0]) as QuickWinSuggestions;
+	return extractToolInput<QuickWinSuggestions>(response);
 }
 
 type KeywordWithVolume = {
@@ -564,7 +632,7 @@ export async function classifyKeywordIntentsTyped(
 	} catch (error) {
 		recordFailure();
 		const errorType = categorizeError(error);
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Intent classification failed");
 		return { ok: false, error: errorType, message };
 	}
@@ -652,7 +720,7 @@ Respond ONLY with JSON:
 	} catch (error) {
 		recordFailure();
 		const errorType = categorizeError(error);
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "AI clustering failed");
 		return { ok: false, error: errorType, message };
 	}
@@ -702,22 +770,18 @@ ${input.relatedQuestions.map((q) => `- ${q}`).join("\n")}
 OTHER PAGES ON THIS SITE (for internal linking):
 ${existingPagesList}
 
-Analyze why this page ranks #${input.currentPosition} instead of higher, and provide specific, actionable suggestions to improve rankings.
+Analyze why this page ranks #${input.currentPosition} instead of higher, and provide specific, actionable suggestions.
 
-Respond in JSON format:
-{
-  "contentGaps": ["Specific section or topic to add based on what competitors cover"],
-  "questionsToAnswer": ["Specific questions from the PAA list that should be answered"],
-  "internalLinksToAdd": [{"fromPage": "URL of page that should link to this", "suggestedAnchor": "anchor text to use"}],
-  "estimatedNewPosition": 5
-}
+Be specific. Don't give generic advice like "add more content" - say exactly what to add.
 
-Be specific. Don't give generic advice like "add more content" - instead say exactly what content to add based on what competitors cover.`;
+Use the suggest_quick_wins tool to provide the structured output.`;
 
 	try {
 		const response = await getClient().messages.create({
 			model: getModel("quality"),
 			max_tokens: 1024,
+			tools: [quickWinTool],
+			tool_choice: { type: "tool", name: "suggest_quick_wins" },
 			messages: [{ role: "user", content: prompt }],
 		});
 
@@ -729,28 +793,13 @@ Be specific. Don't give generic advice like "add more content" - instead say exa
 			);
 		}
 
-		const textContent = response.content.find((c) => c.type === "text");
-		if (!textContent || textContent.type !== "text") {
-			recordFailure();
-			return {
-				ok: false,
-				error: "unknown",
-				message: "No text response from AI",
-			};
-		}
-
-		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-		if (!jsonMatch) {
-			recordFailure();
-			return { ok: false, error: "unknown", message: "No JSON in AI response" };
-		}
-
+		const data = extractToolInput<QuickWinSuggestions>(response);
 		recordSuccess();
-		return { ok: true, data: JSON.parse(jsonMatch[0]) as QuickWinSuggestions };
+		return { ok: true, data };
 	} catch (error) {
 		recordFailure();
 		const errorType = categorizeError(error);
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Quick win generation failed");
 		return { ok: false, error: errorType, message };
 	}
@@ -802,28 +851,14 @@ Create a comprehensive content brief with:
 4. H2/H3 structure that covers the topic better than competitors
 5. Primary and secondary keywords to target
 
-Respond in JSON format:
-{
-  "title": "Page title here",
-  "structure": {
-    "metaDescription": "Compelling meta description under 160 chars",
-    "wordCount": 1500,
-    "primaryKeywords": ["main keyword", "close variant"],
-    "secondaryKeywords": ["related term 1", "related term 2"],
-    "h2s": [
-      {
-        "title": "H2 heading",
-        "h3s": ["H3 subheading 1", "H3 subheading 2"],
-        "keyPoints": ["Key point to cover", "What competitors miss"]
-      }
-    ]
-  }
-}`;
+Use the generate_brief tool to provide the structured output.`;
 
 	try {
 		const response = await getClient().messages.create({
 			model: getModel("quality"),
-			max_tokens: 1024,
+			max_tokens: 2048,
+			tools: [briefStructureTool],
+			tool_choice: { type: "tool", name: "generate_brief" },
 			messages: [{ role: "user", content: prompt }],
 		});
 
@@ -835,28 +870,15 @@ Respond in JSON format:
 			);
 		}
 
-		const textContent = response.content.find((c) => c.type === "text");
-		if (!textContent || textContent.type !== "text") {
-			recordFailure();
-			return {
-				ok: false,
-				error: "unknown",
-				message: "No text response from AI",
-			};
-		}
-
-		const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-		if (!jsonMatch) {
-			recordFailure();
-			return { ok: false, error: "unknown", message: "No JSON in AI response" };
-		}
-
+		const data = extractToolInput<{ title: string; structure: BriefStructure }>(
+			response,
+		);
 		recordSuccess();
-		return { ok: true, data: JSON.parse(jsonMatch[0]) };
+		return { ok: true, data };
 	} catch (error) {
 		recordFailure();
 		const errorType = categorizeError(error);
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Brief structure generation failed");
 		return { ok: false, error: errorType, message };
 	}

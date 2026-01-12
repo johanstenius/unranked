@@ -1,3 +1,8 @@
+import {
+	clusterSuggestionSchema as sharedClusterSuggestionSchema,
+	competitorSuggestionSchema as sharedCompetitorSuggestionSchema,
+	interactivePhaseSchema as sharedInteractivePhaseSchema,
+} from "@docrank/shared";
 import { z } from "@hono/zod-openapi";
 
 export const auditTierSchema = z.enum(["FREE", "SCAN", "AUDIT", "DEEP_DIVE"]);
@@ -6,9 +11,11 @@ export type AuditTier = z.infer<typeof auditTierSchema>;
 export const auditStatusSchema = z.enum([
 	"PENDING",
 	"CRAWLING",
+	"SELECTING_COMPETITORS",
+	"SELECTING_TOPICS",
 	"ANALYZING",
-	"GENERATING_BRIEFS",
-	"RETRYING",
+	"GENERATING_BRIEFS", // Legacy - kept for existing audits
+	"RETRYING", // Legacy - kept for existing audits
 	"COMPLETED",
 	"FAILED",
 ]);
@@ -34,6 +41,9 @@ export type ValidateUrlRequest = z.infer<typeof validateUrlRequestSchema>;
 export const validateUrlResponseSchema = z.object({
 	valid: z.boolean(),
 	error: z.string().optional(),
+	// Extracted info when valid (optional, may fail extraction)
+	productDescription: z.string().optional(),
+	seedKeywords: z.array(z.string()).optional(),
 });
 export type ValidateUrlResponse = z.infer<typeof validateUrlResponseSchema>;
 
@@ -85,6 +95,14 @@ export const createAuditSchema = z.object({
 		.describe(
 			"Sections to include (e.g. ['/blog', '/guides']). If empty, all sections.",
 		),
+	targetKeywords: z
+		.array(z.string().min(1).max(100))
+		.max(10)
+		.optional()
+		.transform((val) => val ?? [])
+		.describe(
+			"Keywords you want to target (helpful for new sites without rankings)",
+		),
 	tier: auditTierSchema,
 	email: z.string().email(),
 });
@@ -113,14 +131,13 @@ export const auditProgressSchema = z.object({
 	internalLinking: componentStatusSchema,
 	duplicateContent: componentStatusSchema,
 	redirectChains: componentStatusSchema,
-	coreWebVitals: componentStatusSchema,
 	currentRankings: componentStatusSchema,
 	competitorAnalysis: componentStatusSchema,
 	keywordOpportunities: componentStatusSchema,
-	intentClassification: componentStatusSchema,
-	keywordClustering: componentStatusSchema,
+	snippetOpportunities: componentStatusSchema,
 	quickWins: componentStatusSchema,
 	briefs: componentStatusSchema,
+	actionPlan: componentStatusSchema,
 	lastRetryAt: z.string().optional(),
 	retryCount: z.number(),
 });
@@ -133,6 +150,7 @@ export const auditResponseSchema = z.object({
 	productDesc: z.string().nullable(),
 	competitors: z.array(z.string()),
 	sections: z.array(z.string()).nullable(),
+	targetKeywords: z.array(z.string()),
 	detectedSections: z.array(sectionInfoSchema).nullable(),
 	tier: auditTierSchema,
 	pagesFound: z.number().nullable(),
@@ -177,6 +195,7 @@ export const opportunitySourceSchema = z.enum([
 	"competitor_gap",
 	"seed_expansion",
 	"content_extraction",
+	"target_keyword",
 ]);
 export type OpportunitySourceResponse = z.infer<typeof opportunitySourceSchema>;
 
@@ -258,22 +277,6 @@ export const competitorGapSchema = z.object({
 	),
 });
 export type CompetitorGapResponse = z.infer<typeof competitorGapSchema>;
-
-export const cannibalizationIssueSchema = z.object({
-	keyword: z.string(),
-	searchVolume: z.number(),
-	pages: z.array(
-		z.object({
-			url: z.string(),
-			position: z.number().nullable(),
-			signals: z.array(z.enum(["title", "h1", "content"])),
-		}),
-	),
-	severity: z.enum(["high", "medium"]),
-});
-export type CannibalizationIssueResponse = z.infer<
-	typeof cannibalizationIssueSchema
->;
 
 export const snippetOpportunitySchema = z.object({
 	keyword: z.string(),
@@ -369,29 +372,6 @@ export const upgradeHintsSchema = z.object({
 });
 export type UpgradeHints = z.infer<typeof upgradeHintsSchema>;
 
-// Core Web Vitals schemas
-export const cwvPageResultSchema = z.object({
-	url: z.string(),
-	lcp: z.number().nullable(),
-	cls: z.number().nullable(),
-	inp: z.number().nullable(),
-	performance: z.number().nullable(),
-	status: z.enum(["success", "failed"]),
-	error: z.string().optional(),
-});
-export type CWVPageResultResponse = z.infer<typeof cwvPageResultSchema>;
-
-export const coreWebVitalsSchema = z.object({
-	pages: z.array(cwvPageResultSchema),
-	summary: z.object({
-		good: z.number(),
-		needsImprovement: z.number(),
-		poor: z.number(),
-		avgPerformance: z.number().nullable(),
-	}),
-});
-export type CoreWebVitalsResponse = z.infer<typeof coreWebVitalsSchema>;
-
 export const analysisResponseSchema = z.object({
 	currentRankings: z.array(currentRankingSchema),
 	opportunities: z.array(opportunitySchema),
@@ -400,61 +380,29 @@ export const analysisResponseSchema = z.object({
 	technicalIssues: z.array(technicalIssueSchema),
 	internalLinkingIssues: internalLinkingIssuesSchema,
 	competitorGaps: z.array(competitorGapSchema),
-	cannibalizationIssues: z.array(cannibalizationIssueSchema),
 	snippetOpportunities: z.array(snippetOpportunitySchema),
 	sectionStats: z.array(sectionStatsSchema),
 	healthScore: healthScoreSchema.nullable(),
 	discoveredCompetitors: z.array(discoveredCompetitorSchema),
 	upgradeHints: upgradeHintsSchema.optional(),
-	coreWebVitals: coreWebVitalsSchema.optional(),
 });
 export type AnalysisResponse = z.infer<typeof analysisResponseSchema>;
 
-export const UNLIMITED = -1;
-
-export type TierLimits = {
-	pages: number;
-	keywords: number | "all";
-	briefs: number; // UNLIMITED (-1) = no limit
-	competitors: number;
-	seeds: number; // Number of top keywords used for seed expansion
-	pdfExport: boolean;
-};
-
-export const tierLimits: Record<AuditTier, TierLimits> = {
-	FREE: {
-		pages: 50,
-		keywords: 0,
-		briefs: 0,
-		competitors: 0,
-		seeds: 0,
-		pdfExport: false,
-	},
-	SCAN: {
-		pages: 50,
-		keywords: "all",
-		briefs: 1,
-		competitors: 0,
-		seeds: 3,
-		pdfExport: true,
-	},
-	AUDIT: {
-		pages: 200,
-		keywords: "all",
-		briefs: 5,
-		competitors: 1,
-		seeds: 5,
-		pdfExport: true,
-	},
-	DEEP_DIVE: {
-		pages: 500,
-		keywords: "all",
-		briefs: UNLIMITED,
-		competitors: 3,
-		seeds: 10,
-		pdfExport: true,
-	},
-};
+// Tier limits are now in @docrank/shared - re-export for convenience
+export {
+	UNLIMITED,
+	TIERS,
+	getLimits,
+	getComponents,
+	getPhases,
+	hasComponent,
+} from "@docrank/shared";
+export type {
+	TierLimits,
+	TierConfig,
+	ComponentId,
+	PhaseInfo,
+} from "@docrank/shared";
 
 // ============================================================================
 // Unified Audit State Schema - Single source of truth
@@ -499,6 +447,59 @@ const competitorDataSchema = z.object({
 	discovered: z.array(discoveredCompetitorSchema),
 });
 
+// AI Readiness schemas
+const aiBotStatusSchema = z.object({
+	bot: z.string(),
+	provider: z.string(),
+	purpose: z.enum(["training", "search", "live", "indexing"]),
+	status: z.enum(["allowed", "blocked", "not_specified"]),
+	rule: z.string().optional(),
+});
+
+const robotsTxtAnalysisSchema = z.object({
+	exists: z.boolean(),
+	aiBots: z.array(aiBotStatusSchema),
+	summary: z.object({
+		allowed: z.number(),
+		blocked: z.number(),
+		unspecified: z.number(),
+	}),
+});
+
+const llmsTxtInfoSchema = z.object({
+	exists: z.boolean(),
+	url: z.string().nullable(),
+});
+
+const contentStructureAnalysisSchema = z.object({
+	headingHierarchy: z.object({
+		score: z.number(),
+		pagesWithProperH1: z.number(),
+		pagesWithMultipleH1: z.number(),
+		pagesWithNoH1: z.number(),
+		avgHeadingsPerPage: z.number(),
+	}),
+	structuredData: z.object({
+		pagesWithSchema: z.number(),
+		schemaTypes: z.array(z.string()),
+		hasFAQSchema: z.boolean(),
+		hasArticleSchema: z.boolean(),
+		hasProductSchema: z.boolean(),
+	}),
+	contentQuality: z.object({
+		avgWordCount: z.number(),
+		avgReadabilityScore: z.number().nullable(),
+		pagesWithThinContent: z.number(),
+	}),
+});
+
+const aiReadinessDataSchema = z.object({
+	robotsTxtAnalysis: robotsTxtAnalysisSchema,
+	llmsTxt: llmsTxtInfoSchema,
+	contentStructure: contentStructureAnalysisSchema,
+	score: z.number(),
+});
+
 // Component states schema
 export const componentStatesSchema = z.object({
 	crawl: componentStateSchema(z.null()),
@@ -520,12 +521,11 @@ export const componentStatesSchema = z.object({
 			}),
 		),
 	),
-	coreWebVitals: componentStateSchema(coreWebVitalsSchema),
+	aiReadiness: componentStateSchema(aiReadinessDataSchema),
 	rankings: componentStateSchema(z.array(currentRankingSchema)),
 	opportunities: componentStateSchema(z.array(opportunitySchema)),
 	quickWins: componentStateSchema(z.array(quickWinSchema)),
 	competitors: componentStateSchema(competitorDataSchema),
-	cannibalization: componentStateSchema(z.array(cannibalizationIssueSchema)),
 	snippets: componentStateSchema(z.array(snippetOpportunitySchema)),
 	briefs: componentStateSchema(z.array(briefDataSchema)),
 });
@@ -547,6 +547,36 @@ const actionItemSchema = z.object({
 	category: z.string(),
 });
 
+// Tier config schema (included in state, drives frontend)
+const phaseInfoSchema = z.object({
+	id: z.string(),
+	label: z.string(),
+	runningLabel: z.string(),
+});
+
+const tierLimitsResponseSchema = z.object({
+	pages: z.number(),
+	competitors: z.number(),
+	briefs: z.number(),
+	seeds: z.number(),
+	pdfExport: z.boolean(),
+});
+
+const tierConfigResponseSchema = z.object({
+	components: z.array(z.string()),
+	phases: z.array(phaseInfoSchema),
+	limits: tierLimitsResponseSchema,
+});
+
+export type TierConfigResponse = z.infer<typeof tierConfigResponseSchema>;
+
+/**
+ * Interactive flow types - imported from @docrank/shared
+ */
+export const interactivePhaseSchema = sharedInteractivePhaseSchema;
+export const competitorSuggestionSchema = sharedCompetitorSuggestionSchema;
+export const clusterSuggestionSchema = sharedClusterSuggestionSchema;
+
 /**
  * Unified audit state - single source of truth
  */
@@ -566,15 +596,25 @@ export const auditStateSchema = z.object({
 	pagesFound: z.number().nullable(),
 	sitemapUrlCount: z.number().nullable(),
 
+	// Tier configuration (drives what frontend tracks)
+	tierConfig: tierConfigResponseSchema,
+
 	// Component states - status and data unified
 	components: componentStatesSchema,
 
-	// Streaming state (CWV pages as they arrive)
-	cwvStream: z.array(cwvPageResultSchema),
-
 	// Derived data
+	isNewSite: z.boolean().optional(),
 	opportunityClusters: z.array(opportunityClusterSchema).optional(),
 	actionPlan: z.array(actionItemSchema).optional(),
 	healthScore: healthScoreSchema.nullable(),
+
+	// Interactive flow state (paid tiers only)
+	interactivePhase: interactivePhaseSchema.optional(),
+	suggestedCompetitors: z.array(competitorSuggestionSchema).optional(),
+	selectedCompetitors: z.array(z.string()).optional(),
+	suggestedClusters: z.array(clusterSuggestionSchema).optional(),
+	selectedClusterIds: z.array(z.string()).optional(),
+	crawlComplete: z.boolean().optional(),
+	interactiveComplete: z.boolean().optional(),
 });
 export type AuditStateResponse = z.infer<typeof auditStateSchema>;

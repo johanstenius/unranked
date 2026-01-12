@@ -172,7 +172,16 @@ async function processBatch(
 			briefs.push(result.value);
 		} else {
 			const keyword = batch[i]?.primaryKeyword ?? "unknown";
-			log.error({ keyword, error: result.reason }, "Brief generation failed");
+			const err = result.reason;
+			log.error(
+				{
+					keyword,
+					errorMessage: err?.message ?? String(err),
+					errorName: err?.name,
+					errorStack: err?.stack?.split("\n").slice(0, 3).join("\n"),
+				},
+				"Brief generation failed",
+			);
 			failed.push(keyword);
 		}
 	});
@@ -276,4 +285,17 @@ export async function generateBriefs(
 		failedCount: allFailed.length,
 		failedKeywords: allFailed,
 	};
+}
+
+/**
+ * Generate a single brief from an OpportunityCluster.
+ * Used for on-demand brief generation via API.
+ */
+export async function generateSingleBrief(
+	cluster: OpportunityCluster,
+	productDesc: string | null,
+	existingPages: CrawledPage[],
+): Promise<GeneratedBrief> {
+	const keywordCluster = opportunityClusterToKeywordCluster(cluster);
+	return generateBriefFromCluster(keywordCluster, productDesc, existingPages);
 }

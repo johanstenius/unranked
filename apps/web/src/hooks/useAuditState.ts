@@ -9,45 +9,15 @@
  */
 
 import { getAuditState, subscribeToAudit } from "@/lib/api";
-import type {
-	AuditSSEEvent,
-	AuditState,
-	AuditStatus,
-	CWVPageResult,
-	ComponentStates,
-	HealthScore,
-	OpportunityCluster,
-	PrioritizedAction,
-	StateComponentKey,
-} from "@/lib/types";
-import { useCallback, useEffect, useState } from "react";
+import type { AuditSSEEvent, AuditState } from "@/lib/types";
+import { useEffect, useState } from "react";
 
 type UseAuditStateReturn = {
 	state: AuditState | null;
 	loading: boolean;
 	error: string | null;
+	refetch: () => Promise<void>;
 };
-
-/**
- * Create initial component states (all pending)
- */
-function createInitialComponentStates(): ComponentStates {
-	return {
-		crawl: { status: "pending" },
-		technical: { status: "pending" },
-		internalLinking: { status: "pending" },
-		duplicateContent: { status: "pending" },
-		redirectChains: { status: "pending" },
-		coreWebVitals: { status: "pending" },
-		rankings: { status: "pending" },
-		opportunities: { status: "pending" },
-		quickWins: { status: "pending" },
-		competitors: { status: "pending" },
-		cannibalization: { status: "pending" },
-		snippets: { status: "pending" },
-		briefs: { status: "pending" },
-	};
-}
 
 /**
  * Apply an SSE event to the audit state (idempotent)
@@ -90,16 +60,6 @@ function applyEvent(state: AuditState, event: AuditSSEEvent): AuditState {
 				},
 			};
 
-		case "cwv:page":
-			// Avoid duplicates
-			if (state.cwvStream.some((p) => p.url === event.page.url)) {
-				return state;
-			}
-			return {
-				...state,
-				cwvStream: [...state.cwvStream, event.page],
-			};
-
 		case "crawl:pages":
 			return {
 				...state,
@@ -115,6 +75,30 @@ function applyEvent(state: AuditState, event: AuditSSEEvent): AuditState {
 
 		case "action-plan":
 			return { ...state, actionPlan: event.data };
+
+		// Interactive flow events
+		case "interactive:phase":
+			return { ...state, interactivePhase: event.phase };
+
+		case "interactive:competitor_suggestions":
+			return {
+				...state,
+				suggestedCompetitors: event.suggestions,
+				interactivePhase: "competitor_selection",
+			};
+
+		case "interactive:cluster_suggestions":
+			return {
+				...state,
+				suggestedClusters: event.clusters,
+				interactivePhase: "cluster_selection",
+			};
+
+		case "interactive:crawl_complete":
+			return { ...state, crawlComplete: true };
+
+		case "interactive:waiting_for_crawl":
+			return { ...state, interactivePhase: "generating" };
 
 		case "audit:complete":
 			return { ...state, status: "COMPLETED" };
@@ -134,6 +118,15 @@ export function useAuditState(token: string): UseAuditStateReturn {
 	const [state, setState] = useState<AuditState | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+
+	async function refetch() {
+		try {
+			const freshState = await getAuditState(token);
+			setState(freshState);
+		} catch (err) {
+			console.error("[useAuditState] Refetch failed:", err);
+		}
+	}
 
 	useEffect(() => {
 		let unsubscribe: (() => void) | null = null;
@@ -173,5 +166,5 @@ export function useAuditState(token: string): UseAuditStateReturn {
 		};
 	}, [token]);
 
-	return { state, loading, error };
+	return { state, loading, error, refetch };
 }

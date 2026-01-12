@@ -1,6 +1,10 @@
 "use client";
 
 import {
+	LockedFeatureState,
+	QuickWinsEmptyState,
+} from "@/components/audit/empty-states";
+import {
 	Card,
 	CardContent,
 	CardDescription,
@@ -13,9 +17,15 @@ import { stripOrigin } from "@/lib/utils";
 
 type QuickWinsTabProps = {
 	quickWins: ComponentState<QuickWin[]>;
+	isNewSite?: boolean;
 };
 
-export function QuickWinsTab({ quickWins }: QuickWinsTabProps) {
+export function QuickWinsTab({ quickWins, isNewSite }: QuickWinsTabProps) {
+	// For new sites, show the locked feature state instead of loading/empty
+	if (isNewSite) {
+		return <LockedFeatureState feature="quickWins" />;
+	}
+
 	if (quickWins.status === "pending" || quickWins.status === "running") {
 		return (
 			<div className="space-y-4">
@@ -68,11 +78,7 @@ export function QuickWinsTab({ quickWins }: QuickWinsTabProps) {
 				</CardHeader>
 			</Card>
 			{wins.length === 0 ? (
-				<Card>
-					<CardContent className="pt-6 text-center text-muted-foreground">
-						No quick wins identified
-					</CardContent>
-				</Card>
+				<QuickWinsEmptyState />
 			) : (
 				wins.map((qw) => (
 					<Card key={qw.url}>

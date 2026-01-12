@@ -24,15 +24,12 @@ export type ComponentKey =
 	| "internalLinking"
 	| "duplicateContent"
 	| "redirectChains"
-	| "coreWebVitals"
+	| "aiReadiness"
 	| "currentRankings"
 	| "competitorAnalysis"
 	| "keywordOpportunities"
-	| "intentClassification"
-	| "keywordClustering"
 	| "quickWins"
 	| "briefs"
-	| "cannibalization"
 	| "snippetOpportunities"
 	| "actionPlan";
 
@@ -50,20 +47,15 @@ export type AuditProgress = {
 	internalLinking: ComponentProgress;
 	duplicateContent: ComponentProgress;
 	redirectChains: ComponentProgress;
-
-	// PageSpeed Insights API
-	coreWebVitals: ComponentProgress;
+	aiReadiness: ComponentProgress;
 
 	// DataForSEO dependent components
 	currentRankings: ComponentProgress;
 	competitorAnalysis: ComponentProgress;
 	keywordOpportunities: ComponentProgress;
-	cannibalization: ComponentProgress;
 	snippetOpportunities: ComponentProgress;
 
 	// Claude dependent components
-	intentClassification: ComponentProgress;
-	keywordClustering: ComponentProgress;
 	quickWins: ComponentProgress;
 	briefs: ComponentProgress;
 
@@ -81,7 +73,6 @@ export const DATAFORSEO_COMPONENTS: readonly ComponentKey[] = [
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
-	"cannibalization",
 	"snippetOpportunities",
 ] as const;
 
@@ -89,8 +80,6 @@ export const DATAFORSEO_COMPONENTS: readonly ComponentKey[] = [
  * Component keys that depend on Claude/Anthropic API
  */
 export const CLAUDE_COMPONENTS: readonly ComponentKey[] = [
-	"intentClassification",
-	"keywordClustering",
 	"quickWins",
 	"briefs",
 ] as const;
@@ -103,6 +92,7 @@ export const LOCAL_COMPONENTS: readonly ComponentKey[] = [
 	"internalLinking",
 	"duplicateContent",
 	"redirectChains",
+	"aiReadiness",
 	"actionPlan",
 ] as const;
 
@@ -110,14 +100,10 @@ export const LOCAL_COMPONENTS: readonly ComponentKey[] = [
  * Retryable component keys (those with external dependencies)
  */
 export const RETRYABLE_COMPONENTS: readonly ComponentKey[] = [
-	"coreWebVitals",
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
-	"cannibalization",
 	"snippetOpportunities",
-	"intentClassification",
-	"keywordClustering",
 	"quickWins",
 	"briefs",
 ] as const;
@@ -131,14 +117,11 @@ export const ALL_COMPONENTS: readonly ComponentKey[] = [
 	"internalLinking",
 	"duplicateContent",
 	"redirectChains",
-	"coreWebVitals",
+	"aiReadiness",
 	"currentRankings",
 	"competitorAnalysis",
 	"keywordOpportunities",
-	"cannibalization",
 	"snippetOpportunities",
-	"intentClassification",
-	"keywordClustering",
 	"quickWins",
 	"briefs",
 	"actionPlan",
@@ -168,14 +151,11 @@ export function createInitialProgress(): AuditProgress {
 		internalLinking: pendingProgress(),
 		duplicateContent: pendingProgress(),
 		redirectChains: pendingProgress(),
-		coreWebVitals: pendingProgress(),
+		aiReadiness: pendingProgress(),
 		currentRankings: pendingProgress(),
 		competitorAnalysis: pendingProgress(),
 		keywordOpportunities: pendingProgress(),
-		cannibalization: pendingProgress(),
 		snippetOpportunities: pendingProgress(),
-		intentClassification: pendingProgress(),
-		keywordClustering: pendingProgress(),
 		quickWins: pendingProgress(),
 		briefs: pendingProgress(),
 		actionPlan: pendingProgress(),

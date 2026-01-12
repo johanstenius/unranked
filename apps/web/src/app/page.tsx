@@ -429,8 +429,8 @@ export default function HomePage() {
 								Technical Issues
 							</h3>
 							<p className="text-sm text-text-secondary leading-relaxed">
-								Missing titles, thin content, broken internal links,
-								cannibalization. Prioritized by severity.
+								Missing titles, thin content, broken internal links, redirect
+								chains. Prioritized by severity.
 							</p>
 						</motion.div>
 					</div>

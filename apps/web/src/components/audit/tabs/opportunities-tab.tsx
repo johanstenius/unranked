@@ -1,6 +1,12 @@
 "use client";
 
+import {
+	ClustersEmptyState,
+	OpportunitiesEmptyState,
+	SnippetsEmptyState,
+} from "@/components/audit/empty-states";
 import { SnippetOpportunityRow } from "@/components/audit/snippet-opportunity-row";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -18,6 +24,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type {
+	Brief,
 	ComponentState,
 	Opportunity,
 	OpportunityCluster,
@@ -30,6 +37,12 @@ type OpportunitiesTabProps = {
 	opportunities: ComponentState<Opportunity[]>;
 	clusters: OpportunityCluster[];
 	snippets: ComponentState<SnippetOpportunity[]>;
+	isNewSite?: boolean;
+	// Brief generation props
+	briefsLimit: number;
+	existingBriefsCount: number;
+	onGenerateBriefs?: (clusterTopics: string[]) => void;
+	isGenerating?: boolean;
 };
 
 const ACTION_CONFIG = {
@@ -53,50 +66,78 @@ const ACTION_CONFIG = {
 	},
 };
 
-function ClusterCard({ cluster }: { cluster: OpportunityCluster }) {
+function ClusterCard({
+	cluster,
+	selected,
+	onToggle,
+	disabled,
+}: {
+	cluster: OpportunityCluster;
+	selected: boolean;
+	onToggle: () => void;
+	disabled: boolean;
+}) {
 	const [expanded, setExpanded] = useState(false);
 	const config = ACTION_CONFIG[cluster.suggestedAction];
 
 	return (
-		<Card className="overflow-hidden">
-			<button
-				type="button"
-				className="w-full p-4 flex items-start gap-4 text-left hover:bg-muted transition-colors"
-				onClick={() => setExpanded(!expanded)}
-			>
-				<span
-					className={`mt-0.5 w-6 h-6 rounded flex items-center justify-center text-sm font-bold ${config.bg} ${config.text}`}
-				>
-					{config.icon}
-				</span>
+		<Card
+			className={`overflow-hidden ${selected ? "ring-2 ring-primary" : ""}`}
+		>
+			<div className="flex items-start">
+				{/* Checkbox area */}
+				<div className="p-4 flex items-center">
+					<input
+						type="checkbox"
+						checked={selected}
+						onChange={onToggle}
+						disabled={disabled && !selected}
+						className="w-5 h-5 rounded border-2 border-border text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+					/>
+				</div>
 
-				<div className="flex-1 min-w-0">
-					<h3 className="font-medium mb-1">{cluster.topic}</h3>
-					<div className="flex items-center gap-3 text-xs text-muted-foreground">
-						<span>{cluster.opportunities.length} keywords</span>
-						<span>•</span>
-						<span>{cluster.totalVolume.toLocaleString()} total volume</span>
-						<span>•</span>
-						<span className={getDifficultyColor(cluster.avgDifficulty)}>
-							{getDifficultyLabel(cluster.avgDifficulty)} difficulty
+				{/* Main content */}
+				<button
+					type="button"
+					className="flex-1 p-4 pl-0 flex items-start gap-4 text-left hover:bg-muted/50 transition-colors"
+					onClick={() => setExpanded(!expanded)}
+				>
+					<span
+						className={`mt-0.5 w-6 h-6 rounded flex items-center justify-center text-sm font-bold ${config.bg} ${config.text}`}
+					>
+						{config.icon}
+					</span>
+
+					<div className="flex-1 min-w-0">
+						<h3 className="font-medium mb-1">{cluster.topic}</h3>
+						<div className="flex items-center gap-3 text-xs text-muted-foreground">
+							<span>{cluster.opportunities.length} keywords</span>
+							<span>•</span>
+							<span>{cluster.totalVolume.toLocaleString()} total volume</span>
+							<span>•</span>
+							<span className={getDifficultyColor(cluster.avgDifficulty)}>
+								{getDifficultyLabel(cluster.avgDifficulty)} difficulty
+							</span>
+						</div>
+						{cluster.existingPage && (
+							<div className="mt-2 text-xs text-muted-foreground truncate">
+								Existing: {new URL(cluster.existingPage).pathname}
+							</div>
+						)}
+					</div>
+
+					<div className="flex items-center gap-3">
+						<span
+							className={`text-xs px-2 py-1 rounded ${config.bg} ${config.text}`}
+						>
+							{config.label}
+						</span>
+						<span className="text-muted-foreground">
+							{expanded ? "▲" : "▼"}
 						</span>
 					</div>
-					{cluster.existingPage && (
-						<div className="mt-2 text-xs text-muted-foreground truncate">
-							Existing: {new URL(cluster.existingPage).pathname}
-						</div>
-					)}
-				</div>
-
-				<div className="flex items-center gap-3">
-					<span
-						className={`text-xs px-2 py-1 rounded ${config.bg} ${config.text}`}
-					>
-						{config.label}
-					</span>
-					<span className="text-muted-foreground">{expanded ? "▲" : "▼"}</span>
-				</div>
-			</button>
+				</button>
+			</div>
 
 			{expanded && (
 				<div className="border-t border-border bg-muted/50 p-4">
@@ -117,6 +158,7 @@ function ClusterCard({ cluster }: { cluster: OpportunityCluster }) {
 										<span>{opp.keyword}</span>
 										{opp.source && (
 											<span className="ml-2 text-xs text-muted-foreground">
+												{opp.source === "target_keyword" && "⭐"}
 												{opp.source === "seed_expansion" && "🌱"}
 												{opp.source === "competitor_gap" && "🎯"}
 												{opp.source === "content_extraction" && "📝"}
@@ -186,7 +228,38 @@ export function OpportunitiesTab({
 	opportunities,
 	clusters,
 	snippets,
+	isNewSite,
+	briefsLimit,
+	existingBriefsCount,
+	onGenerateBriefs,
+	isGenerating = false,
 }: OpportunitiesTabProps) {
+	const [selectedClusters, setSelectedClusters] = useState<Set<string>>(
+		new Set(),
+	);
+
+	const briefsRemaining = briefsLimit - existingBriefsCount;
+	const canSelectMore = selectedClusters.size < briefsRemaining;
+
+	function toggleCluster(topic: string) {
+		setSelectedClusters((prev) => {
+			const next = new Set(prev);
+			if (next.has(topic)) {
+				next.delete(topic);
+			} else if (canSelectMore) {
+				next.add(topic);
+			}
+			return next;
+		});
+	}
+
+	function handleGenerate() {
+		if (onGenerateBriefs && selectedClusters.size > 0) {
+			onGenerateBriefs(Array.from(selectedClusters));
+			setSelectedClusters(new Set());
+		}
+	}
+
 	// Opportunities / Clusters section
 	const opportunitiesContent = (() => {
 		if (
@@ -225,37 +298,82 @@ export function OpportunitiesTab({
 					<div className="flex items-center justify-between mb-4">
 						<div>
 							<h2 className="font-display font-semibold text-lg text-text-primary">
-								Topic Clusters
+								{isNewSite ? "Target Keywords" : "Topic Clusters"}
 							</h2>
 							<p className="text-sm text-text-secondary">
-								{clusters.length} content opportunities grouped by topic
+								{isNewSite
+									? `Select topics to generate content briefs (${briefsRemaining} remaining)`
+									: `Select topics to generate content briefs (${briefsRemaining} of ${briefsLimit} remaining)`}
 							</p>
 						</div>
-						<div className="flex items-center gap-2 text-xs text-text-tertiary">
-							<span className="flex items-center gap-1">
-								<span className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-400 text-[10px] font-bold">
-									+
+						<div className="flex items-center gap-4">
+							<div className="flex items-center gap-2 text-xs text-text-tertiary">
+								<span className="flex items-center gap-1">
+									<span className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-400 text-[10px] font-bold">
+										+
+									</span>
+									Create
 								</span>
-								Create
-							</span>
-							<span className="flex items-center gap-1">
-								<span className="w-4 h-4 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-700 dark:text-amber-400 text-[10px] font-bold">
-									↑
+								<span className="flex items-center gap-1">
+									<span className="w-4 h-4 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-700 dark:text-amber-400 text-[10px] font-bold">
+										↑
+									</span>
+									Optimize
 								</span>
-								Optimize
-							</span>
-							<span className="flex items-center gap-1">
-								<span className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-400 text-[10px] font-bold">
-									→
+								<span className="flex items-center gap-1">
+									<span className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-400 text-[10px] font-bold">
+										→
+									</span>
+									Expand
 								</span>
-								Expand
-							</span>
+							</div>
 						</div>
 					</div>
 
+					{/* Generate briefs button */}
+					{briefsRemaining > 0 && onGenerateBriefs && (
+						<div className="mb-4 p-4 bg-muted/50 rounded-lg flex items-center justify-between">
+							<div>
+								<span className="text-sm font-medium">
+									{selectedClusters.size} topic
+									{selectedClusters.size !== 1 ? "s" : ""} selected
+								</span>
+								{selectedClusters.size > 0 && (
+									<span className="text-sm text-muted-foreground ml-2">
+										({briefsRemaining - selectedClusters.size} briefs will
+										remain after generation)
+									</span>
+								)}
+							</div>
+							<Button
+								onClick={handleGenerate}
+								disabled={selectedClusters.size === 0 || isGenerating}
+							>
+								{isGenerating
+									? "Generating..."
+									: `Generate ${selectedClusters.size} Brief${selectedClusters.size !== 1 ? "s" : ""}`}
+							</Button>
+						</div>
+					)}
+
+					{briefsRemaining <= 0 && (
+						<div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+							<span className="text-sm text-amber-700 dark:text-amber-400">
+								You've reached your brief limit ({briefsLimit}). View your
+								briefs in the Content Briefs tab.
+							</span>
+						</div>
+					)}
+
 					<div className="space-y-3">
 						{clusters.map((cluster) => (
-							<ClusterCard key={cluster.topic} cluster={cluster} />
+							<ClusterCard
+								key={cluster.topic}
+								cluster={cluster}
+								selected={selectedClusters.has(cluster.topic)}
+								onToggle={() => toggleCluster(cluster.topic)}
+								disabled={!canSelectMore}
+							/>
 						))}
 					</div>
 				</div>
@@ -266,15 +384,17 @@ export function OpportunitiesTab({
 			<Card>
 				<CardHeader>
 					<CardTitle className="font-display text-lg">
-						All Opportunities
+						{isNewSite ? "Keywords to Target" : "All Opportunities"}
 					</CardTitle>
-					<CardDescription>Keywords ranked by potential impact</CardDescription>
+					<CardDescription>
+						{isNewSite
+							? "High-potential keywords for your new site"
+							: "Keywords ranked by potential impact"}
+					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{opps.length === 0 ? (
-						<p className="text-center text-muted-foreground py-6">
-							No opportunities found
-						</p>
+						<OpportunitiesEmptyState isNewSite={isNewSite} />
 					) : (
 						<Table>
 							<TableHeader>

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { z } from "@hono/zod-openapi";
 import type { AppEnv } from "../app.js";
-import { queueCrawlJob } from "../jobs/audit.jobs.js";
+import { queueCrawlJob, queueFreeAuditJob } from "../jobs/index.js";
 import { createLogger } from "../lib/logger.js";
 import { getQueue } from "../lib/queue.js";
 import * as auditRepo from "../repositories/audit.repository.js";
@@ -13,6 +13,7 @@ import {
 } from "../schemas/audit.schema.js";
 import { isValidUpgrade } from "../services/payments/billing.js";
 import { lemonSqueezyProvider } from "../services/payments/lemonsqueezy.js";
+import { extractSiteInfo } from "../services/site-extract.service.js";
 import { validateSiteUrl } from "../services/url-validation.service.js";
 
 const log = createLogger("billing");
@@ -50,7 +51,21 @@ const validateUrlRoute = createRoute({
 billingRoutes.openapi(validateUrlRoute, async (c) => {
 	const { url } = c.req.valid("json");
 	const result = await validateSiteUrl(url);
-	return c.json(result, 200);
+
+	if (!result.valid) {
+		return c.json(result, 200);
+	}
+
+	// URL is valid - also extract site info
+	const extracted = await extractSiteInfo(url);
+	return c.json(
+		{
+			...result,
+			productDescription: extracted?.productDescription,
+			seedKeywords: extracted?.seedKeywords,
+		},
+		200,
+	);
 });
 
 const createCheckoutRoute = createRoute({
@@ -131,7 +146,7 @@ billingRoutes.openapi(createCheckoutRoute, async (c) => {
 	// FREE tier: start immediately without payment
 	if (body.tier === "FREE") {
 		const queue = await getQueue();
-		await queueCrawlJob(queue, audit.id);
+		await queueFreeAuditJob(queue, audit.id);
 		return c.json({ checkoutUrl: null, accessToken: audit.accessToken }, 200);
 	}
 
@@ -241,6 +256,7 @@ const devStartAuditRoute = createRoute({
 
 billingRoutes.openapi(devStartAuditRoute, async (c) => {
 	const body = c.req.valid("json");
+	const isPaidTier = body.tier !== "FREE";
 
 	const audit = await auditRepo.createAudit({
 		siteUrl: body.siteUrl,
@@ -252,7 +268,37 @@ billingRoutes.openapi(devStartAuditRoute, async (c) => {
 	});
 
 	const queue = await getQueue();
-	await queueCrawlJob(queue, audit.id);
+
+	if (isPaidTier) {
+		// Paid tier: queue background crawl, run competitor suggestions inline
+		await queueCrawlJob(queue, audit.id);
+
+		// Generate competitor suggestions immediately
+		const { suggestCompetitors } = await import(
+			"../services/competitor-suggestions.js"
+		);
+		const suggestions = await suggestCompetitors({
+			productDesc: body.productDesc ?? "",
+			seedKeywords: body.targetKeywords ?? [],
+			siteUrl: body.siteUrl,
+		});
+
+		// Update audit with suggestions and set status to SELECTING_COMPETITORS
+		await auditRepo.updateAudit(audit.id, {
+			suggestedCompetitors: suggestions,
+			status: "SELECTING_COMPETITORS",
+			startedAt: new Date(),
+		});
+
+		log.info(
+			{ auditId: audit.id, suggestions: suggestions.length },
+			"Dev: Paid tier audit created, competitor selection ready",
+		);
+	} else {
+		// FREE tier: queue full audit job
+		await queueFreeAuditJob(queue, audit.id);
+		log.info({ auditId: audit.id }, "Dev: FREE tier audit queued");
+	}
 
 	return c.json({ accessToken: audit.accessToken }, 200);
 });

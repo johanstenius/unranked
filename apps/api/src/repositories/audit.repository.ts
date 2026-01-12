@@ -19,9 +19,12 @@ export type CreateAuditInput = {
 	productDesc?: string;
 	competitors: string[];
 	sections?: string[];
+	targetKeywords?: string[];
 	tier: AuditTier;
 	email: string;
 	stripeSessionId?: string;
+	isNewSite?: boolean;
+	prefetchedRankings?: Prisma.InputJsonValue;
 };
 
 export type UpdateAuditInput = {
@@ -36,6 +39,7 @@ export type UpdateAuditInput = {
 	healthScore?: Prisma.InputJsonValue;
 	redirectChains?: Prisma.InputJsonValue;
 	progress?: Prisma.InputJsonValue;
+	pipelineState?: Prisma.InputJsonValue;
 	apiUsage?: Prisma.InputJsonValue;
 	retryAfter?: Date | null;
 	delayEmailSentAt?: Date | null;
@@ -43,6 +47,13 @@ export type UpdateAuditInput = {
 	completedAt?: Date;
 	reportEmailSentAt?: Date | null;
 	supportAlertSentAt?: Date | null;
+	competitors?: string[];
+	// New simplified flow columns
+	crawlComplete?: boolean;
+	suggestedCompetitors?: Prisma.InputJsonValue;
+	selectedCompetitors?: string[];
+	suggestedClusters?: Prisma.InputJsonValue;
+	selectedClusters?: string[];
 };
 
 export function createAudit(input: CreateAuditInput) {
@@ -166,6 +177,57 @@ export function getAuditsMissingReportEmail() {
 		},
 		include: {
 			briefs: true,
+		},
+	});
+}
+
+/**
+ * Atomically set a pipeline state flag using PostgreSQL jsonb_set.
+ * This prevents race conditions when two processes update different flags.
+ */
+export async function setPipelineStateFlag(
+	id: string,
+	flag: "crawlComplete" | "interactiveComplete",
+	value: boolean,
+): Promise<void> {
+	await db.$executeRaw`
+		UPDATE "Audit"
+		SET "pipelineState" = COALESCE("pipelineState", '{}'::jsonb) || ${JSON.stringify({ [flag]: value })}::jsonb,
+		    "updatedAt" = NOW()
+		WHERE id = ${id}
+	`;
+}
+
+/**
+ * Atomically set the interactive phase in pipeline state.
+ */
+export async function setPipelineStatePhase(
+	id: string,
+	phase: string,
+): Promise<void> {
+	await db.$executeRaw`
+		UPDATE "Audit"
+		SET "pipelineState" = COALESCE("pipelineState", '{}'::jsonb) || ${JSON.stringify({ interactivePhase: phase })}::jsonb,
+		    "updatedAt" = NOW()
+		WHERE id = ${id}
+	`;
+}
+
+/**
+ * Get audits stuck in interactive selection phases for longer than threshold.
+ * Used by timeout handler to auto-continue with top suggestions.
+ */
+export function getStaleInteractiveAudits(staleMinutes = 10) {
+	const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+	return db.audit.findMany({
+		where: {
+			status: { in: ["CRAWLING", "ANALYZING"] },
+			updatedAt: { lt: cutoff },
+			// pipelineState JSONB contains interactivePhase
+			pipelineState: {
+				path: ["interactivePhase"],
+				string_contains: "selection",
+			},
 		},
 	});
 }

@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/table";
 import type {
 	ComponentState,
-	CoreWebVitalsData,
 	CurrentRanking,
 	Opportunity,
 	PrioritizedAction,
@@ -29,10 +28,8 @@ import { ActionPlanCard } from "../action-plan-card";
 type OverviewTabProps = {
 	rankings: ComponentState<CurrentRanking[]>;
 	opportunities: ComponentState<Opportunity[]>;
-	coreWebVitals: ComponentState<CoreWebVitalsData>;
 	actionPlan: PrioritizedAction[];
 	onViewAllOpportunities: () => void;
-	onViewPerformance?: () => void;
 	isFreeTier?: boolean;
 };
 
@@ -82,14 +79,14 @@ function LoadingCard({
 export function OverviewTab({
 	rankings,
 	opportunities,
-	coreWebVitals,
 	actionPlan,
 	onViewAllOpportunities,
-	onViewPerformance,
 	isFreeTier = false,
 }: OverviewTabProps) {
-	// Opportunities section
+	// Opportunities section - not available for FREE tier
 	const opportunitiesContent = (() => {
+		if (isFreeTier) return null;
+
 		if (
 			opportunities.status === "pending" ||
 			opportunities.status === "running"
@@ -185,8 +182,10 @@ export function OverviewTab({
 		);
 	})();
 
-	// Rankings section
+	// Rankings section - not available for FREE tier
 	const rankingsContent = (() => {
+		if (isFreeTier) return null;
+
 		if (rankings.status === "pending" || rankings.status === "running") {
 			return (
 				<LoadingCard
@@ -267,83 +266,6 @@ export function OverviewTab({
 		);
 	})();
 
-	// CWV section
-	const cwvContent = (() => {
-		if (
-			coreWebVitals.status === "pending" ||
-			coreWebVitals.status === "running"
-		) {
-			return null; // Don't show loading for CWV in overview
-		}
-
-		if (coreWebVitals.status === "failed") {
-			return null;
-		}
-
-		const data = coreWebVitals.data;
-		if (data.pages.length === 0 || !onViewPerformance) return null;
-
-		return (
-			<Card className="border-border rounded-xl">
-				<CardHeader className="pb-4">
-					<CardTitle className="font-display text-xl font-bold">
-						Performance Overview
-					</CardTitle>
-					<CardDescription>
-						Core Web Vitals across {data.pages.length} pages
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="grid grid-cols-3 gap-4 mb-4">
-						<div className="text-center p-3 rounded-lg bg-status-good/10">
-							<p className="text-2xl font-bold text-status-good tabular-nums">
-								{data.summary.good}
-							</p>
-							<p className="text-xs text-text-tertiary">Good</p>
-						</div>
-						<div className="text-center p-3 rounded-lg bg-status-warn/10">
-							<p className="text-2xl font-bold text-status-warn tabular-nums">
-								{data.summary.needsImprovement}
-							</p>
-							<p className="text-xs text-text-tertiary">Needs Work</p>
-						</div>
-						<div className="text-center p-3 rounded-lg bg-status-crit/10">
-							<p className="text-2xl font-bold text-status-crit tabular-nums">
-								{data.summary.poor}
-							</p>
-							<p className="text-xs text-text-tertiary">Poor</p>
-						</div>
-					</div>
-
-					{data.summary.avgPerformance !== null && (
-						<p className="text-sm text-text-secondary text-center mb-4">
-							Average score:{" "}
-							<span
-								className={`font-medium ${
-									data.summary.avgPerformance >= 90
-										? "text-status-good"
-										: data.summary.avgPerformance >= 50
-											? "text-status-warn"
-											: "text-status-crit"
-								}`}
-							>
-								{data.summary.avgPerformance.toFixed(0)}
-							</span>
-						</p>
-					)}
-
-					<button
-						type="button"
-						onClick={onViewPerformance}
-						className="text-sm text-text-secondary hover:text-text-primary transition-colors"
-					>
-						View all {data.pages.length} pages →
-					</button>
-				</CardContent>
-			</Card>
-		);
-	})();
-
 	return (
 		<>
 			{/* Action Plan - prioritized recommendations */}
@@ -353,7 +275,6 @@ export function OverviewTab({
 
 			{opportunitiesContent}
 			{rankingsContent}
-			{cwvContent}
 		</>
 	);
 }

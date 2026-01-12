@@ -4,19 +4,19 @@
  * These components are retryable on API failure.
  */
 
+import { getErrorMessage } from "../../../lib/errors.js";
 import { createLogger } from "../../../lib/logger.js";
 import type { CrawledPage } from "../../crawler/types.js";
 import type {
-	CannibalizationIssue,
 	CompetitorGap,
 	CurrentRanking,
 	Opportunity,
+	OpportunityCluster,
 	OpportunitySource,
 	SnippetOpportunity,
 } from "../analysis.js";
 import * as dataForSeo from "../dataforseo.js";
 import type { DiscoveredCompetitor } from "../dataforseo.js";
-import { countWholeWordMatches, hasWholeWordMatch } from "../text-utils.js";
 import type {
 	ComponentContext,
 	ComponentEntry,
@@ -27,22 +27,21 @@ import type {
 const log = createLogger("components.dataforseo");
 
 const LIMITS = {
-	EXTRACTED_KEYWORDS: 50,
-	MIN_SEARCH_VOLUME: 50,
-	MAX_OPPORTUNITIES: 50,
-	MAX_COMPETITORS: 3,
-	GAP_KEYWORDS_PER_COMPETITOR: 50,
-	COMMON_KEYWORDS_PER_COMPETITOR: 10,
-	MAX_CANNIBALIZATION_ISSUES: 20,
-	MAX_TOP_RANKINGS_FOR_SNIPPETS: 15,
-	REALISTIC_DIFFICULTY: 45,
-	QUICK_WIN_MAX_DIFFICULTY: 30,
-	IMPACT_SCORE_SCALE: 30,
-	SEED_MIN_VOLUME: 300,
-	SEED_MAX_POSITION: 30,
-	CANNIBALIZATION_MIN_CONTENT_MENTIONS: 5,
+	EXTRACTED_KEYWORDS: 50, // Max keywords to extract from page titles/H1s
+	MIN_SEARCH_VOLUME: 50, // Below this, opportunity not worth pursuing
+	MAX_OPPORTUNITIES: 50, // Cap to keep results actionable
+	MAX_COMPETITORS: 3, // Diminishing returns beyond 3 competitors
+	GAP_KEYWORDS_PER_COMPETITOR: 50, // Top gap keywords per competitor
+	COMMON_KEYWORDS_PER_COMPETITOR: 10, // Overlap keywords for benchmarking
+	MAX_TOP_RANKINGS_FOR_SNIPPETS: 15, // Snippet checks are API-expensive
+	REALISTIC_DIFFICULTY: 45, // Above this, ranking unlikely without authority
+	QUICK_WIN_MAX_DIFFICULTY: 30, // Easy enough to rank quickly
+	IMPACT_SCORE_SCALE: 30, // Normalizes log10(volume/difficulty) to 0-100
+	SEED_MIN_VOLUME: 300, // Seeds must have decent volume to expand from
+	SEED_MAX_POSITION: 30, // Beyond page 3, unlikely to expand well
 } as const;
 
+/** Average CTR by position (Backlinko 2023 study, ~4M searches) */
 const CTR_BY_POSITION: Record<number, number> = {
 	1: 0.284,
 	2: 0.157,
@@ -163,8 +162,18 @@ async function runCurrentRankings(
 		return { ok: true, data: [] };
 	}
 
+	// Use prefetched rankings if available (from pre-flight check)
+	if (ctx.prefetchedRankings) {
+		log.info(
+			{ count: ctx.prefetchedRankings.length },
+			"Using prefetched rankings",
+		);
+		return { ok: true, data: ctx.prefetchedRankings };
+	}
+
+	// Fallback: fetch from API (shouldn't happen for paid tiers with pre-flight)
 	try {
-		log.info({ hostname: ctx.hostname }, "Fetching domain rankings");
+		log.info({ hostname: ctx.hostname }, "Fetching domain rankings (fallback)");
 
 		const domainRankings = await dataForSeo.getDomainRankedKeywords(
 			ctx.hostname,
@@ -188,7 +197,7 @@ async function runCurrentRankings(
 
 		return { ok: true, data: currentRankings };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Failed to fetch rankings");
 		return { ok: false, error: message };
 	}
@@ -211,9 +220,81 @@ export const currentRankingsComponent: ComponentEntry<CurrentRanking[]> = {
 // Keyword Opportunities Component
 // ============================================================================
 
+/**
+ * Extract topic from keyword - simple word-based approach
+ */
+function extractTopic(keyword: string): string {
+	const words = keyword
+		.toLowerCase()
+		.split(/\s+/)
+		.filter((w) => w.length > 2);
+	// Remove common stop words
+	const stopWords = new Set([
+		"the",
+		"and",
+		"for",
+		"how",
+		"what",
+		"why",
+		"when",
+		"best",
+		"top",
+		"guide",
+	]);
+	const meaningful = words.filter((w) => !stopWords.has(w));
+	// Use first 2 meaningful words as topic, or just the keyword if short
+	return meaningful.slice(0, 2).join(" ") || keyword.toLowerCase();
+}
+
+/**
+ * Cluster opportunities by topic for better organization
+ */
+function clusterOpportunities(
+	opportunities: Opportunity[],
+): OpportunityCluster[] {
+	const groups = new Map<string, Opportunity[]>();
+
+	for (const opp of opportunities) {
+		const topic = extractTopic(opp.keyword);
+		if (!groups.has(topic)) groups.set(topic, []);
+		groups.get(topic)?.push(opp);
+	}
+
+	// Convert to clusters, filtering out tiny clusters
+	const clusters: OpportunityCluster[] = [];
+	for (const [topic, opps] of groups.entries()) {
+		if (opps.length < 2) continue; // Skip single-item clusters
+
+		const totalVolume = opps.reduce((sum, o) => sum + o.searchVolume, 0);
+		const avgDifficulty = Math.round(
+			opps.reduce((sum, o) => sum + o.difficulty, 0) / opps.length,
+		);
+
+		// Determine action based on difficulty
+		const suggestedAction: "create" | "optimize" | "expand" =
+			avgDifficulty <= 30
+				? "create"
+				: avgDifficulty <= 50
+					? "optimize"
+					: "expand";
+
+		clusters.push({
+			topic,
+			opportunities: opps,
+			totalVolume,
+			avgDifficulty,
+			suggestedAction,
+		});
+	}
+
+	// Sort by total volume
+	return clusters.sort((a, b) => b.totalVolume - a.totalVolume).slice(0, 10);
+}
+
 type KeywordOpportunitiesResult = {
 	opportunities: Opportunity[];
 	seedOpportunities: Opportunity[];
+	clusters: OpportunityCluster[];
 };
 
 async function runKeywordOpportunities(
@@ -221,7 +302,10 @@ async function runKeywordOpportunities(
 	results: ComponentResults,
 ): Promise<ComponentResult<KeywordOpportunitiesResult>> {
 	if (ctx.tier.tier === "FREE") {
-		return { ok: true, data: { opportunities: [], seedOpportunities: [] } };
+		return {
+			ok: true,
+			data: { opportunities: [], seedOpportunities: [], clusters: [] },
+		};
 	}
 
 	const currentRankings = results.currentRankings ?? [];
@@ -234,14 +318,38 @@ async function runKeywordOpportunities(
 		const extractedKeywords = extractKeywordsFromContent(ctx.pages);
 		log.info({ count: extractedKeywords.length }, "Extracted keywords");
 
+		// Combine with user-provided target keywords (prioritized)
+		const targetKeywords = ctx.targetKeywords ?? [];
+		const allKeywords = [
+			...targetKeywords, // Target keywords first (higher priority)
+			...extractedKeywords.filter(
+				(k) =>
+					!targetKeywords.map((t) => t.toLowerCase()).includes(k.toLowerCase()),
+			),
+		].slice(0, LIMITS.EXTRACTED_KEYWORDS + targetKeywords.length);
+
+		log.info(
+			{
+				extracted: extractedKeywords.length,
+				target: targetKeywords.length,
+				total: allKeywords.length,
+			},
+			"Keywords to analyze",
+		);
+
 		// Fetch keyword data
 		const keywordData = await dataForSeo.getKeywordData(
-			extractedKeywords,
+			allKeywords,
 			"United States",
 			"en",
 			ctx.usage,
 		);
 		log.info({ count: keywordData.length }, "Got keyword data");
+
+		// Build set of target keywords for source identification
+		const targetKeywordSet = new Set(
+			targetKeywords.map((k) => k.toLowerCase()),
+		);
 
 		// Build initial opportunities
 		const opportunities = keywordData
@@ -250,14 +358,21 @@ async function runKeywordOpportunities(
 					!rankedKeywords.has(k.keyword) &&
 					k.searchVolume > LIMITS.MIN_SEARCH_VOLUME,
 			)
-			.map((k) => ({
-				keyword: k.keyword,
-				searchVolume: k.searchVolume,
-				difficulty: k.difficulty,
-				impactScore: calculateImpactScore(k.searchVolume, k.difficulty),
-				reason: "No existing page targets this keyword",
-				source: "content_extraction" as OpportunitySource,
-			}))
+			.map((k) => {
+				const isTargetKeyword = targetKeywordSet.has(k.keyword.toLowerCase());
+				return {
+					keyword: k.keyword,
+					searchVolume: k.searchVolume,
+					difficulty: k.difficulty,
+					impactScore: calculateImpactScore(k.searchVolume, k.difficulty),
+					reason: isTargetKeyword
+						? "Target keyword you want to rank for"
+						: "No existing page targets this keyword",
+					source: (isTargetKeyword
+						? "target_keyword"
+						: "content_extraction") as OpportunitySource,
+				};
+			})
 			.sort((a, b) => b.impactScore - a.impactScore)
 			.slice(0, LIMITS.MAX_OPPORTUNITIES);
 
@@ -325,9 +440,14 @@ async function runKeywordOpportunities(
 			}
 		}
 
-		return { ok: true, data: { opportunities, seedOpportunities } };
+		// Build clusters from all opportunities
+		const allOpportunities = [...opportunities, ...seedOpportunities];
+		const clusters = clusterOpportunities(allOpportunities);
+		log.info({ clusterCount: clusters.length }, "Clustered opportunities");
+
+		return { ok: true, data: { opportunities, seedOpportunities, clusters } };
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Failed to get keyword opportunities");
 		return { ok: false, error: message };
 	}
@@ -345,6 +465,7 @@ export const keywordOpportunitiesComponent: ComponentEntry<KeywordOpportunitiesR
 				...data.opportunities,
 				...data.seedOpportunities,
 			],
+			opportunityClusters: data.clusters,
 		}),
 		sseKey: "opportunities",
 		getSSEData: (results) => results.opportunities ?? [],
@@ -365,6 +486,10 @@ async function runCompetitorAnalysis(
 	results: ComponentResults,
 ): Promise<ComponentResult<CompetitorAnalysisResult>> {
 	if (ctx.tier.tier === "FREE" || ctx.tier.maxCompetitors === 0) {
+		log.info(
+			{ tier: ctx.tier.tier, maxCompetitors: ctx.tier.maxCompetitors },
+			"Skipping competitor analysis (FREE or no competitors)",
+		);
 		return {
 			ok: true,
 			data: { gaps: [], newOpportunities: [], discoveredCompetitors: [] },
@@ -375,9 +500,21 @@ async function runCompetitorAnalysis(
 	const existingOpportunities = results.opportunities ?? [];
 	const isNewSite = currentRankings.length === 0;
 
+	log.info(
+		{
+			tier: ctx.tier.tier,
+			maxCompetitors: ctx.tier.maxCompetitors,
+			inputCompetitors: ctx.competitors,
+			isNewSite,
+		},
+		"Competitor analysis starting",
+	);
+
 	try {
 		let discoveredCompetitors: DiscoveredCompetitor[] = [];
 		let competitorUrls = ctx.competitors.slice(0, ctx.tier.maxCompetitors);
+
+		log.info({ competitorUrls }, "Competitor URLs after slice");
 
 		// Auto-discover competitors if none provided
 		if (competitorUrls.length === 0) {
@@ -404,7 +541,13 @@ async function runCompetitorAnalysis(
 			.map(normalizeCompetitorInput)
 			.filter((url): url is string => url !== null);
 
+		log.info(
+			{ normalizedUrls, originalUrls: competitorUrls },
+			"URLs normalized",
+		);
+
 		if (normalizedUrls.length === 0) {
+			log.info("No valid competitor URLs after normalization");
 			return {
 				ok: true,
 				data: { gaps: [], newOpportunities: [], discoveredCompetitors },
@@ -419,17 +562,30 @@ async function runCompetitorAnalysis(
 				try {
 					const domain = new URL(competitorUrl).hostname;
 					// For new sites, don't filter by difficulty - show full competitive landscape
+					const options = {
+						limit: 200,
+						maxPosition: 30,
+						minVolume: LIMITS.MIN_SEARCH_VOLUME,
+						...(isNewSite
+							? {}
+							: { maxDifficulty: LIMITS.REALISTIC_DIFFICULTY }),
+					};
+					log.info(
+						{ domain, options, isNewSite },
+						"Fetching competitor keywords from DataForSEO",
+					);
 					const keywords = await dataForSeo.getDomainRankedKeywords(
 						domain,
-						{
-							limit: 200,
-							maxPosition: 30,
-							minVolume: LIMITS.MIN_SEARCH_VOLUME,
-							...(isNewSite
-								? {}
-								: { maxDifficulty: LIMITS.REALISTIC_DIFFICULTY }),
-						},
+						options,
 						ctx.usage,
+					);
+					log.info(
+						{
+							domain,
+							keywordsCount: keywords.length,
+							firstKeywords: keywords.slice(0, 3).map((k) => k.keyword),
+						},
+						"DataForSEO keywords fetched",
 					);
 					return { domain, keywords };
 				} catch (error) {
@@ -552,7 +708,7 @@ async function runCompetitorAnalysis(
 			data: { gaps, newOpportunities, discoveredCompetitors },
 		};
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Competitor analysis failed");
 		return { ok: false, error: message };
 	}
@@ -577,97 +733,6 @@ export const competitorAnalysisComponent: ComponentEntry<CompetitorAnalysisResul
 			gaps: results.competitorGaps ?? [],
 			discovered: results.discoveredCompetitors ?? [],
 		}),
-	};
-
-// ============================================================================
-// Cannibalization Component
-// ============================================================================
-
-async function runCannibalization(
-	ctx: ComponentContext,
-	results: ComponentResults,
-): Promise<ComponentResult<CannibalizationIssue[]>> {
-	if (ctx.tier.tier === "FREE") {
-		return { ok: true, data: [] };
-	}
-
-	const currentRankings = results.currentRankings ?? [];
-	if (currentRankings.length === 0) {
-		return { ok: true, data: [] };
-	}
-
-	const issues: CannibalizationIssue[] = [];
-
-	// Group rankings by keyword
-	const rankingsByKeyword = new Map<string, CurrentRanking[]>();
-	for (const ranking of currentRankings) {
-		const kw = ranking.keyword.toLowerCase();
-		const existing = rankingsByKeyword.get(kw) ?? [];
-		existing.push(ranking);
-		rankingsByKeyword.set(kw, existing);
-	}
-
-	// Find keywords with 2+ URLs ranking
-	for (const [keyword, rankings] of rankingsByKeyword) {
-		if (rankings.length < 2) continue;
-
-		const uniqueUrls = [...new Set(rankings.map((r) => r.url))];
-		if (uniqueUrls.length < 2) continue;
-
-		const pagesInfo = uniqueUrls.map((url) => {
-			const ranking = rankings.find((r) => r.url === url);
-			const page = ctx.pages.find((p) => p.url === url);
-			const signals: ("title" | "h1" | "content")[] = [];
-
-			if (page?.title && hasWholeWordMatch(page.title, keyword)) {
-				signals.push("title");
-			}
-			if (page?.h1 && hasWholeWordMatch(page.h1, keyword)) {
-				signals.push("h1");
-			}
-			if (
-				page?.content &&
-				countWholeWordMatches(page.content.toLowerCase(), keyword) >=
-					LIMITS.CANNIBALIZATION_MIN_CONTENT_MENTIONS
-			) {
-				signals.push("content");
-			}
-
-			return {
-				url,
-				position: ranking?.position ?? null,
-				signals,
-			};
-		});
-
-		const volume = rankings[0]?.searchVolume ?? 0;
-		issues.push({
-			keyword,
-			searchVolume: volume,
-			pages: pagesInfo,
-			severity: "high",
-		});
-	}
-
-	// Only report confirmed cannibalization (2+ URLs actually ranking)
-	// Secondary detection (title/H1 matching heuristic) removed to reduce false positives
-
-	return {
-		ok: true,
-		data: issues
-			.sort((a, b) => b.searchVolume - a.searchVolume)
-			.slice(0, LIMITS.MAX_CANNIBALIZATION_ISSUES),
-	};
-}
-
-export const cannibalizationComponent: ComponentEntry<CannibalizationIssue[]> =
-	{
-		key: "cannibalization",
-		dependencies: ["currentRankings"],
-		run: runCannibalization,
-		store: (results, data) => ({ ...results, cannibalizationIssues: data }),
-		sseKey: "cannibalization",
-		getSSEData: (results) => results.cannibalizationIssues ?? [],
 	};
 
 // ============================================================================
@@ -794,7 +859,7 @@ async function runSnippetOpportunities(
 				.slice(0, ctx.tier.maxSnippets),
 		};
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
+		const message = getErrorMessage(error);
 		log.error({ error: message }, "Snippet opportunities failed");
 		return { ok: false, error: message };
 	}
