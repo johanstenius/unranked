@@ -10,9 +10,12 @@ const config: Config = {
 				canvas: "var(--bg-canvas)",
 				surface: "var(--bg-surface)",
 				subtle: "var(--bg-subtle)",
+				elevated: "var(--bg-elevated)",
+				hover: "var(--bg-hover)",
 				border: {
 					DEFAULT: "var(--border-subtle)",
 					subtle: "var(--border-subtle)",
+					default: "var(--border-default)",
 					active: "var(--border-active)",
 					focus: "var(--border-focus)",
 				},
@@ -20,6 +23,7 @@ const config: Config = {
 					primary: "var(--text-primary)",
 					secondary: "var(--text-secondary)",
 					tertiary: "var(--text-tertiary)",
+					muted: "var(--text-muted)",
 				},
 				accent: {
 					DEFAULT: "var(--accent)",
@@ -32,14 +36,17 @@ const config: Config = {
 					good: {
 						DEFAULT: "var(--status-good)",
 						bg: "var(--status-good-bg)",
+						border: "var(--status-good-border)",
 					},
 					warn: {
 						DEFAULT: "var(--status-warn)",
 						bg: "var(--status-warn-bg)",
+						border: "var(--status-warn-border)",
 					},
 					crit: {
 						DEFAULT: "var(--status-crit)",
 						bg: "var(--status-crit-bg)",
+						border: "var(--status-crit-border)",
 					},
 				},
 				/* shadcn/ui tokens */
@@ -84,12 +91,11 @@ const config: Config = {
 				lg: "12px",
 			},
 			boxShadow: {
-				sm: "0 1px 2px rgba(0,0,0,0.04)",
-				DEFAULT: "0 2px 8px rgba(0,0,0,0.04)",
-				md: "0 4px 16px rgba(0,0,0,0.06)",
-				lg: "0 8px 32px rgba(0,0,0,0.08)",
-				"dark-sm": "0 1px 2px rgba(0,0,0,0.3)",
-				"dark-md": "0 4px 16px rgba(0,0,0,0.4)",
+				sm: "var(--shadow-sm)",
+				DEFAULT: "var(--shadow-md)",
+				md: "var(--shadow-md)",
+				lg: "var(--shadow-lg)",
+				card: "var(--shadow-card)",
 			},
 			fontSize: {
 				"2xs": ["0.6875rem", { lineHeight: "1rem" }],

@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Light Mode v4 - Refined Monochrome</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700&f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Refined light palette - subtle warmth, better depth */
+      --bg-deep: #f8f8f8;
+      --bg-canvas: #ffffff;
+      --bg-surface: #ffffff;
+      --bg-elevated: #fafafa;
+      --bg-hover: #f4f4f5;
+
+      /* Borders with presence */
+      --border-subtle: #e4e4e7;
+      --border-default: #d4d4d8;
+      --border-active: #a1a1aa;
+
+      /* Text with good contrast */
+      --text-primary: #09090b;
+      --text-secondary: #52525b;
+      --text-tertiary: #71717a;
+      --text-muted: #a1a1aa;
+
+      /* Accent - deep black */
+      --accent: #09090b;
+      --accent-muted: #27272a;
+
+      /* Status - clear and vibrant */
+      --status-good: #16a34a;
+      --status-good-light: #22c55e;
+      --status-good-bg: rgba(22, 163, 74, 0.08);
+      --status-good-border: rgba(22, 163, 74, 0.2);
+
+      --status-warn: #ca8a04;
+      --status-warn-light: #eab308;
+      --status-warn-bg: rgba(202, 138, 4, 0.08);
+      --status-warn-border: rgba(202, 138, 4, 0.2);
+
+      --status-crit: #dc2626;
+      --status-crit-light: #ef4444;
+      --status-crit-bg: rgba(220, 38, 38, 0.08);
+      --status-crit-border: rgba(220, 38, 38, 0.2);
+
+      /* Shadows - subtle and layered */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
+
+      /* Fonts */
+      --font-display: 'Cabinet Grotesk', system-ui, sans-serif;
+      --font-body: 'Satoshi', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .header p {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      box-shadow: var(--shadow-card);
+      transition: all 0.2s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-default);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .stat-value.good { color: var(--status-good); }
+    .stat-value.warn { color: var(--status-warn); }
+    .stat-value.crit { color: var(--status-crit); }
+
+    .stat-detail {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-top: 6px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      background: var(--bg-surface);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tab:hover {
+      color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+
+    .tab.active {
+      color: var(--text-primary);
+      background: var(--bg-canvas);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Main Card */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+    }
+
+    .card-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: linear-gradient(180deg, var(--bg-canvas) 0%, var(--bg-elevated) 100%);
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title svg {
+      color: var(--text-tertiary);
+    }
+
+    .card-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .card-content {
+      padding: 24px;
+    }
+
+    /* Summary Stats Row */
+    .summary-row {
+      display: flex;
+      gap: 32px;
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .summary-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .summary-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .summary-icon.crit {
+      background: var(--status-crit-bg);
+      border: 1px solid var(--status-crit-border);
+      color: var(--status-crit);
+    }
+
+    .summary-icon.warn {
+      background: var(--status-warn-bg);
+      border: 1px solid var(--status-warn-border);
+      color: var(--status-warn);
+    }
+
+    .summary-icon.good {
+      background: var(--status-good-bg);
+      border: 1px solid var(--status-good-border);
+      color: var(--status-good);
+    }
+
+    .summary-text .count {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .summary-text .label {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    /* Issues List */
+    .issues-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .issue-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+
+    .issue-card:hover {
+      background: var(--bg-canvas);
+      border-color: var(--border-default);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .issue-severity {
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 6px;
+    }
+
+    .issue-severity.critical {
+      background: var(--status-crit);
+      box-shadow: 0 0 0 3px var(--status-crit-bg);
+    }
+
+    .issue-severity.warning {
+      background: var(--status-warn);
+      box-shadow: 0 0 0 3px var(--status-warn-bg);
+    }
+
+    .issue-severity.info {
+      background: var(--status-good);
+      box-shadow: 0 0 0 3px var(--status-good-bg);
+    }
+
+    .issue-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .issue-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .issue-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .issue-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .issue-tag {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--bg-hover);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .issue-count {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    .issue-arrow {
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .issue-card:hover .issue-arrow {
+      color: var(--text-tertiary);
+      transform: translateX(2px);
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge.critical {
+      background: var(--status-crit-bg);
+      color: var(--status-crit);
+      border: 1px solid var(--status-crit-border);
+    }
+
+    .badge.warning {
+      background: var(--status-warn-bg);
+      color: var(--status-warn);
+      border: 1px solid var(--status-warn-border);
+    }
+
+    .badge.info {
+      background: var(--status-good-bg);
+      color: var(--status-good);
+      border: 1px solid var(--status-good-border);
+    }
+
+    /* Score Circle */
+    .score-section {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 20px;
+      background: var(--bg-elevated);
+      border-radius: 12px;
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 24px;
+    }
+
+    .score-circle {
+      position: relative;
+      width: 80px;
+      height: 80px;
+    }
+
+    .score-circle svg {
+      transform: rotate(-90deg);
+    }
+
+    .score-circle .bg {
+      fill: none;
+      stroke: var(--border-subtle);
+      stroke-width: 6;
+    }
+
+    .score-circle .progress {
+      fill: none;
+      stroke: var(--status-warn);
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 226;
+      stroke-dashoffset: 68;
+    }
+
+    .score-value {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--status-warn);
+    }
+
+    .score-info h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .score-info p {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-elevated);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-default);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-active);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>example.com</h1>
+      <p>Site audit completed Jan 16, 2025</p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Pages Crawled</div>
+        <div class="stat-value">247</div>
+        <div class="stat-detail">of 312 discovered</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Critical Issues</div>
+        <div class="stat-value crit">12</div>
+        <div class="stat-detail">requiring attention</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Warnings</div>
+        <div class="stat-value warn">34</div>
+        <div class="stat-detail">recommended fixes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Health Score</div>
+        <div class="stat-value good">72</div>
+        <div class="stat-detail">needs improvement</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab">Overview</button>
+      <button class="tab active">Technical Issues</button>
+      <button class="tab">AI Readiness</button>
+      <button class="tab">Content Briefs</button>
+    </div>
+
+    <!-- Main Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Technical Issues
+        </h2>
+        <p class="card-description">Issues found during the site crawl that may affect SEO performance</p>
+      </div>
+
+      <div class="card-content">
+        <!-- Summary Row -->
+        <div class="summary-row">
+          <div class="summary-item">
+            <div class="summary-icon crit">!</div>
+            <div class="summary-text">
+              <div class="count">12</div>
+              <div class="label">Critical</div>
+            </div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-icon warn">!</div>
+            <div class="summary-text">
+              <div class="count">34</div>
+              <div class="label">Warnings</div>
+            </div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-icon good">i</div>
+            <div class="summary-text">
+              <div class="count">8</div>
+              <div class="label">Info</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Issues List -->
+        <div class="issues-list">
+          <div class="issue-card">
+            <div class="issue-severity critical"></div>
+            <div class="issue-content">
+              <div class="issue-title">Missing meta descriptions</div>
+              <div class="issue-description">Pages without meta descriptions may have lower click-through rates in search results.</div>
+              <div class="issue-meta">
+                <span class="badge critical">Critical</span>
+                <span class="issue-count">23 pages affected</span>
+              </div>
+            </div>
+            <svg class="issue-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+
+          <div class="issue-card">
+            <div class="issue-severity critical"></div>
+            <div class="issue-content">
+              <div class="issue-title">Broken internal links</div>
+              <div class="issue-description">Internal links pointing to non-existent pages waste crawl budget and hurt user experience.</div>
+              <div class="issue-meta">
+                <span class="badge critical">Critical</span>
+                <span class="issue-count">8 links found</span>
+              </div>
+            </div>
+            <svg class="issue-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+
+          <div class="issue-card">
+            <div class="issue-severity warning"></div>
+            <div class="issue-content">
+              <div class="issue-title">Images missing alt text</div>
+              <div class="issue-description">Alt text helps search engines understand image content and improves accessibility.</div>
+              <div class="issue-meta">
+                <span class="badge warning">Warning</span>
+                <span class="issue-count">47 images</span>
+              </div>
+            </div>
+            <svg class="issue-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+
+          <div class="issue-card">
+            <div class="issue-severity warning"></div>
+            <div class="issue-content">
+              <div class="issue-title">Duplicate title tags</div>
+              <div class="issue-description">Multiple pages share the same title tag, which can confuse search engines.</div>
+              <div class="issue-meta">
+                <span class="badge warning">Warning</span>
+                <span class="issue-count">12 pages</span>
+              </div>
+            </div>
+            <svg class="issue-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+
+          <div class="issue-card">
+            <div class="issue-severity info"></div>
+            <div class="issue-content">
+              <div class="issue-title">Pages with thin content</div>
+              <div class="issue-description">Pages with less than 300 words may not provide enough value for ranking.</div>
+              <div class="issue-meta">
+                <span class="badge info">Info</span>
+                <span class="issue-count">5 pages</span>
+              </div>
+            </div>
+            <svg class="issue-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

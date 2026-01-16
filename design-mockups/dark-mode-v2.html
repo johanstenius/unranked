@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unranked - Dark Mode Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Refined Midnight Palette */
+      --bg-deep: #08090c;
+      --bg-base: #0d0f14;
+      --bg-elevated: #13161d;
+      --bg-card: linear-gradient(145deg, #161922 0%, #12141a 100%);
+      --bg-card-hover: linear-gradient(145deg, #1a1d27 0%, #14171e 100%);
+
+      /* Borders with subtle blue undertone */
+      --border-subtle: rgba(99, 119, 156, 0.12);
+      --border-default: rgba(99, 119, 156, 0.2);
+      --border-hover: rgba(99, 119, 156, 0.35);
+
+      /* Text hierarchy */
+      --text-primary: #f0f2f5;
+      --text-secondary: #8b919e;
+      --text-tertiary: #5a6070;
+
+      /* Accent - Warm Amber with glow capability */
+      --accent-amber: #f5a623;
+      --accent-amber-soft: rgba(245, 166, 35, 0.15);
+      --accent-amber-glow: 0 0 20px rgba(245, 166, 35, 0.25);
+
+      /* Status Colors - Refined */
+      --status-warn: #e5a110;
+      --status-warn-bg: rgba(229, 161, 16, 0.08);
+      --status-warn-border: rgba(229, 161, 16, 0.25);
+
+      --status-good: #22c583;
+      --status-good-bg: rgba(34, 197, 131, 0.08);
+
+      --status-crit: #ef5a5a;
+      --status-crit-bg: rgba(239, 90, 90, 0.08);
+
+      --status-info: #6b8acd;
+      --status-info-bg: rgba(107, 138, 205, 0.08);
+
+      /* Spacing */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+      --space-2xl: 48px;
+
+      /* Radius */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.5;
+      min-height: 100vh;
+
+      /* Subtle noise texture for depth */
+      background-image:
+        radial-gradient(ellipse at 50% 0%, rgba(99, 119, 156, 0.06) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: var(--space-2xl) var(--space-lg);
+    }
+
+    /* Header */
+    .page-header {
+      margin-bottom: var(--space-xl);
+    }
+
+    .page-header__label {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--space-xs);
+    }
+
+    .page-header__title {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .page-header__date {
+      color: var(--text-tertiary);
+      font-size: 14px;
+      margin-top: var(--space-xs);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-md);
+      margin-bottom: var(--space-xl);
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    }
+
+    .stat-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .stat-card__value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 36px;
+      font-weight: 600;
+      letter-spacing: -1px;
+      margin-bottom: var(--space-xs);
+    }
+
+    .stat-card__value--accent {
+      color: var(--accent-amber);
+      text-shadow: var(--accent-amber-glow);
+    }
+
+    .stat-card__label {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .stat-card__trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      margin-top: var(--space-sm);
+    }
+
+    .stat-card__trend--up {
+      background: var(--status-good-bg);
+      color: var(--status-good);
+    }
+
+    .stat-card__trend--warn {
+      background: var(--status-warn-bg);
+      color: var(--status-warn);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: var(--space-xs);
+      margin-bottom: var(--space-xl);
+      background: var(--bg-elevated);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      width: fit-content;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .tab {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .tab--active {
+      color: var(--bg-deep);
+      background: var(--text-primary);
+    }
+
+    .tab--active:hover {
+      background: var(--text-primary);
+      color: var(--bg-deep);
+    }
+
+    /* Content Layout */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: var(--space-lg);
+    }
+
+    /* Card */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+    }
+
+    .card__header {
+      padding: var(--space-lg);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card__title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+
+    .card__description {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .card__meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-top: var(--space-md);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .badge--warn {
+      background: var(--status-warn-bg);
+      color: var(--status-warn);
+      border: 1px solid var(--status-warn-border);
+    }
+
+    .badge--info {
+      background: var(--status-info-bg);
+      color: var(--status-info);
+    }
+
+    .badge__dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .card__count {
+      color: var(--text-tertiary);
+      font-size: 14px;
+      margin-left: auto;
+    }
+
+    .card__content {
+      padding: var(--space-md);
+    }
+
+    /* Issue List */
+    .issue-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .issue-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .issue-item:hover {
+      background: rgba(0,0,0,0.3);
+      border-color: var(--border-hover);
+    }
+
+    .issue-item--warn {
+      border-left: 3px solid var(--status-warn);
+    }
+
+    .issue-item--info {
+      border-left: 3px solid var(--status-info);
+    }
+
+    .issue-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .issue-icon--warn {
+      background: var(--status-warn-bg);
+      color: var(--status-warn);
+    }
+
+    .issue-icon--info {
+      background: var(--status-info-bg);
+      color: var(--status-info);
+    }
+
+    .issue-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .issue-title {
+      font-weight: 500;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .issue-title__info {
+      color: var(--text-tertiary);
+      cursor: help;
+    }
+
+    .issue-subtitle {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .issue-arrow {
+      color: var(--text-tertiary);
+      transition: transform 0.2s ease;
+    }
+
+    .issue-item:hover .issue-arrow {
+      transform: translateX(4px);
+      color: var(--text-secondary);
+    }
+
+    /* Sidebar Card */
+    .sidebar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sidebar-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+    }
+
+    .sidebar-card__title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: var(--space-md);
+    }
+
+    /* Progress Bar */
+    .progress-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar__fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-bar__fill--good {
+      background: linear-gradient(90deg, var(--status-good), #2ed18f);
+      box-shadow: 0 0 10px rgba(34, 197, 131, 0.3);
+    }
+
+    .progress-bar__fill--warn {
+      background: linear-gradient(90deg, var(--status-warn), #f0b429);
+      box-shadow: 0 0 10px rgba(229, 161, 16, 0.3);
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-top: var(--space-sm);
+    }
+
+    .progress-label__name {
+      color: var(--text-secondary);
+    }
+
+    .progress-label__value {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-primary);
+    }
+
+    .sidebar-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+
+    /* Health Score Circle */
+    .health-score {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--space-xl);
+    }
+
+    .health-score__circle {
+      position: relative;
+      width: 100px;
+      height: 100px;
+    }
+
+    .health-score__svg {
+      transform: rotate(-90deg);
+    }
+
+    .health-score__bg {
+      fill: none;
+      stroke: var(--border-subtle);
+      stroke-width: 8;
+    }
+
+    .health-score__progress {
+      fill: none;
+      stroke: var(--status-warn);
+      stroke-width: 8;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 8px rgba(229, 161, 16, 0.4));
+      transition: stroke-dasharray 1s ease;
+    }
+
+    .health-score__value {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--status-warn);
+      text-shadow: 0 0 20px rgba(229, 161, 16, 0.3);
+    }
+
+    .health-score__info {
+      flex: 1;
+    }
+
+    .health-score__title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+
+    .health-score__subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .health-score__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      background: var(--status-warn-bg);
+      color: var(--status-warn);
+      border: 1px solid var(--status-warn-border);
+      margin-top: var(--space-sm);
+    }
+
+    /* Comparison with original */
+    .comparison-label {
+      text-align: center;
+      padding: var(--space-lg);
+      color: var(--text-tertiary);
+      font-size: 14px;
+      border-top: 1px solid var(--border-subtle);
+      margin-top: var(--space-2xl);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Health Score -->
+    <div class="health-score">
+      <div class="health-score__circle">
+        <svg class="health-score__svg" width="100" height="100" viewBox="0 0 100 100">
+          <circle class="health-score__bg" cx="50" cy="50" r="42"></circle>
+          <circle
+            class="health-score__progress"
+            cx="50"
+            cy="50"
+            r="42"
+            stroke-dasharray="185 264"
+          ></circle>
+        </svg>
+        <span class="health-score__value">70</span>
+      </div>
+      <div class="health-score__info">
+        <h2 class="health-score__title">SEO Health Score</h2>
+        <p class="health-score__subtitle">Based on 7 key factors affecting performance</p>
+        <span class="health-score__badge">
+          <span class="badge__dot"></span>
+          Needs Work
+        </span>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-card__value">25</div>
+        <div class="stat-card__label">Pages crawled</div>
+        <div class="stat-card__trend stat-card__trend--up">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 17l5-5 5 5M7 7l5 5 5-5"/>
+          </svg>
+          All indexed
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value stat-card__value--accent">11</div>
+        <div class="stat-card__label">Technical issues</div>
+        <div class="stat-card__trend stat-card__trend--warn">
+          <span class="badge__dot"></span>
+          4 warnings
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value">70</div>
+        <div class="stat-card__label">AI Readiness</div>
+        <div class="stat-card__trend stat-card__trend--warn">
+          <span class="badge__dot"></span>
+          llms.txt missing
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab">Overview</button>
+      <button class="tab tab--active">Technical Issues</button>
+      <button class="tab">AI</button>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+      <!-- Main Content -->
+      <div class="card">
+        <div class="card__header">
+          <h3 class="card__title">Technical Audit</h3>
+          <p class="card__description">SEO issues detected across your pages</p>
+          <div class="card__meta">
+            <span class="badge badge--warn">
+              <span class="badge__dot"></span>
+              4 warning
+            </span>
+            <span class="badge badge--info">
+              <span class="badge__dot"></span>
+              7 minor
+            </span>
+            <span class="card__count">11 issues found</span>
+          </div>
+        </div>
+        <div class="card__content">
+          <div class="issue-list">
+            <div class="issue-item issue-item--warn">
+              <div class="issue-icon issue-icon--warn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="issue-content">
+                <div class="issue-title">
+                  Thin content (under 300 words)
+                  <svg class="issue-title__info" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </div>
+                <div class="issue-subtitle">Affects 6 pages</div>
+              </div>
+              <svg class="issue-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+
+            <div class="issue-item issue-item--warn">
+              <div class="issue-icon issue-icon--warn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="issue-content">
+                <div class="issue-title">
+                  Title too short (under 30 characters)
+                  <svg class="issue-title__info" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </div>
+                <div class="issue-subtitle">Affects 5 pages</div>
+              </div>
+              <svg class="issue-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+
+            <div class="issue-item issue-item--info">
+              <div class="issue-icon issue-icon--info">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </div>
+              <div class="issue-content">
+                <div class="issue-title">
+                  Duplicate H1 headings
+                </div>
+                <div class="issue-subtitle">Affects 3 pages</div>
+              </div>
+              <svg class="issue-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+
+            <div class="issue-item issue-item--info">
+              <div class="issue-icon issue-icon--info">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </div>
+              <div class="issue-content">
+                <div class="issue-title">
+                  Missing meta description
+                </div>
+                <div class="issue-subtitle">Affects 4 pages</div>
+              </div>
+              <svg class="issue-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div>
+        <div class="sidebar-card">
+          <h4 class="sidebar-card__title">Internal Linking</h4>
+
+          <div class="progress-bar">
+            <div class="progress-bar__fill progress-bar__fill--good" style="width: 85%"></div>
+          </div>
+          <div class="progress-label">
+            <span class="progress-label__name">Link coverage</span>
+            <span class="progress-label__value">85%</span>
+          </div>
+
+          <div class="sidebar-metrics">
+            <div class="progress-bar">
+              <div class="progress-bar__fill progress-bar__fill--warn" style="width: 40%"></div>
+            </div>
+            <div class="progress-label">
+              <span class="progress-label__name">Orphan pages</span>
+              <span class="progress-label__value">2 pages</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="comparison-label">
+      Design Mockup v2 — Refined Midnight Theme
+    </p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unranked - Warm Editorial Dark</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Warm Noir Palette - rich browns/charcoals instead of cold grays */
+      --bg-deep: #0a0908;
+      --bg-base: #110f0d;
+      --bg-elevated: #1a1715;
+      --bg-surface: #201d1a;
+      --bg-card: #1a1715;
+
+      /* Warm borders */
+      --border-subtle: rgba(180, 160, 140, 0.1);
+      --border-default: rgba(180, 160, 140, 0.18);
+      --border-hover: rgba(180, 160, 140, 0.3);
+
+      /* Warm text */
+      --text-primary: #f5f0eb;
+      --text-secondary: #a69e94;
+      --text-tertiary: #6d645a;
+
+      /* Copper/Gold accent */
+      --accent: #d4a574;
+      --accent-bright: #e8c4a0;
+      --accent-bg: rgba(212, 165, 116, 0.1);
+      --accent-border: rgba(212, 165, 116, 0.3);
+
+      /* Status - warmer versions */
+      --status-warn: #daa520;
+      --status-warn-bg: rgba(218, 165, 32, 0.1);
+      --status-warn-border: rgba(218, 165, 32, 0.25);
+
+      --status-good: #6db070;
+      --status-good-bg: rgba(109, 176, 112, 0.1);
+
+      --status-crit: #d16666;
+      --status-crit-bg: rgba(209, 102, 102, 0.1);
+
+      --status-muted: #8a8580;
+      --status-muted-bg: rgba(138, 133, 128, 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Geist Sans', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    /* Editorial Header */
+    .page-header {
+      margin-bottom: 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .page-header__left {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .page-header__eyebrow {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .page-header__title {
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 40px;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+
+    .page-header__right {
+      text-align: right;
+    }
+
+    .page-header__date {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .page-header__status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      padding: 4px 12px;
+      background: var(--status-warn-bg);
+      border: 1px solid var(--status-warn-border);
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--status-warn);
+      font-weight: 500;
+    }
+
+    .page-header__status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--status-warn);
+      border-radius: 50%;
+    }
+
+    /* Score Banner */
+    .score-banner {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      padding: 24px 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      margin-bottom: 32px;
+    }
+
+    .score-ring {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      flex-shrink: 0;
+    }
+
+    .score-ring__svg {
+      transform: rotate(-90deg);
+    }
+
+    .score-ring__track {
+      fill: none;
+      stroke: var(--border-subtle);
+      stroke-width: 6;
+    }
+
+    .score-ring__fill {
+      fill: none;
+      stroke: var(--status-warn);
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 175 264;
+      filter: drop-shadow(0 0 6px rgba(218, 165, 32, 0.3));
+    }
+
+    .score-ring__value {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-ring__number {
+      font-family: 'Instrument Serif', serif;
+      font-size: 32px;
+      color: var(--status-warn);
+      line-height: 1;
+    }
+
+    .score-ring__label {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .score-info {
+      flex: 1;
+    }
+
+    .score-info__title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .score-info__desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .score-breakdown {
+      display: flex;
+      gap: 24px;
+      padding-left: 32px;
+      border-left: 1px solid var(--border-subtle);
+    }
+
+    .score-breakdown__item {
+      text-align: center;
+    }
+
+    .score-breakdown__value {
+      font-family: 'Geist Mono', monospace;
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .score-breakdown__value--accent {
+      color: var(--accent);
+    }
+
+    .score-breakdown__label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    /* Tabs - Underline Style */
+    .tabs {
+      display: flex;
+      gap: 32px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 32px;
+    }
+
+    .tab {
+      padding: 12px 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .tab--active {
+      color: var(--text-primary);
+    }
+
+    .tab--active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 24px;
+    }
+
+    /* Card */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+    }
+
+    .card__header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card__title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 20px;
+      font-weight: 400;
+    }
+
+    .card__subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .card__stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .card__stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .card__stat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .card__stat-dot--warn {
+      background: var(--status-warn);
+    }
+
+    .card__stat-dot--muted {
+      background: var(--status-muted);
+    }
+
+    .card__body {
+      padding: 12px;
+    }
+
+    /* Issue Row */
+    .issue {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .issue:hover {
+      background: var(--bg-surface);
+    }
+
+    .issue__indicator {
+      width: 3px;
+      height: 32px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .issue__indicator--warn {
+      background: var(--status-warn);
+    }
+
+    .issue__indicator--muted {
+      background: var(--status-muted);
+    }
+
+    .issue__icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .issue__icon--warn {
+      background: var(--status-warn-bg);
+      color: var(--status-warn);
+    }
+
+    .issue__icon--muted {
+      background: var(--status-muted-bg);
+      color: var(--status-muted);
+    }
+
+    .issue__content {
+      flex: 1;
+    }
+
+    .issue__title {
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .issue__meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .issue__arrow {
+      color: var(--text-tertiary);
+      transition: transform 0.2s, color 0.2s;
+    }
+
+    .issue:hover .issue__arrow {
+      color: var(--accent);
+      transform: translateX(4px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .sidebar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .sidebar-card__title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      margin-bottom: 16px;
+    }
+
+    .metric:last-child {
+      margin-bottom: 0;
+    }
+
+    .metric__header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .metric__label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .metric__value {
+      font-family: 'Geist Mono', monospace;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .metric__bar {
+      height: 4px;
+      background: var(--border-subtle);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .metric__fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .metric__fill--good {
+      background: var(--status-good);
+    }
+
+    .metric__fill--warn {
+      background: var(--status-warn);
+    }
+
+    /* Quick Stats */
+    .quick-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .quick-stat {
+      padding: 16px;
+      background: var(--bg-surface);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .quick-stat__value {
+      font-family: 'Geist Mono', monospace;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .quick-stat__label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    /* Footer note */
+    .footer-note {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-tertiary);
+      font-size: 13px;
+      margin-top: 32px;
+      border-top: 1px solid var(--border-subtle);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="page-header">
+      <div class="page-header__left">
+        <span class="page-header__eyebrow">SEO Audit</span>
+        <h1 class="page-header__title">sendpigeon.com</h1>
+      </div>
+      <div class="page-header__right">
+        <div class="page-header__date">January 16, 2026</div>
+        <div class="page-header__status">Needs attention</div>
+      </div>
+    </header>
+
+    <!-- Score Banner -->
+    <div class="score-banner">
+      <div class="score-ring">
+        <svg class="score-ring__svg" width="88" height="88" viewBox="0 0 100 100">
+          <circle class="score-ring__track" cx="50" cy="50" r="42"/>
+          <circle class="score-ring__fill" cx="50" cy="50" r="42"/>
+        </svg>
+        <div class="score-ring__value">
+          <span class="score-ring__number">70</span>
+          <span class="score-ring__label">Score</span>
+        </div>
+      </div>
+      <div class="score-info">
+        <h2 class="score-info__title">Health Score</h2>
+        <p class="score-info__desc">Based on technical health, AI readiness, and internal linking</p>
+      </div>
+      <div class="score-breakdown">
+        <div class="score-breakdown__item">
+          <div class="score-breakdown__value">25</div>
+          <div class="score-breakdown__label">Pages</div>
+        </div>
+        <div class="score-breakdown__item">
+          <div class="score-breakdown__value score-breakdown__value--accent">11</div>
+          <div class="score-breakdown__label">Issues</div>
+        </div>
+        <div class="score-breakdown__item">
+          <div class="score-breakdown__value">85%</div>
+          <div class="score-breakdown__label">Linked</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab">Overview</button>
+      <button class="tab tab--active">Technical Issues</button>
+      <button class="tab">AI Readiness</button>
+    </nav>
+
+    <!-- Layout -->
+    <div class="layout">
+      <!-- Main -->
+      <main>
+        <div class="card">
+          <div class="card__header">
+            <h3 class="card__title">Technical Audit</h3>
+            <p class="card__subtitle">SEO issues detected across your pages</p>
+            <div class="card__stats">
+              <span class="card__stat">
+                <span class="card__stat-dot card__stat-dot--warn"></span>
+                4 warnings
+              </span>
+              <span class="card__stat">
+                <span class="card__stat-dot card__stat-dot--muted"></span>
+                7 minor
+              </span>
+            </div>
+          </div>
+          <div class="card__body">
+            <div class="issue">
+              <div class="issue__indicator issue__indicator--warn"></div>
+              <div class="issue__icon issue__icon--warn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="issue__content">
+                <div class="issue__title">Thin content (under 300 words)</div>
+                <div class="issue__meta">Affects 6 pages</div>
+              </div>
+              <svg class="issue__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+
+            <div class="issue">
+              <div class="issue__indicator issue__indicator--warn"></div>
+              <div class="issue__icon issue__icon--warn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="issue__content">
+                <div class="issue__title">Title too short (under 30 characters)</div>
+                <div class="issue__meta">Affects 5 pages</div>
+              </div>
+              <svg class="issue__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+
+            <div class="issue">
+              <div class="issue__indicator issue__indicator--muted"></div>
+              <div class="issue__icon issue__icon--muted">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </div>
+              <div class="issue__content">
+                <div class="issue__title">Duplicate H1 headings</div>
+                <div class="issue__meta">Affects 3 pages</div>
+              </div>
+              <svg class="issue__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+
+            <div class="issue">
+              <div class="issue__indicator issue__indicator--muted"></div>
+              <div class="issue__icon issue__icon--muted">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="16" x2="12" y2="12"/>
+                  <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </div>
+              <div class="issue__content">
+                <div class="issue__title">Missing meta description</div>
+                <div class="issue__meta">Affects 4 pages</div>
+              </div>
+              <svg class="issue__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <h4 class="sidebar-card__title">Internal Linking</h4>
+          <div class="metric">
+            <div class="metric__header">
+              <span class="metric__label">Link coverage</span>
+              <span class="metric__value">85%</span>
+            </div>
+            <div class="metric__bar">
+              <div class="metric__fill metric__fill--good" style="width: 85%"></div>
+            </div>
+          </div>
+          <div class="metric">
+            <div class="metric__header">
+              <span class="metric__label">Orphan pages</span>
+              <span class="metric__value">2</span>
+            </div>
+            <div class="metric__bar">
+              <div class="metric__fill metric__fill--warn" style="width: 8%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-card">
+          <h4 class="sidebar-card__title">Quick Stats</h4>
+          <div class="quick-stats">
+            <div class="quick-stat">
+              <div class="quick-stat__value">25</div>
+              <div class="quick-stat__label">Pages</div>
+            </div>
+            <div class="quick-stat">
+              <div class="quick-stat__value">70</div>
+              <div class="quick-stat__label">AI Ready</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <p class="footer-note">
+      Design Mockup v3 — Warm Editorial Theme
+    </p>
+  </div>
+</body>
+</html>
