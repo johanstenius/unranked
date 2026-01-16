@@ -540,8 +540,8 @@ auditRoutes.get("/audits/:token/stream", async (c) => {
 		return streamSSE(c, async (stream) => {
 			await stream.writeSSE({
 				id: "0",
-				event: "complete",
-				data: JSON.stringify({ type: "complete" }),
+				event: "audit:complete",
+				data: JSON.stringify({ type: "audit:complete" }),
 			});
 		});
 	}
@@ -552,8 +552,8 @@ auditRoutes.get("/audits/:token/stream", async (c) => {
 		// Send initial status
 		await stream.writeSSE({
 			id: String(eventId++),
-			event: "status",
-			data: JSON.stringify({ type: "status", status: audit.status }),
+			event: "audit:status",
+			data: JSON.stringify({ type: "audit:status", status: audit.status }),
 		});
 
 		// Send current progress if available
