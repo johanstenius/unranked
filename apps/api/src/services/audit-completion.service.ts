@@ -113,7 +113,6 @@ export async function completeAudit(
 		{
 			isFreeTier: tier === "FREE",
 			isNewSite: state.isNewSite ?? false,
-			tier,
 		},
 	);
 

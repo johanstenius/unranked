@@ -171,7 +171,6 @@ async function processFinalAnalysis(
 		{
 			isFreeTier: tier === "FREE",
 			isNewSite: audit.isNewSite ?? false,
-			tier,
 		},
 	);
 

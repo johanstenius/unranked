@@ -9,14 +9,13 @@ const POINTS = {
 	TECHNICAL_HEALTH: 15,
 	INTERNAL_LINKING: 10,
 	CONTENT_OPPORTUNITY: 10,
-	/** AI readiness max varies by tier: FREE=2, SCAN=5, AUDIT/DEEP_DIVE=10 */
-	AI_READINESS: { FREE: 2, SCAN: 5, AUDIT: 10, DEEP_DIVE: 10 },
-	/** Total max for AUDIT/DEEP_DIVE tier (includes AI readiness) */
-	FULL_MAX: 110,
-	/** Max achievable for new sites (excludes ranking-dependent components) */
-	NEW_SITE_MAX: 75,
-	/** Max for FREE tier (technical + linking + basic AI) */
-	FREE_TIER_MAX: 27,
+	AI_READINESS: 100, // Now uses consistent 0-100 scale
+	/** Total max for full analysis: 30+20+15+15+10+10+100 = 200 */
+	FULL_MAX: 200,
+	/** Max achievable for new sites: 30+15+10+10+100 = 165 (excludes ranking) */
+	NEW_SITE_MAX: 165,
+	/** Max for FREE tier: 15+10+100 = 125 (technical + linking + AI) */
+	FREE_TIER_MAX: 125,
 } as const;
 
 const THRESHOLDS = {
@@ -47,7 +46,7 @@ export type HealthScoreBreakdown = {
 	technicalHealth: HealthScoreComponent & { max: 15 };
 	internalLinking: HealthScoreComponent & { max: 10 };
 	contentOpportunity: HealthScoreComponent & { max: 10 };
-	aiReadiness: HealthScoreComponent; // max varies by tier: FREE=2, SCAN=5, AUDIT+=10
+	aiReadiness: HealthScoreComponent & { max: 100 }; // Uses consistent 0-100 scale
 };
 
 export type HealthScoreGrade = "excellent" | "good" | "needs_work" | "poor";
@@ -256,89 +255,30 @@ function getGrade(score: number): HealthScoreGrade {
 type HealthScoreOptions = {
 	isFreeTier?: boolean;
 	isNewSite?: boolean;
-	tier?: "FREE" | "SCAN" | "AUDIT" | "DEEP_DIVE";
 };
 
 /**
- * Calculate AI Readiness score contribution
- * - FREE: 2 pts max (robots.txt AI access only)
- * - SCAN: 5 pts max (+ llms.txt + content structure)
- * - AUDIT/DEEP_DIVE: 10 pts max (full analysis)
+ * Calculate AI Readiness score for health breakdown
+ * Uses the actual 0-100 score from AI readiness analysis for consistency
+ * with what's displayed in the AI tab
  */
 function calculateAIReadiness(
 	aiReadiness: AIReadinessData | undefined,
-	tier: HealthScoreOptions["tier"] = "AUDIT",
-): HealthScoreComponent {
-	// Max points by tier
-	const max = POINTS.AI_READINESS[tier ?? "AUDIT"];
+): HealthScoreComponent & { max: 100 } {
+	const max = 100 as const;
 
 	if (!aiReadiness) {
 		return { score: 0, max, detail: "No AI readiness data" };
 	}
 
-	// Robots.txt score (0-2 pts): ratio of AI bots allowed/unspecified
-	const { summary } = aiReadiness.robotsTxtAnalysis;
-	const totalBots = summary.allowed + summary.blocked + summary.unspecified;
-	const allowedRatio =
-		totalBots > 0 ? (summary.allowed + summary.unspecified) / totalBots : 1;
-	const robotsScore = Math.round(allowedRatio * 2);
+	// Use the actual score from AI readiness analysis (0-100)
+	const score = aiReadiness.score;
+	const detail = buildAIReadinessDetail(aiReadiness);
 
-	if (tier === "FREE") {
-		// FREE: only robots.txt analysis (max 2 pts)
-		const blockedCount = summary.blocked;
-		const detail =
-			blockedCount === 0
-				? `${summary.allowed + summary.unspecified} AI bots accessible`
-				: `${blockedCount} AI bot${blockedCount > 1 ? "s" : ""} blocked`;
-		return { score: robotsScore, max, detail };
-	}
-
-	// llms.txt score (0-1 pt)
-	const llmsTxtScore = aiReadiness.llmsTxt.exists ? 1 : 0;
-
-	// Content structure score (0-2 pts)
-	const { contentStructure } = aiReadiness;
-	let structureScore = 0;
-	// Heading hierarchy (1 pt if > 70% pages have proper H1)
-	if (contentStructure.headingHierarchy.score >= 70) structureScore += 1;
-	// Structured data (1 pt if any schema present)
-	if (contentStructure.structuredData.pagesWithSchema > 0) structureScore += 1;
-
-	if (tier === "SCAN") {
-		// SCAN: robots + llms.txt + content structure (max 5 pts)
-		const score = robotsScore + llmsTxtScore + structureScore;
-		const detail = buildAIReadinessDetail(aiReadiness, false);
-		return { score, max, detail };
-	}
-
-	// AUDIT/DEEP_DIVE: full analysis (max 10 pts)
-	// Additional content quality points (0-5 pts)
-	let contentQualityScore = 0;
-	// FAQ schema (2 pts)
-	if (contentStructure.structuredData.hasFAQSchema) contentQualityScore += 2;
-	// Good content depth (2 pts for avg > 500 words, 1 pt for > 300)
-	if (contentStructure.contentQuality.avgWordCount >= 500) {
-		contentQualityScore += 2;
-	} else if (contentStructure.contentQuality.avgWordCount >= 300) {
-		contentQualityScore += 1;
-	}
-	// No thin content (1 pt)
-	if (contentStructure.contentQuality.pagesWithThinContent === 0) {
-		contentQualityScore += 1;
-	}
-
-	const score = Math.min(
-		max,
-		robotsScore + llmsTxtScore + structureScore + contentQualityScore,
-	);
-	const detail = buildAIReadinessDetail(aiReadiness, true);
 	return { score, max, detail };
 }
 
-function buildAIReadinessDetail(
-	aiReadiness: AIReadinessData,
-	includeContent: boolean,
-): string {
+function buildAIReadinessDetail(aiReadiness: AIReadinessData): string {
 	const parts: string[] = [];
 
 	// Robots.txt status
@@ -354,17 +294,6 @@ function buildAIReadinessDetail(
 	// llms.txt
 	if (aiReadiness.llmsTxt.exists) {
 		parts.push("llms.txt present");
-	}
-
-	// Content structure (for paid tiers)
-	if (includeContent) {
-		const { structuredData, contentQuality } = aiReadiness.contentStructure;
-		if (structuredData.hasFAQSchema) {
-			parts.push("FAQ schema");
-		}
-		if (contentQuality.pagesWithThinContent > 0) {
-			parts.push(`${contentQuality.pagesWithThinContent} thin pages`);
-		}
 	}
 
 	return parts.join(", ") || "AI readiness analyzed";
@@ -388,10 +317,7 @@ export function calculateHealthScore(
 	pagesFound: number,
 	options: HealthScoreOptions = {},
 ): HealthScore {
-	const { isFreeTier = false, isNewSite = false, tier = "AUDIT" } = options;
-
-	// Determine effective tier for AI readiness calculation
-	const effectiveTier = isFreeTier ? "FREE" : tier;
+	const { isFreeTier = false, isNewSite = false } = options;
 
 	// Free tier: technical assessment + basic AI readiness
 	// Paid tiers: full 7-component analysis
@@ -403,7 +329,7 @@ export function calculateHealthScore(
 				technicalHealth: calculateTechnicalHealth(analysis, pagesFound),
 				internalLinking: calculateInternalLinking(analysis, pagesFound),
 				contentOpportunity: createUpgradeRequiredComponent(10),
-				aiReadiness: calculateAIReadiness(analysis.aiReadiness, "FREE"),
+				aiReadiness: calculateAIReadiness(analysis.aiReadiness),
 			}
 		: {
 				opportunityDiscovery: calculateOpportunityDiscovery(analysis),
@@ -412,7 +338,7 @@ export function calculateHealthScore(
 				technicalHealth: calculateTechnicalHealth(analysis, pagesFound),
 				internalLinking: calculateInternalLinking(analysis, pagesFound),
 				contentOpportunity: calculateContentOpportunity(analysis),
-				aiReadiness: calculateAIReadiness(analysis.aiReadiness, effectiveTier),
+				aiReadiness: calculateAIReadiness(analysis.aiReadiness),
 			};
 
 	if (isFreeTier) {

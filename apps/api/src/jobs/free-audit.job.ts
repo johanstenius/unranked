@@ -218,7 +218,6 @@ async function processFreeAudit(
 		{
 			isFreeTier: tier === "FREE",
 			isNewSite: audit.isNewSite ?? false,
-			tier,
 		},
 	);
 
