@@ -31,6 +31,8 @@ type OverviewTabProps = {
 	actionPlan: PrioritizedAction[];
 	onViewAllOpportunities: () => void;
 	isFreeTier?: boolean;
+	technicalIssueCount?: number;
+	pagesFound?: number | null;
 };
 
 function IntentBadge({ intent }: { intent: string }) {
@@ -82,6 +84,8 @@ export function OverviewTab({
 	actionPlan,
 	onViewAllOpportunities,
 	isFreeTier = false,
+	technicalIssueCount = 0,
+	pagesFound,
 }: OverviewTabProps) {
 	// Opportunities section - not available for FREE tier
 	const opportunitiesContent = (() => {
@@ -266,6 +270,78 @@ export function OverviewTab({
 		);
 	})();
 
+	// Free tier summary when no action plan
+	const freeTierSummary = (() => {
+		if (!isFreeTier || actionPlan.length > 0) return null;
+
+		return (
+			<Card className="border-border rounded-xl">
+				<CardHeader className="pb-4">
+					<CardTitle className="font-display text-xl font-bold">
+						Audit Summary
+					</CardTitle>
+					<CardDescription>
+						Your free technical SEO audit is complete
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-6">
+					{/* Stats */}
+					<div className="grid grid-cols-2 gap-4">
+						<div className="p-4 rounded-lg bg-subtle">
+							<div className="text-2xl font-display font-bold text-text-primary">
+								{pagesFound ?? 0}
+							</div>
+							<div className="text-sm text-text-secondary">Pages crawled</div>
+						</div>
+						<div className="p-4 rounded-lg bg-subtle">
+							<div className="text-2xl font-display font-bold text-text-primary">
+								{technicalIssueCount}
+							</div>
+							<div className="text-sm text-text-secondary">
+								{technicalIssueCount === 0 ? "No issues found" : "Issues found"}
+							</div>
+						</div>
+					</div>
+
+					{technicalIssueCount === 0 && (
+						<div className="p-4 rounded-lg bg-status-good-bg border border-status-good/20">
+							<p className="text-sm text-status-good">
+								<span className="font-medium">Great news!</span> No critical
+								technical issues were found on your site.
+							</p>
+						</div>
+					)}
+
+					{/* Upgrade teaser */}
+					<div className="p-4 rounded-lg bg-gradient-to-r from-accent/5 to-accent/10 border border-accent/20">
+						<h4 className="font-medium text-text-primary mb-2">
+							Get the full picture
+						</h4>
+						<p className="text-sm text-text-secondary mb-3">
+							Upgrade to discover keyword rankings, content opportunities, and
+							AI-powered briefs.
+						</p>
+						<ul className="text-sm text-text-secondary space-y-1">
+							<li className="flex items-center gap-2">
+								<span className="text-status-good">✓</span> Current keyword
+								rankings
+							</li>
+							<li className="flex items-center gap-2">
+								<span className="text-status-good">✓</span> Content gap analysis
+							</li>
+							<li className="flex items-center gap-2">
+								<span className="text-status-good">✓</span> AI content briefs
+							</li>
+							<li className="flex items-center gap-2">
+								<span className="text-status-good">✓</span> Competitor insights
+							</li>
+						</ul>
+					</div>
+				</CardContent>
+			</Card>
+		);
+	})();
+
 	return (
 		<>
 			{/* Action Plan - prioritized recommendations */}
@@ -273,6 +349,7 @@ export function OverviewTab({
 				<ActionPlanCard actions={actionPlan} isFreeTier={isFreeTier} />
 			)}
 
+			{freeTierSummary}
 			{opportunitiesContent}
 			{rankingsContent}
 		</>

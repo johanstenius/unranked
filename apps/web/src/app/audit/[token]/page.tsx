@@ -325,6 +325,12 @@ function AuditContent() {
 												setActiveTab("opportunities")
 											}
 											isFreeTier={isFreeTier}
+											technicalIssueCount={
+												components.technical.status === "completed"
+													? components.technical.data.length
+													: 0
+											}
+											pagesFound={state.pagesFound}
 										/>
 									)}
 									{activeTab === "opportunities" && (
