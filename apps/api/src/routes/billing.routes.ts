@@ -204,16 +204,37 @@ billingRoutes.post("/webhooks/lemonsqueezy", async (c) => {
 				return c.json({ received: true }, 200);
 			}
 
-			// Update audit tier, reset status, and save orderId for refunds
+			// Update audit tier and save orderId for refunds
 			await auditRepo.updateAudit(event.auditId, {
 				tier: event.tier,
-				status: "PENDING",
 			});
 			await auditRepo.updateAuditLsOrderId(event.auditId, event.orderId);
 
 			// Start the crawl job
 			const queue = await getQueue();
 			await queueCrawlJob(queue, event.auditId);
+
+			// Generate competitor suggestions for paid tiers
+			const { suggestCompetitors } = await import(
+				"../services/competitor-suggestions.js"
+			);
+			const suggestions = await suggestCompetitors({
+				productDesc: audit.productDesc ?? "",
+				seedKeywords: audit.targetKeywords ?? [],
+				siteUrl: audit.siteUrl,
+			});
+
+			// Update audit with suggestions and set status to SELECTING_COMPETITORS
+			await auditRepo.updateAudit(event.auditId, {
+				suggestedCompetitors: suggestions,
+				status: "SELECTING_COMPETITORS",
+				startedAt: new Date(),
+			});
+
+			log.info(
+				{ auditId: event.auditId, suggestions: suggestions.length },
+				"Payment completed, competitor selection ready",
+			);
 		}
 
 		if (event.type === "checkout.failed") {
