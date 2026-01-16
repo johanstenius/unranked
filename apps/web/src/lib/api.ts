@@ -122,15 +122,6 @@ export async function getBrief(briefId: string): Promise<Brief> {
 	return fetchApi<Brief>(`/briefs/${briefId}`);
 }
 
-export async function devStartAudit(
-	input: CreateAuditInput,
-): Promise<{ accessToken: string }> {
-	return fetchApi<{ accessToken: string }>("/dev/start-audit", {
-		method: "POST",
-		body: JSON.stringify(input),
-	});
-}
-
 export async function createUpgradeCheckout(
 	token: string,
 	toTier: "SCAN" | "AUDIT" | "DEEP_DIVE",

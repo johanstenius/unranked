@@ -4,7 +4,7 @@ import { FormNav } from "@/components/form-nav";
 import { AnimatePresence, SlideUp, motion } from "@/components/motion";
 import { Input } from "@/components/ui/input";
 import { LoadingScreen, Spinner } from "@/components/ui/spinner";
-import { TIERS, createCheckout, devStartAudit, validateUrl } from "@/lib/api";
+import { TIERS, createCheckout, validateUrl } from "@/lib/api";
 import { billingEnabled } from "@/lib/config";
 import type { AuditTier } from "@/lib/types";
 import { normalizeUrl } from "@/lib/url";
@@ -31,8 +31,6 @@ function ChevronIcon({ open }: { open: boolean }) {
 		</svg>
 	);
 }
-
-const isDev = process.env.NODE_ENV === "development";
 
 function AuditNewForm() {
 	const searchParams = useSearchParams();
@@ -166,42 +164,6 @@ function AuditNewForm() {
 			} else {
 				router.push(`/audit/${result.accessToken}`);
 			}
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Something went wrong");
-			setLoading(false);
-		}
-	}
-
-	async function handleDevStart() {
-		setLoading(true);
-		setError(null);
-
-		if (!siteValidated) {
-			try {
-				const result = await validateUrl(normalizeUrl(site.trim()));
-				if (!result.valid) {
-					setSiteError(result.error ?? "Site unreachable");
-					setLoading(false);
-					return;
-				}
-				setSiteValidated(true);
-				// Store extracted info if available
-				if (result.productDescription && !productDesc) {
-					setProductDesc(result.productDescription);
-				}
-				if (result.seedKeywords) {
-					setSeedKeywords(result.seedKeywords);
-				}
-			} catch {
-				setSiteError("Failed to validate URL");
-				setLoading(false);
-				return;
-			}
-		}
-
-		try {
-			const result = await devStartAudit(getFormData());
-			router.push(`/audit/${result.accessToken}`);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong");
 			setLoading(false);
@@ -693,18 +655,6 @@ function AuditNewForm() {
 								)}
 							</motion.button>
 						</SlideUp>
-
-						{/* Dev Skip */}
-						{isDev && (
-							<button
-								type="button"
-								onClick={handleDevStart}
-								disabled={loading || !canSubmit}
-								className="w-full h-10 bg-subtle border border-border text-text-secondary text-sm rounded hover:bg-surface hover:border-border-active transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Dev: Skip Payment
-							</button>
-						)}
 					</form>
 				</div>
 			</main>
