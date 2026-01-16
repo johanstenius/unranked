@@ -15,7 +15,7 @@ import {
 	quickWinSchema,
 	snippetOpportunitySchema,
 	technicalIssueSchema,
-} from "./audit";
+} from "./audit.js";
 
 // ============================================================================
 // Interactive Flow Types (for parallel fast-track)

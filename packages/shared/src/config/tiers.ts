@@ -1,4 +1,4 @@
-import type { AuditTier } from "../schemas/audit";
+import type { AuditTier } from "../schemas/audit.js";
 
 // ============================================================================
 // Component Definitions
