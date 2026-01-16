@@ -272,34 +272,33 @@ export function OverviewTab({
 		);
 	})();
 
-	// Free tier loading state
-	const freeTierLoading = (() => {
-		if (!isFreeTier || !isProcessing) return null;
+	// Free tier content - always shows something for free tier
+	const freeTierContent = (() => {
+		if (!isFreeTier) return null;
 
-		return (
-			<Card className="border-border rounded-xl">
-				<CardHeader className="pb-4">
-					<CardTitle className="font-display text-xl font-bold">
-						Analyzing Your Site
-					</CardTitle>
-					<CardDescription>
-						Please wait while we crawl and analyze your website...
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						<Skeleton className="h-16 w-full rounded-lg" />
-						<Skeleton className="h-16 w-full rounded-lg" />
-					</div>
-				</CardContent>
-			</Card>
-		);
-	})();
+		// During processing - show loading state
+		if (isProcessing) {
+			return (
+				<Card className="border-border rounded-xl">
+					<CardHeader className="pb-4">
+						<CardTitle className="font-display text-xl font-bold">
+							Analyzing Your Site
+						</CardTitle>
+						<CardDescription>
+							Please wait while we crawl and analyze your website...
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							<Skeleton className="h-16 w-full rounded-lg" />
+							<Skeleton className="h-16 w-full rounded-lg" />
+						</div>
+					</CardContent>
+				</Card>
+			);
+		}
 
-	// Free tier summary when no action plan (only show after processing complete)
-	const freeTierSummary = (() => {
-		if (!isFreeTier || actionPlan.length > 0 || isProcessing) return null;
-
+		// Completed - show summary
 		return (
 			<Card className="border-border rounded-xl">
 				<CardHeader className="pb-4">
@@ -370,13 +369,15 @@ export function OverviewTab({
 
 	return (
 		<>
-			{/* Action Plan - prioritized recommendations */}
-			{actionPlan.length > 0 && (
+			{/* Action Plan - prioritized recommendations (paid tiers only) */}
+			{!isFreeTier && actionPlan.length > 0 && (
 				<ActionPlanCard actions={actionPlan} isFreeTier={isFreeTier} />
 			)}
 
-			{freeTierLoading}
-			{freeTierSummary}
+			{/* Free tier always shows content */}
+			{freeTierContent}
+
+			{/* Paid tier content */}
 			{opportunitiesContent}
 			{rankingsContent}
 		</>

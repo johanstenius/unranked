@@ -93,10 +93,10 @@ export const SNIPPET_TYPE_CONFIG: Record<
 	},
 };
 
-// Score thresholds
+// Score thresholds (consistent across all components)
 export const SCORE_THRESHOLDS = {
-	good: 70,
-	warning: 40,
+	good: 80, // Green: 80+
+	warning: 60, // Orange: 60-79, Red: <60
 } as const;
 
 export const DIFFICULTY_THRESHOLDS = {

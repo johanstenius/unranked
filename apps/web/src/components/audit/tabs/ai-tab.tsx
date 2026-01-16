@@ -84,9 +84,9 @@ function ScoreCircle({
 	const offset = circumference - (score / 100) * circumference;
 
 	const getScoreColor = (s: number) => {
-		if (s >= 80) return "text-status-good";
-		if (s >= 60) return "text-status-warn";
-		return "text-status-crit";
+		if (s >= 80) return "text-status-good"; // Green: 80+
+		if (s >= 60) return "text-status-warn"; // Orange: 60-79
+		return "text-status-crit"; // Red: <60
 	};
 
 	const dimensions = size === "lg" ? "w-28 h-28" : "w-16 h-16";
