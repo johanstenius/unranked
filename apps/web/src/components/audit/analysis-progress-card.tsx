@@ -127,7 +127,7 @@ export function AnalysisProgressCard({
 		<motion.div
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
-			className="bg-surface border border-border rounded-xl overflow-hidden mb-8"
+			className="bg-surface rounded-xl shadow-card overflow-hidden mb-8"
 		>
 			{/* Progress bar */}
 			<div className="h-1 bg-border/50">

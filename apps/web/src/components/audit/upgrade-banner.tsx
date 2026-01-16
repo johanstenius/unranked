@@ -38,7 +38,7 @@ export function UpgradeBanner({
 	}
 
 	return (
-		<div className="mb-8 p-6 bg-gradient-to-r from-accent/5 to-accent/10 border border-accent/20 rounded-lg">
+		<div className="mb-8 p-6 bg-gradient-to-r from-accent/5 to-accent/10 rounded-xl shadow-card">
 			<div className="flex items-start justify-between gap-6">
 				<div>
 					<h3 className="font-display text-lg font-semibold text-text-primary mb-2">

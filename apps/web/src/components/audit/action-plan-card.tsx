@@ -33,7 +33,7 @@ export function ActionPlanCard({
 	const quickWinCount = actions.filter((a) => a.effort === "low").length;
 
 	return (
-		<div className="bg-surface border border-border rounded-xl overflow-hidden mb-8 animate-fade-in">
+		<div className="bg-surface rounded-xl shadow-card overflow-hidden mb-8 animate-fade-in">
 			{/* Header */}
 			<div className="bg-gradient-to-r from-accent/5 to-transparent p-6 border-b border-border">
 				<div className="flex items-start justify-between">

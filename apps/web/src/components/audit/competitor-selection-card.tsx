@@ -17,7 +17,7 @@ function DiscoveryState() {
 		<motion.div
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
-			className="bg-surface border border-border rounded-xl p-8 mb-8"
+			className="bg-surface rounded-xl shadow-card p-8 mb-8"
 		>
 			<div className="flex items-center gap-6">
 				<div className="relative w-16 h-16 flex-shrink-0">
@@ -189,7 +189,7 @@ function SelectionState({
 		<motion.div
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
-			className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg"
+			className="bg-surface rounded-2xl shadow-card overflow-hidden shadow-lg"
 		>
 			{/* Header */}
 			<div className="p-6 border-b border-border">

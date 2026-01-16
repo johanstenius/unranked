@@ -147,7 +147,7 @@ function BuildingState({
 	const hasStarted = completedCount > 0 || runningCount > 0;
 
 	return (
-		<div className="bg-surface border border-border rounded-xl p-8 mb-8">
+		<div className="bg-surface rounded-xl shadow-card p-8 mb-8">
 			<div className="flex items-center gap-10">
 				{/* Building visualization */}
 				<div className="relative w-32 h-32 flex-shrink-0">
@@ -346,7 +346,7 @@ function CompletedState({
 		: `Based on ${factorCount} key factors affecting your SEO performance`;
 
 	return (
-		<div className="bg-surface border border-border rounded-xl p-8 mb-8">
+		<div className="bg-surface rounded-xl shadow-card p-8 mb-8">
 			<div className="flex items-center gap-10">
 				<div className="relative w-32 h-32 flex-shrink-0">
 					{/* Glow effect */}

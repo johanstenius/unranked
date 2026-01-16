@@ -199,7 +199,7 @@ function AIReadinessSection({ data }: { data: AIReadinessData }) {
 						<Bot className="w-4 h-4 text-text-tertiary" />
 						AI Bot Access
 					</h4>
-					<div className="rounded-lg border border-border overflow-hidden">
+					<div className="rounded-lg overflow-hidden bg-canvas">
 						<table className="w-full text-sm">
 							<thead>
 								<tr className="bg-elevated">

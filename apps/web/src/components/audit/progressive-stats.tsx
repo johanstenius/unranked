@@ -66,7 +66,7 @@ function StatCard({
 	const hasValue = value !== null && value !== 0;
 
 	return (
-		<div className="bg-surface border border-border rounded-xl p-5">
+		<div className="bg-surface rounded-xl p-5 shadow-card">
 			<AnimatePresence mode="wait">
 				{isLoading && !hasValue ? (
 					<motion.div
