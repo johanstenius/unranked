@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Issue List - Clean Redesign</title>
+  <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700&f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #0c0c0e;
+      --bg-surface: #131316;
+      --bg-elevated: #1a1a1f;
+      --bg-hover: #1e1e24;
+
+      --border-subtle: #27272a;
+
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-tertiary: #71717a;
+
+      --status-crit: #f87171;
+      --status-warn: #fbbf24;
+      --status-info: #71717a;
+
+      --font-display: 'Cabinet Grotesk', system-ui, sans-serif;
+      --font-body: 'Satoshi', system-ui, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      padding: 40px;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border-radius: 16px;
+      max-width: 700px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .card-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* Summary row */
+    .summary {
+      display: flex;
+      gap: 24px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .summary-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .summary-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .summary-dot.crit { background: var(--status-crit); }
+    .summary-dot.warn { background: var(--status-warn); }
+    .summary-dot.info { background: var(--status-info); }
+
+    .summary-count {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Issue list - THE REDESIGN */
+    .issues {
+      padding: 8px 0;
+    }
+
+    .issue {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 24px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      position: relative;
+    }
+
+    .issue:hover {
+      background: var(--bg-hover);
+    }
+
+    /* Left accent - just a thin bar, no box */
+    .issue-accent {
+      width: 3px;
+      height: 100%;
+      min-height: 44px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .issue-accent.crit { background: var(--status-crit); }
+    .issue-accent.warn { background: var(--status-warn); }
+    .issue-accent.info { background: var(--status-info); }
+
+    .issue-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .issue-icon.crit { color: var(--status-crit); }
+    .issue-icon.warn { color: var(--status-warn); }
+    .issue-icon.info { color: var(--status-info); }
+
+    .issue-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .issue-title {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .issue-title .info-icon {
+      width: 14px;
+      height: 14px;
+      color: var(--text-tertiary);
+      opacity: 0.6;
+    }
+
+    .issue-meta {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .issue-arrow {
+      width: 16px;
+      height: 16px;
+      color: var(--text-tertiary);
+      opacity: 0;
+      transition: all 0.15s ease;
+      margin-top: 2px;
+    }
+
+    .issue:hover .issue-arrow {
+      opacity: 1;
+      transform: translateX(2px);
+    }
+
+    /* Divider between issues - very subtle */
+    .issue + .issue {
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* Section label */
+    h3 {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      padding: 16px 24px 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Technical Audit</h2>
+      <p class="card-desc">SEO issues detected across your pages</p>
+    </div>
+
+    <div class="summary">
+      <div class="summary-item">
+        <span class="summary-dot warn"></span>
+        <span class="summary-count">4</span> warning
+      </div>
+      <div class="summary-item">
+        <span class="summary-dot info"></span>
+        <span class="summary-count">7</span> minor
+      </div>
+    </div>
+
+    <div class="issues">
+      <div class="issue">
+        <div class="issue-accent warn"></div>
+        <svg class="issue-icon warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div class="issue-content">
+          <div class="issue-title">
+            Thin content (under 300 words)
+            <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4"/>
+              <path d="M12 8h.01"/>
+            </svg>
+          </div>
+          <div class="issue-meta">Affects 6 pages</div>
+        </div>
+        <svg class="issue-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+
+      <div class="issue">
+        <div class="issue-accent warn"></div>
+        <svg class="issue-icon warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div class="issue-content">
+          <div class="issue-title">Title too short (under 30 characters)</div>
+          <div class="issue-meta">Affects 5 pages</div>
+        </div>
+        <svg class="issue-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+
+      <div class="issue">
+        <div class="issue-accent info"></div>
+        <svg class="issue-icon info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 16v-4"/>
+          <path d="M12 8h.01"/>
+        </svg>
+        <div class="issue-content">
+          <div class="issue-title">Duplicate H1 heading across pages</div>
+          <div class="issue-meta">Affects 3 pages</div>
+        </div>
+        <svg class="issue-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+
+      <div class="issue">
+        <div class="issue-accent info"></div>
+        <svg class="issue-icon info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 16v-4"/>
+          <path d="M12 8h.01"/>
+        </svg>
+        <div class="issue-content">
+          <div class="issue-title">Missing Open Graph tags</div>
+          <div class="issue-meta">Affects 4 pages</div>
+        </div>
+        <svg class="issue-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

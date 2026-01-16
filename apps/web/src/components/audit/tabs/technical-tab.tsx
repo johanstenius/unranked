@@ -161,50 +161,49 @@ function IssueCard({ group }: { group: GroupedIssue }) {
 
 	const severityStyles = {
 		high: {
-			border: "border-l-status-crit",
-			bg: "bg-status-crit-bg",
+			accent: "bg-status-crit",
 			text: "text-status-crit",
-			icon: <AlertTriangle className="w-4 h-4" />,
+			icon: <AlertTriangle className="w-5 h-5" />,
 		},
 		medium: {
-			border: "border-l-status-warn",
-			bg: "bg-status-warn-bg",
+			accent: "bg-status-warn",
 			text: "text-status-warn",
-			icon: <AlertTriangle className="w-4 h-4" />,
+			icon: <AlertTriangle className="w-5 h-5" />,
 		},
 		low: {
-			border: "border-l-text-tertiary",
-			bg: "bg-subtle",
+			accent: "bg-text-tertiary",
 			text: "text-text-tertiary",
-			icon: <Info className="w-4 h-4" />,
+			icon: <Info className="w-5 h-5" />,
 		},
 	};
 
 	const style = severityStyles[group.severity];
 
 	return (
-		<div
-			className={cn(
-				"rounded-lg border border-border/60 overflow-hidden transition-all",
-				style.border,
-				"border-l-[3px]",
-			)}
-		>
+		<div className="border-t border-border first:border-t-0">
 			<button
 				type="button"
 				onClick={() => setExpanded(!expanded)}
-				className="w-full flex items-center gap-4 p-4 text-left hover:bg-hover transition-colors"
+				className="w-full flex items-start gap-4 py-4 px-1 text-left hover:bg-hover transition-colors group"
 			>
-				<div className={cn("shrink-0", style.text)}>{style.icon}</div>
+				<div
+					className={cn(
+						"w-[3px] min-h-[44px] rounded-full shrink-0",
+						style.accent,
+					)}
+				/>
+				<div className={cn("shrink-0 mt-0.5", style.text)}>{style.icon}</div>
 
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">
-						<span className="font-medium text-text-primary">{group.rule}</span>
+						<span className="font-semibold text-text-primary">
+							{group.rule}
+						</span>
 						{ruleInfo && (
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
-										<Info className="h-3.5 w-3.5 text-text-tertiary cursor-help shrink-0" />
+										<Info className="h-3.5 w-3.5 text-text-tertiary/60 cursor-help shrink-0" />
 									</TooltipTrigger>
 									<TooltipContent side="top" className="max-w-[300px]">
 										<p className="text-sm">{ruleInfo.description}</p>
@@ -231,15 +230,15 @@ function IssueCard({ group }: { group: GroupedIssue }) {
 
 				<ChevronRight
 					className={cn(
-						"w-4 h-4 text-text-tertiary transition-transform shrink-0",
-						expanded && "rotate-90",
+						"w-4 h-4 text-text-tertiary opacity-0 group-hover:opacity-100 transition-all shrink-0 mt-1",
+						expanded && "rotate-90 opacity-100",
 					)}
 				/>
 			</button>
 
 			{expanded && (
-				<div className="px-4 pb-4 pt-0">
-					<div className="pl-8 space-y-1 border-t border-border/40 pt-3">
+				<div className="pb-4 pl-14 pr-4">
+					<div className="space-y-1 border-t border-border pt-3">
 						{group.pages.map((page) => (
 							<div
 								key={page.url}
@@ -347,9 +346,9 @@ export function TechnicalTab({
 					{groupedIssues.length === 0 ? (
 						<EmptyState />
 					) : (
-						<div className="space-y-4">
+						<div>
 							<SeveritySummary counts={severityCounts} />
-							<div className="space-y-3">
+							<div>
 								{groupedIssues.map((group) => (
 									<IssueCard key={group.rule} group={group} />
 								))}
@@ -405,64 +404,66 @@ export function TechnicalTab({
 							</p>
 						</div>
 					) : (
-						<div className="space-y-4">
+						<div>
 							{issues.orphanPages.length > 0 && (
-								<div className="rounded-lg border border-border/60 border-l-[3px] border-l-status-crit overflow-hidden">
-									<div className="p-4">
-										<div className="flex items-center gap-3 mb-3">
-											<AlertTriangle className="w-4 h-4 text-status-crit shrink-0" />
-											<div>
-												<span className="font-medium text-text-primary">
+								<div className="border-t border-border py-4 px-1">
+									<div className="flex items-start gap-4">
+										<div className="w-[3px] min-h-[44px] rounded-full bg-status-crit shrink-0" />
+										<AlertTriangle className="w-5 h-5 text-status-crit shrink-0" />
+										<div className="flex-1">
+											<div className="mb-2">
+												<span className="font-semibold text-text-primary">
 													Orphan Pages
 												</span>
 												<span className="text-sm text-text-tertiary ml-2">
 													No incoming links
 												</span>
 											</div>
-										</div>
-										<div className="pl-7 space-y-1">
-											{issues.orphanPages.map((url) => (
-												<div
-													key={url}
-													className="text-sm text-text-secondary py-1 truncate font-mono"
-												>
-													{stripOrigin(url)}
-												</div>
-											))}
+											<div className="space-y-1">
+												{issues.orphanPages.map((url) => (
+													<div
+														key={url}
+														className="text-sm text-text-secondary py-1 truncate font-mono"
+													>
+														{stripOrigin(url)}
+													</div>
+												))}
+											</div>
 										</div>
 									</div>
 								</div>
 							)}
 
 							{issues.underlinkedPages.length > 0 && (
-								<div className="rounded-lg border border-border/60 border-l-[3px] border-l-status-warn overflow-hidden">
-									<div className="p-4">
-										<div className="flex items-center gap-3 mb-3">
-											<AlertTriangle className="w-4 h-4 text-status-warn shrink-0" />
-											<div>
-												<span className="font-medium text-text-primary">
+								<div className="border-t border-border py-4 px-1">
+									<div className="flex items-start gap-4">
+										<div className="w-[3px] min-h-[44px] rounded-full bg-status-warn shrink-0" />
+										<AlertTriangle className="w-5 h-5 text-status-warn shrink-0" />
+										<div className="flex-1">
+											<div className="mb-2">
+												<span className="font-semibold text-text-primary">
 													Underlinked Pages
 												</span>
 												<span className="text-sm text-text-tertiary ml-2">
 													Need more internal links
 												</span>
 											</div>
-										</div>
-										<div className="pl-7 space-y-1">
-											{issues.underlinkedPages.map((p) => (
-												<div
-													key={p.url}
-													className="flex items-center justify-between text-sm py-1"
-												>
-													<span className="text-text-secondary truncate font-mono max-w-[300px]">
-														{stripOrigin(p.url)}
-													</span>
-													<span className="text-text-tertiary tabular-nums shrink-0 ml-4">
-														{p.incomingLinks}{" "}
-														{p.incomingLinks === 1 ? "link" : "links"}
-													</span>
-												</div>
-											))}
+											<div className="space-y-1">
+												{issues.underlinkedPages.map((p) => (
+													<div
+														key={p.url}
+														className="flex items-center justify-between text-sm py-1"
+													>
+														<span className="text-text-secondary truncate font-mono max-w-[300px]">
+															{stripOrigin(p.url)}
+														</span>
+														<span className="text-text-tertiary tabular-nums shrink-0 ml-4">
+															{p.incomingLinks}{" "}
+															{p.incomingLinks === 1 ? "link" : "links"}
+														</span>
+													</div>
+												))}
+											</div>
 										</div>
 									</div>
 								</div>
