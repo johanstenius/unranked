@@ -9,7 +9,7 @@ import { billingEnabled } from "@/lib/config";
 import type { AuditTier } from "@/lib/types";
 import { normalizeUrl } from "@/lib/url";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 const TIER_OPTIONS: AuditTier[] = ["FREE", "SCAN", "AUDIT", "DEEP_DIVE"];
 
@@ -100,6 +100,15 @@ function AuditNewForm() {
 			setValidatingSite(false);
 		}
 	}, [site, productDesc]);
+
+	// Auto-validate if URL param provided on load
+	const [initialValidated, setInitialValidated] = useState(false);
+	useEffect(() => {
+		if (siteParam && !initialValidated) {
+			setInitialValidated(true);
+			handleSiteBlur();
+		}
+	}, [siteParam, initialValidated, handleSiteBlur]);
 
 	function handleSiteChange(value: string) {
 		setSite(value);
