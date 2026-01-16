@@ -153,6 +153,7 @@ billingRoutes.openapi(createCheckoutRoute, async (c) => {
 	// Paid tier: create checkout
 	const { url } = await lemonSqueezyProvider.createCheckout({
 		auditId: audit.id,
+		accessToken: audit.accessToken,
 		tier: audit.tier,
 		siteUrl: audit.siteUrl,
 		email: audit.email,
@@ -370,6 +371,7 @@ billingRoutes.openapi(upgradeRoute, async (c) => {
 
 	const { url } = await lemonSqueezyProvider.createUpgradeCheckout({
 		auditId: audit.id,
+		accessToken: audit.accessToken,
 		fromTier: audit.tier,
 		toTier,
 		siteUrl: audit.siteUrl,

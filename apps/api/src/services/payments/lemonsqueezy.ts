@@ -47,7 +47,7 @@ async function createLemonSqueezyCheckout(
 	email: string,
 	customPrice?: number,
 ): Promise<string> {
-	const successUrl = `${env.FRONTEND_URL}/audit/${customData.audit_id}`;
+	const successUrl = `${env.FRONTEND_URL}/audit/${customData.access_token}`;
 
 	const response = await fetch(`${LEMONSQUEEZY_API_URL}/checkouts`, {
 		method: "POST",
@@ -125,7 +125,11 @@ export const lemonSqueezyProvider: BillingProvider = {
 		const variantId = getVariantIdForTier(input.tier);
 		const url = await createLemonSqueezyCheckout(
 			variantId,
-			{ audit_id: input.auditId, tier: input.tier },
+			{
+				audit_id: input.auditId,
+				access_token: input.accessToken,
+				tier: input.tier,
+			},
 			input.email,
 		);
 		return { url };
@@ -141,6 +145,7 @@ export const lemonSqueezyProvider: BillingProvider = {
 			variantId,
 			{
 				audit_id: input.auditId,
+				access_token: input.accessToken,
 				tier: input.toTier,
 				upgrade_from: input.fromTier,
 			},

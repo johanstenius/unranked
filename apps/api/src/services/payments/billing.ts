@@ -9,6 +9,7 @@ const TIER_ORDER: Record<AuditTier, number> = {
 
 export type CheckoutInput = {
 	auditId: string;
+	accessToken: string;
 	tier: AuditTier;
 	siteUrl: string;
 	email: string;
@@ -16,6 +17,7 @@ export type CheckoutInput = {
 
 export type UpgradeCheckoutInput = {
 	auditId: string;
+	accessToken: string;
 	fromTier: AuditTier;
 	toTier: AuditTier;
 	siteUrl: string;
