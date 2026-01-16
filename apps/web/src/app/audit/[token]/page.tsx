@@ -331,6 +331,7 @@ function AuditContent() {
 													: 0
 											}
 											pagesFound={state.pagesFound}
+											isProcessing={isProcessing}
 										/>
 									)}
 									{activeTab === "opportunities" && (

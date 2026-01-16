@@ -33,6 +33,7 @@ type OverviewTabProps = {
 	isFreeTier?: boolean;
 	technicalIssueCount?: number;
 	pagesFound?: number | null;
+	isProcessing?: boolean;
 };
 
 function IntentBadge({ intent }: { intent: string }) {
@@ -86,6 +87,7 @@ export function OverviewTab({
 	isFreeTier = false,
 	technicalIssueCount = 0,
 	pagesFound,
+	isProcessing = false,
 }: OverviewTabProps) {
 	// Opportunities section - not available for FREE tier
 	const opportunitiesContent = (() => {
@@ -270,9 +272,33 @@ export function OverviewTab({
 		);
 	})();
 
-	// Free tier summary when no action plan
+	// Free tier loading state
+	const freeTierLoading = (() => {
+		if (!isFreeTier || !isProcessing) return null;
+
+		return (
+			<Card className="border-border rounded-xl">
+				<CardHeader className="pb-4">
+					<CardTitle className="font-display text-xl font-bold">
+						Analyzing Your Site
+					</CardTitle>
+					<CardDescription>
+						Please wait while we crawl and analyze your website...
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						<Skeleton className="h-16 w-full rounded-lg" />
+						<Skeleton className="h-16 w-full rounded-lg" />
+					</div>
+				</CardContent>
+			</Card>
+		);
+	})();
+
+	// Free tier summary when no action plan (only show after processing complete)
 	const freeTierSummary = (() => {
-		if (!isFreeTier || actionPlan.length > 0) return null;
+		if (!isFreeTier || actionPlan.length > 0 || isProcessing) return null;
 
 		return (
 			<Card className="border-border rounded-xl">
@@ -349,6 +375,7 @@ export function OverviewTab({
 				<ActionPlanCard actions={actionPlan} isFreeTier={isFreeTier} />
 			)}
 
+			{freeTierLoading}
 			{freeTierSummary}
 			{opportunitiesContent}
 			{rankingsContent}
