@@ -142,20 +142,17 @@ function StatusBadge({
 }: { status: "allowed" | "blocked" | "not_specified" }) {
 	const styles = {
 		allowed: {
-			bg: "bg-status-good-bg",
-			text: "text-status-good",
+			classes: "bg-status-good-bg border-status-good-border text-status-good",
 			icon: <Shield className="w-3 h-3" />,
 			label: "Allowed",
 		},
 		blocked: {
-			bg: "bg-status-crit-bg",
-			text: "text-status-crit",
+			classes: "bg-status-crit-bg border-status-crit-border text-status-crit",
 			icon: <ShieldAlert className="w-3 h-3" />,
 			label: "Blocked",
 		},
 		not_specified: {
-			bg: "bg-subtle",
-			text: "text-text-tertiary",
+			classes: "bg-elevated border-border text-text-tertiary",
 			icon: <ShieldQuestion className="w-3 h-3" />,
 			label: "Unspecified",
 		},
@@ -166,9 +163,8 @@ function StatusBadge({
 	return (
 		<span
 			className={cn(
-				"inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium",
-				style.bg,
-				style.text,
+				"inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border",
+				style.classes,
 			)}
 		>
 			{style.icon}
@@ -206,17 +202,17 @@ function AIReadinessSection({ data }: { data: AIReadinessData }) {
 					<div className="rounded-lg border border-border overflow-hidden">
 						<table className="w-full text-sm">
 							<thead>
-								<tr className="bg-subtle/50">
-									<th className="text-left py-2.5 px-4 font-medium text-text-secondary">
+								<tr className="bg-elevated">
+									<th className="text-left py-2.5 px-4 font-semibold text-text-tertiary text-xs uppercase tracking-wide">
 										Bot
 									</th>
-									<th className="text-left py-2.5 px-4 font-medium text-text-secondary">
+									<th className="text-left py-2.5 px-4 font-semibold text-text-tertiary text-xs uppercase tracking-wide">
 										Provider
 									</th>
-									<th className="text-left py-2.5 px-4 font-medium text-text-secondary">
+									<th className="text-left py-2.5 px-4 font-semibold text-text-tertiary text-xs uppercase tracking-wide">
 										Purpose
 									</th>
-									<th className="text-left py-2.5 px-4 font-medium text-text-secondary">
+									<th className="text-left py-2.5 px-4 font-semibold text-text-tertiary text-xs uppercase tracking-wide">
 										Status
 									</th>
 								</tr>
@@ -225,7 +221,7 @@ function AIReadinessSection({ data }: { data: AIReadinessData }) {
 								{robotsTxtAnalysis.aiBots.map((bot) => (
 									<tr
 										key={bot.bot}
-										className="hover:bg-subtle/30 transition-colors"
+										className="hover:bg-hover transition-colors"
 									>
 										<td className="py-2.5 px-4 font-mono text-text-primary">
 											{bot.bot}
@@ -289,8 +285,8 @@ function AIReadinessSection({ data }: { data: AIReadinessData }) {
 						className={cn(
 							"p-4 rounded-lg border",
 							llmsTxt.exists
-								? "bg-status-good-bg/50 border-status-good/30"
-								: "bg-subtle border-border",
+								? "bg-status-good-bg border-status-good-border"
+								: "bg-elevated border-border",
 						)}
 					>
 						<div className="flex items-center gap-3">

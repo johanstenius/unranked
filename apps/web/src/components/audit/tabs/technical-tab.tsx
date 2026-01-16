@@ -114,10 +114,10 @@ function SeveritySummary({ counts }: { counts: SeverityCounts }) {
 	const total = counts.high + counts.medium + counts.low;
 
 	return (
-		<div className="flex items-center gap-6">
+		<div className="flex items-center gap-6 pb-4 mb-4 border-b border-border">
 			{counts.high > 0 && (
 				<div className="flex items-center gap-2">
-					<div className="w-2.5 h-2.5 rounded-full bg-status-crit" />
+					<div className="w-2 h-2 rounded-full bg-status-crit ring-[3px] ring-status-crit-bg" />
 					<span className="text-sm text-text-secondary">
 						<span className="font-semibold text-text-primary tabular-nums">
 							{counts.high}
@@ -128,7 +128,7 @@ function SeveritySummary({ counts }: { counts: SeverityCounts }) {
 			)}
 			{counts.medium > 0 && (
 				<div className="flex items-center gap-2">
-					<div className="w-2.5 h-2.5 rounded-full bg-status-warn" />
+					<div className="w-2 h-2 rounded-full bg-status-warn ring-[3px] ring-status-warn-bg" />
 					<span className="text-sm text-text-secondary">
 						<span className="font-semibold text-text-primary tabular-nums">
 							{counts.medium}
@@ -139,7 +139,7 @@ function SeveritySummary({ counts }: { counts: SeverityCounts }) {
 			)}
 			{counts.low > 0 && (
 				<div className="flex items-center gap-2">
-					<div className="w-2.5 h-2.5 rounded-full bg-text-tertiary" />
+					<div className="w-2 h-2 rounded-full bg-text-tertiary ring-[3px] ring-subtle" />
 					<span className="text-sm text-text-secondary">
 						<span className="font-semibold text-text-primary tabular-nums">
 							{counts.low}
@@ -193,7 +193,7 @@ function IssueCard({ group }: { group: GroupedIssue }) {
 			<button
 				type="button"
 				onClick={() => setExpanded(!expanded)}
-				className="w-full flex items-center gap-4 p-4 text-left hover:bg-subtle/50 transition-colors"
+				className="w-full flex items-center gap-4 p-4 text-left hover:bg-hover transition-colors"
 			>
 				<div className={cn("shrink-0", style.text)}>{style.icon}</div>
 
