@@ -39,6 +39,7 @@ import {
 	getLimits,
 	getPhases,
 } from "../schemas/audit.schema.js";
+import { buildBriefRecommendations } from "../services/brief-recommendations.js";
 import {
 	type GeneratedBrief,
 	generateSingleBrief,
@@ -49,7 +50,6 @@ import {
 	discoverSections,
 	discoverSectionsStream,
 } from "../services/crawler/crawler.js";
-import { analyzeKeywords } from "../services/keyword-analysis.js";
 import type {
 	AnalysisResult,
 	OpportunityCluster,
@@ -258,6 +258,7 @@ type AuditDbModel = {
 	healthScore: unknown;
 	briefs: BriefDbModel[];
 	isNewSite: boolean;
+	targetKeywords: string[];
 	// New simplified flow columns
 	crawlComplete: boolean;
 	suggestedCompetitors: unknown;
@@ -328,6 +329,13 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		audit.pipelineState as PipelineStateWithInteractive | null;
 	const analysis = pipelineState?.results ?? null;
 	const healthScore = audit.healthScore as HealthScoreResponse | null;
+
+	// Build brief recommendations from available data
+	const briefRecommendations = buildBriefRecommendations({
+		targetKeywords: audit.targetKeywords ?? [],
+		quickWins: analysis?.quickWins ?? [],
+		opportunities: analysis?.opportunities ?? [],
+	});
 
 	// Build component states from pipelineState.progress + pipelineState.results
 	const components: ComponentStatesResponse = {
@@ -423,8 +431,6 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 	let interactivePhase: AuditStateResponse["interactivePhase"] = undefined;
 	if (audit.status === "SELECTING_COMPETITORS") {
 		interactivePhase = "competitor_selection";
-	} else if (audit.status === "SELECTING_TOPICS") {
-		interactivePhase = "cluster_selection";
 	} else if (audit.status === "ANALYZING") {
 		interactivePhase = "generating";
 	} else if (audit.status === "COMPLETED") {
@@ -458,6 +464,7 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		crawlComplete: audit.crawlComplete,
 		interactiveComplete:
 			audit.status === "ANALYZING" || audit.status === "COMPLETED",
+		briefRecommendations,
 	};
 }
 
@@ -774,6 +781,7 @@ auditRoutes.openapi(getAuditRoute, async (c) => {
 		healthScore: audit.healthScore,
 		briefs: audit.briefs,
 		isNewSite: audit.isNewSite,
+		targetKeywords: audit.targetKeywords ?? [],
 		// New columns
 		crawlComplete: audit.crawlComplete,
 		suggestedCompetitors: audit.suggestedCompetitors,
@@ -1173,7 +1181,7 @@ const selectCompetitorsRoute = createRoute({
 					schema: z.object({ success: z.boolean() }),
 				},
 			},
-			description: "Competitors selected, keyword analysis started",
+			description: "Competitors selected, analysis started",
 		},
 		400: {
 			content: {
@@ -1229,133 +1237,22 @@ auditRoutes.openapi(selectCompetitorsRoute, async (c) => {
 		);
 	}
 
-	// Run keyword analysis with selected competitors
-	log.info(
-		{ auditId: audit.id, competitors: competitors.length },
-		"Running keyword analysis",
-	);
-
-	const keywordResult = await analyzeKeywords({
-		competitors,
-		seedKeywords: audit.targetKeywords,
-	});
-
-	// Update audit with selected competitors, clusters, and new status
+	// Update audit with selected competitors and start analysis
 	await auditRepo.updateAudit(audit.id, {
 		selectedCompetitors: competitors,
 		competitors, // Also update the legacy competitors field
-		suggestedClusters: keywordResult.clusters,
-		status: "SELECTING_TOPICS",
-	});
-
-	emitAuditStatus(audit.id, "SELECTING_TOPICS");
-
-	log.info(
-		{ auditId: audit.id, clusters: keywordResult.clusters.length },
-		"Competitors selected, topic selection ready",
-	);
-
-	return c.json({ success: true }, 200);
-});
-
-const selectClustersRequestSchema = z.object({
-	clusterIds: z
-		.array(z.string())
-		.min(1, "Must select at least one cluster")
-		.max(15, "Maximum 15 clusters allowed"),
-});
-
-const selectClustersRoute = createRoute({
-	method: "post",
-	path: "/audits/{token}/clusters/select",
-	request: {
-		params: z.object({
-			token: z.string(),
-		}),
-		body: {
-			content: {
-				"application/json": {
-					schema: selectClustersRequestSchema,
-				},
-			},
-		},
-	},
-	responses: {
-		200: {
-			content: {
-				"application/json": {
-					schema: z.object({ success: z.boolean() }),
-				},
-			},
-			description: "Clusters selected, merge point check triggered",
-		},
-		400: {
-			content: {
-				"application/json": {
-					schema: z.object({ error: z.string() }),
-				},
-			},
-			description: "Invalid selection or wrong phase",
-		},
-		404: {
-			content: {
-				"application/json": {
-					schema: z.object({ error: z.string() }),
-				},
-			},
-			description: "Audit not found or expired",
-		},
-	},
-});
-
-auditRoutes.openapi(selectClustersRoute, async (c) => {
-	const { token } = c.req.valid("param");
-	const { clusterIds } = c.req.valid("json");
-
-	const audit = await auditRepo.getAuditByAccessToken(token);
-
-	if (!audit) {
-		return c.json({ error: "Audit not found" }, 404);
-	}
-
-	if (audit.expiresAt < new Date()) {
-		return c.json({ error: "Audit link has expired" }, 404);
-	}
-
-	// Verify we're in the right status
-	if (audit.status !== "SELECTING_TOPICS") {
-		return c.json(
-			{ error: `Invalid status: ${audit.status}, expected SELECTING_TOPICS` },
-			400,
-		);
-	}
-
-	// Check tier limits
-	const tier = audit.tier as AuditTier;
-	const limits = getLimits(tier, audit.isNewSite);
-
-	if (clusterIds.length > limits.briefs) {
-		return c.json(
-			{ error: `Max ${limits.briefs} briefs for ${tier} tier` },
-			400,
-		);
-	}
-
-	// Update audit with selected clusters and set status to ANALYZING
-	await auditRepo.updateAudit(audit.id, {
-		selectedClusters: clusterIds,
 		status: "ANALYZING",
 	});
 
 	emitAuditStatus(audit.id, "ANALYZING");
 
-	// Queue final analysis job
+	// Queue final analysis job immediately
 	const queue = await getQueue();
 	await queueFinalAnalysisJob(queue, audit.id);
 
 	log.info(
-		{ auditId: audit.id, clusters: clusterIds.length },
-		"Clusters selected, final analysis queued",
+		{ auditId: audit.id, competitors: competitors.length },
+		"Competitors selected, analysis started",
 	);
 
 	return c.json({ success: true }, 200);

@@ -4,14 +4,12 @@
  * Aggregates insights from all components into a prioritized list
  * of top 10 actions by business impact.
  *
- * Priority formula:
- *   priority = (volumeScore * 0.35) + (positionScore * 0.25) + (difficultyScore * 0.25) + (effortScore * 0.15)
- *
  * FREE tier: Only technical issues (no AI/DataForSEO data available)
  */
 
 import { createLogger } from "../../../lib/logger.js";
 import type { ActionType, PrioritizedAction } from "../analysis.js";
+import { calculatePriority, normalizeScore } from "../priority.js";
 import type {
 	ComponentContext,
 	ComponentEntry,
@@ -44,24 +42,6 @@ const EFFORT_LABELS: Record<ActionType, "low" | "medium" | "high"> = {
 	steal_snippet: "medium",
 	create_content: "high",
 };
-
-function normalizeScore(value: number, max: number): number {
-	return Math.min(100, Math.max(0, (value / max) * 100));
-}
-
-function calculatePriority(
-	volumeScore: number,
-	positionScore: number,
-	difficultyScore: number,
-	effortScore: number,
-): number {
-	return Math.round(
-		volumeScore * 0.35 +
-			positionScore * 0.25 +
-			difficultyScore * 0.25 +
-			effortScore * 0.15,
-	);
-}
 
 function generateId(type: ActionType, index: number): string {
 	return `${type}-${index}`;

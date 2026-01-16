@@ -10,7 +10,7 @@ export { UpgradeBanner } from "./upgrade-banner";
 
 // Tabs
 export { AITab } from "./tabs/ai-tab";
-export { BriefsTab } from "./tabs/briefs-tab";
+export { BriefsTab } from "./tabs/briefs";
 export { OpportunitiesTab } from "./tabs/opportunities-tab";
 export { OverviewTab } from "./tabs/overview-tab";
 export { QuickWinsTab } from "./tabs/quickwins-tab";

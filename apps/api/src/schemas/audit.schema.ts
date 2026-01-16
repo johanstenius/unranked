@@ -1,4 +1,5 @@
 import {
+	briefRecommendationSchema as sharedBriefRecommendationSchema,
 	clusterSuggestionSchema as sharedClusterSuggestionSchema,
 	competitorSuggestionSchema as sharedCompetitorSuggestionSchema,
 	interactivePhaseSchema as sharedInteractivePhaseSchema,
@@ -576,6 +577,7 @@ export type TierConfigResponse = z.infer<typeof tierConfigResponseSchema>;
 export const interactivePhaseSchema = sharedInteractivePhaseSchema;
 export const competitorSuggestionSchema = sharedCompetitorSuggestionSchema;
 export const clusterSuggestionSchema = sharedClusterSuggestionSchema;
+export const briefRecommendationSchema = sharedBriefRecommendationSchema;
 
 /**
  * Unified audit state - single source of truth
@@ -616,5 +618,8 @@ export const auditStateSchema = z.object({
 	selectedClusterIds: z.array(z.string()).optional(),
 	crawlComplete: z.boolean().optional(),
 	interactiveComplete: z.boolean().optional(),
+
+	// Brief recommendations (unified from multiple sources)
+	briefRecommendations: z.array(briefRecommendationSchema).optional(),
 });
 export type AuditStateResponse = z.infer<typeof auditStateSchema>;

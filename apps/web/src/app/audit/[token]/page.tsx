@@ -4,7 +4,6 @@ import {
 	AITab,
 	AnalysisProgressCard,
 	BriefsTab,
-	ClusterSelectionCard,
 	CompetitorAnalysis,
 	CompetitorSelectionCard,
 	HealthScoreCard,
@@ -145,26 +144,6 @@ function AuditContent() {
 				<CompetitorSelectionCard
 					suggestions={state.suggestedCompetitors ?? []}
 					maxSelections={state.tierConfig.limits.competitors}
-					accessToken={token}
-					onComplete={refetch}
-				/>
-			</SelectionLayout>
-		);
-	}
-
-	if (state.status === "SELECTING_TOPICS") {
-		return (
-			<SelectionLayout
-				hostname={hostname}
-				currentStep={2}
-				crawlProgress={{
-					pagesFound: state.pagesFound ?? 0,
-					complete: state.crawlComplete ?? false,
-				}}
-			>
-				<ClusterSelectionCard
-					clusters={state.suggestedClusters ?? []}
-					maxSelections={state.tierConfig.limits.briefs}
 					accessToken={token}
 					onComplete={refetch}
 				/>
@@ -351,17 +330,8 @@ function AuditContent() {
 									{activeTab === "opportunities" && (
 										<OpportunitiesTab
 											opportunities={components.opportunities}
-											clusters={state.opportunityClusters ?? []}
 											snippets={components.snippets}
 											isNewSite={state.isNewSite}
-											briefsLimit={TIERS[state.tier].limits.briefs}
-											existingBriefsCount={
-												components.briefs.status === "completed"
-													? components.briefs.data.length
-													: 0
-											}
-											onGenerateBriefs={handleGenerateBriefs}
-											isGenerating={isGeneratingBriefs}
 										/>
 									)}
 									{activeTab === "quickwins" && (
@@ -383,7 +353,10 @@ function AuditContent() {
 										<BriefsTab
 											briefs={components.briefs}
 											auditToken={token}
-											onGoToOpportunities={() => setActiveTab("opportunities")}
+											briefsLimit={TIERS[state.tier].limits.briefs}
+											recommendations={state.briefRecommendations ?? []}
+											onGenerateBriefs={handleGenerateBriefs}
+											isGenerating={isGeneratingBriefs}
 										/>
 									)}
 								</div>

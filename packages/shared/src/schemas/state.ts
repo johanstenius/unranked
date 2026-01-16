@@ -46,6 +46,27 @@ export const clusterSuggestionSchema = z.object({
 });
 export type ClusterSuggestion = z.infer<typeof clusterSuggestionSchema>;
 
+export const briefRecommendationSourceSchema = z.enum([
+	"target",
+	"quick_win",
+	"gap",
+]);
+export type BriefRecommendationSource = z.infer<
+	typeof briefRecommendationSourceSchema
+>;
+
+export const briefRecommendationSchema = z.object({
+	id: z.string(),
+	keyword: z.string(),
+	source: briefRecommendationSourceSchema,
+	priority: z.number(),
+	searchVolume: z.number().optional(),
+	currentPosition: z.number().optional(),
+	url: z.string().optional(),
+	reason: z.string(),
+});
+export type BriefRecommendation = z.infer<typeof briefRecommendationSchema>;
+
 // ============================================================================
 // Component State - Discriminated Union
 // ============================================================================
@@ -181,6 +202,9 @@ export const auditStateSchema = z.object({
 	selectedClusterIds: z.array(z.string()).optional(),
 	crawlComplete: z.boolean().optional(),
 	interactiveComplete: z.boolean().optional(),
+
+	// Brief recommendations (unified from multiple sources)
+	briefRecommendations: z.array(briefRecommendationSchema).optional(),
 });
 export type AuditState = z.infer<typeof auditStateSchema>;
 
