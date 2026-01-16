@@ -104,5 +104,5 @@ export const DIFFICULTY_THRESHOLDS = {
 	medium: 60,
 } as const;
 
-// Billing disabled in prod until LemonSqueezy approved
-export const billingEnabled = process.env.NODE_ENV !== "production";
+// Billing enabled
+export const billingEnabled = true;
