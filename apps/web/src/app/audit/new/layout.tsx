@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Start SEO Audit",
+	title: "Free SEO Audit Tool - Find Keyword Gaps",
 	description:
-		"Enter your website URL to get a full SEO audit with keyword opportunities, competitor analysis, and AI content briefs.",
+		"Run a free SEO audit on your website. Find keyword gaps, technical issues, and get AI content briefs. No subscription required.",
 	openGraph: {
-		title: "Start Your SEO Audit - Unranked",
+		title: "Free SEO Audit Tool - Unranked",
 		description:
-			"Enter your website URL to get a full SEO audit with keyword opportunities, competitor analysis, and AI content briefs.",
+			"Run a free SEO audit on your website. Find keyword gaps, technical issues, and get AI content briefs. No subscription required.",
 	},
 };
 

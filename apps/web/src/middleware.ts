@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+const AUDIT_TOKEN_PATTERN = /^\/audit\/(?!new)[^/]+/;
+
 export function middleware(request: NextRequest) {
 	const host = request.headers.get("host") ?? "";
+	const pathname = request.nextUrl.pathname;
 
 	// Handle admin subdomain
 	if (host.startsWith("admin.")) {
@@ -12,6 +15,13 @@ export function middleware(request: NextRequest) {
 			url.pathname = `/admin${url.pathname === "/" ? "" : url.pathname}`;
 			return NextResponse.rewrite(url);
 		}
+	}
+
+	// Add noindex header for private audit pages (/audit/[token])
+	if (AUDIT_TOKEN_PATTERN.test(pathname)) {
+		const response = NextResponse.next();
+		response.headers.set("X-Robots-Tag", "noindex, nofollow");
+		return response;
 	}
 
 	return NextResponse.next();
