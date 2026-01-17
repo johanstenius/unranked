@@ -1,7 +1,6 @@
 import type {
 	Analysis,
 	Audit,
-	AuditSSEEvent,
 	AuditState,
 	Brief,
 	CheckoutResponse,
@@ -161,7 +160,7 @@ export async function generateBriefs(
 	const response = await fetch(`${API_URL}/audits/${token}/briefs/generate`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ clusterTopics }),
+		body: JSON.stringify({ keywords: clusterTopics }),
 	});
 
 	if (!response.ok) {
@@ -209,57 +208,6 @@ export async function generateBriefs(
 			}
 		}
 	}
-}
-
-/**
- * Subscribe to audit SSE events.
- * Returns an unsubscribe function.
- */
-export function subscribeToAudit(
-	token: string,
-	onEvent: (event: AuditSSEEvent) => void,
-	onError?: (error: Error) => void,
-): () => void {
-	const eventSource = new EventSource(`${API_URL}/audits/${token}/stream`);
-
-	function handleMessage(e: MessageEvent) {
-		try {
-			const event = JSON.parse(e.data) as AuditSSEEvent;
-			onEvent(event);
-		} catch {
-			// Skip invalid JSON
-		}
-	}
-
-	// Listen to event types
-	eventSource.addEventListener("audit:status", handleMessage);
-	eventSource.addEventListener("component:start", handleMessage);
-	eventSource.addEventListener("component:complete", handleMessage);
-	eventSource.addEventListener("component:fail", handleMessage);
-	eventSource.addEventListener("cwv:page", handleMessage);
-	eventSource.addEventListener("crawl:pages", handleMessage);
-	eventSource.addEventListener("health:score", handleMessage);
-	eventSource.addEventListener("clusters", handleMessage);
-	eventSource.addEventListener("action-plan", handleMessage);
-	eventSource.addEventListener("audit:complete", handleMessage);
-	eventSource.addEventListener("audit:error", handleMessage);
-	// Interactive flow events
-	eventSource.addEventListener("interactive:phase", handleMessage);
-	eventSource.addEventListener(
-		"interactive:competitor_suggestions",
-		handleMessage,
-	);
-	eventSource.addEventListener("interactive:crawl_complete", handleMessage);
-	eventSource.addEventListener("interactive:waiting_for_crawl", handleMessage);
-	eventSource.addEventListener("brief-recommendations", handleMessage);
-
-	eventSource.onerror = () => {
-		onError?.(new Error("SSE connection error"));
-	};
-
-	return () => {
-		eventSource.close();
-	};
 }
 
 // ============================================================================

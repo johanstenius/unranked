@@ -18,6 +18,7 @@ model Audit {
   pagesFound         Int?
   sitemapUrlCount    Int?
   hasRobotsTxt       Boolean?
+  robotsTxtContent   String?
   hasSitemap         Boolean?
   opportunities      Json?
   detectedSections   Json?

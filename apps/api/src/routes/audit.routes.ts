@@ -928,11 +928,13 @@ auditRoutes.openapi(getBriefRoute, async (c) => {
 // Brief Generation Endpoint (On-Demand)
 // ============================================================================
 
+const DEFAULT_DIFFICULTY = 50;
+
 const generateBriefsRequestSchema = z.object({
-	clusterTopics: z
+	keywords: z
 		.array(z.string())
-		.min(1, "At least one cluster must be selected")
-		.max(15, "Maximum 15 clusters allowed"),
+		.min(1, "At least one keyword must be selected")
+		.max(15, "Maximum 15 keywords allowed"),
 });
 
 const generateBriefsRoute = createRoute({
@@ -980,7 +982,7 @@ const generateBriefsRoute = createRoute({
 
 auditRoutes.openapi(generateBriefsRoute, async (c) => {
 	const { token } = c.req.valid("param");
-	const { clusterTopics } = c.req.valid("json");
+	const { keywords } = c.req.valid("json");
 
 	const audit = await auditRepo.getAuditByAccessToken(token);
 
@@ -1003,7 +1005,7 @@ auditRoutes.openapi(generateBriefsRoute, async (c) => {
 		return c.json({ error: "Brief limit reached for this tier" }, 400);
 	}
 
-	if (clusterTopics.length > briefsRemaining) {
+	if (keywords.length > briefsRemaining) {
 		return c.json(
 			{
 				error: `Can only generate ${briefsRemaining} more briefs (limit: ${limits.briefs})`,
@@ -1012,23 +1014,65 @@ auditRoutes.openapi(generateBriefsRoute, async (c) => {
 		);
 	}
 
-	// Get clusters from pipeline state
-	const pipelineState = audit.pipelineState as {
-		results?: { opportunityClusters?: OpportunityCluster[] };
-	} | null;
-	const allClusters = pipelineState?.results?.opportunityClusters ?? [];
+	// Get data from pipeline state
+	const pipelineState = audit.pipelineState as PipelineState | null;
 
-	if (allClusters.length === 0) {
-		return c.json({ error: "No clusters available" }, 400);
+	const allClusters = pipelineState?.results?.opportunityClusters ?? [];
+	const keywordsToGenerate = new Set(keywords);
+	const selectedClusters: OpportunityCluster[] = [];
+
+	// Match keywords within clusters
+	for (const cluster of allClusters) {
+		const matchingOpps = cluster.opportunities.filter((opp) =>
+			keywordsToGenerate.has(opp.keyword),
+		);
+		if (matchingOpps.length > 0) {
+			// Create cluster with only matching opportunities
+			selectedClusters.push({
+				...cluster,
+				opportunities: matchingOpps,
+				totalVolume: matchingOpps.reduce(
+					(sum, o) => sum + (o.searchVolume ?? 0),
+					0,
+				),
+			});
+			for (const opp of matchingOpps) {
+				keywordsToGenerate.delete(opp.keyword);
+			}
+		}
 	}
 
-	// Filter to selected clusters
-	const selectedClusters = allClusters.filter((c) =>
-		clusterTopics.includes(c.topic),
-	);
+	// Create synthetic clusters for remaining keywords from opportunities/quickWins
+	for (const keyword of keywordsToGenerate) {
+		const opp = pipelineState?.results?.opportunities?.find(
+			(o) => o.keyword === keyword,
+		);
+		const qw = pipelineState?.results?.quickWins?.find(
+			(q) => q.keyword === keyword,
+		);
+
+		if (opp || qw) {
+			const difficulty = opp?.difficulty ?? DEFAULT_DIFFICULTY;
+			selectedClusters.push({
+				topic: keyword,
+				opportunities: [
+					{
+						keyword,
+						searchVolume: opp?.searchVolume ?? 0,
+						difficulty,
+						impactScore: DEFAULT_DIFFICULTY,
+						reason: qw ? "Quick win optimization" : "Gap opportunity",
+					},
+				],
+				suggestedAction: qw ? "optimize" : "create",
+				avgDifficulty: difficulty,
+				totalVolume: opp?.searchVolume ?? 0,
+			});
+		}
+	}
 
 	if (selectedClusters.length === 0) {
-		return c.json({ error: "No matching clusters found" }, 400);
+		return c.json({ error: "No matching keywords found" }, 400);
 	}
 
 	// Get crawled pages for internal linking suggestions

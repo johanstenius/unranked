@@ -127,7 +127,7 @@ async function processFinalAnalysis(
 			hasSitemap: audit.hasSitemap ?? false,
 			redirectChains,
 			brokenLinks: [],
-			robotsTxtContent: null,
+			robotsTxtContent: audit.robotsTxtContent ?? null,
 			hasLlmsTxt: false,
 		},
 		isNewSite: audit.isNewSite,

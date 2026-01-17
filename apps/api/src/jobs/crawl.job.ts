@@ -111,6 +111,7 @@ async function processCrawl(
 		pagesFound: result.pages.length,
 		detectedSections: result.sections,
 		hasRobotsTxt: result.hasRobotsTxt,
+		robotsTxtContent: result.robotsTxtContent,
 		hasSitemap: result.hasSitemap,
 		redirectChains: result.redirectChains,
 		crawlComplete: true,

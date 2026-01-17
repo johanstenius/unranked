@@ -33,6 +33,7 @@ export type UpdateAuditInput = {
 	pagesFound?: number;
 	sitemapUrlCount?: number;
 	hasRobotsTxt?: boolean;
+	robotsTxtContent?: string | null;
 	hasSitemap?: boolean;
 	opportunities?: object;
 	detectedSections?: Prisma.InputJsonValue;
