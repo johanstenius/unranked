@@ -1,6 +1,7 @@
 "use client";
 
 import { OpportunitiesEmptyState } from "@/components/audit/empty-states";
+import { OpportunityClusterCard } from "@/components/audit/opportunity-cluster-card";
 import { SnippetOpportunityRow } from "@/components/audit/snippet-opportunity-row";
 import {
 	Card,
@@ -21,14 +22,23 @@ import {
 import type {
 	ComponentState,
 	Opportunity,
+	OpportunityCluster,
 	SnippetOpportunity,
 } from "@/lib/types";
-import { getDifficultyColor, getDifficultyLabel } from "@/lib/utils";
+import {
+	getDifficultyColor,
+	getDifficultyLabel,
+	getIntentBadgeClass,
+} from "@/lib/utils";
+import { useState } from "react";
+
+type ViewMode = "all" | "byTopic";
 
 type OpportunitiesTabProps = {
 	opportunities: ComponentState<Opportunity[]>;
 	snippets: ComponentState<SnippetOpportunity[]>;
 	isNewSite?: boolean;
+	opportunityClusters?: OpportunityCluster[];
 };
 
 function LoadingCard({
@@ -52,11 +62,47 @@ function LoadingCard({
 	);
 }
 
+function ViewToggle({
+	value,
+	onChange,
+}: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+	return (
+		<div className="flex gap-1 p-1 bg-muted rounded-lg">
+			<button
+				type="button"
+				onClick={() => onChange("all")}
+				className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+					value === "all"
+						? "bg-background text-foreground shadow-sm"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+			>
+				All Keywords
+			</button>
+			<button
+				type="button"
+				onClick={() => onChange("byTopic")}
+				className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+					value === "byTopic"
+						? "bg-background text-foreground shadow-sm"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+			>
+				By Topic
+			</button>
+		</div>
+	);
+}
+
 export function OpportunitiesTab({
 	opportunities,
 	snippets,
 	isNewSite,
+	opportunityClusters,
 }: OpportunitiesTabProps) {
+	const [viewMode, setViewMode] = useState<ViewMode>("all");
+	const hasClusters = opportunityClusters && opportunityClusters.length > 0;
+
 	// Opportunities section
 	const opportunitiesContent = (() => {
 		if (
@@ -88,21 +134,47 @@ export function OpportunitiesTab({
 
 		const opps = opportunities.data;
 
+		if (opps.length === 0) {
+			return (
+				<Card>
+					<CardHeader>
+						<CardTitle className="font-display text-lg">
+							{isNewSite ? "Keywords to Target" : "All Opportunities"}
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<OpportunitiesEmptyState isNewSite={isNewSite} />
+					</CardContent>
+				</Card>
+			);
+		}
+
 		return (
 			<Card>
 				<CardHeader>
-					<CardTitle className="font-display text-lg">
-						{isNewSite ? "Keywords to Target" : "All Opportunities"}
-					</CardTitle>
-					<CardDescription>
-						{isNewSite
-							? "High-potential keywords for your new site"
-							: "Keywords ranked by potential impact"}
-					</CardDescription>
+					<div className="flex items-center justify-between">
+						<div>
+							<CardTitle className="font-display text-lg">
+								{isNewSite ? "Keywords to Target" : "All Opportunities"}
+							</CardTitle>
+							<CardDescription>
+								{isNewSite
+									? "High-potential keywords for your new site"
+									: "Keywords ranked by potential impact"}
+							</CardDescription>
+						</div>
+						{hasClusters && (
+							<ViewToggle value={viewMode} onChange={setViewMode} />
+						)}
+					</div>
 				</CardHeader>
 				<CardContent>
-					{opps.length === 0 ? (
-						<OpportunitiesEmptyState isNewSite={isNewSite} />
+					{viewMode === "byTopic" && hasClusters ? (
+						<div className="space-y-4">
+							{opportunityClusters.map((cluster) => (
+								<OpportunityClusterCard key={cluster.topic} cluster={cluster} />
+							))}
+						</div>
 					) : (
 						<Table>
 							<TableHeader>
@@ -126,15 +198,7 @@ export function OpportunitiesTab({
 										<TableCell>
 											{opp.intent && (
 												<span
-													className={`text-xs px-2 py-0.5 rounded ${
-														opp.intent === "informational"
-															? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-															: opp.intent === "transactional"
-																? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-																: opp.intent === "commercial"
-																	? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-																	: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-													}`}
+													className={`text-xs px-2 py-0.5 rounded ${getIntentBadgeClass(opp.intent)}`}
 												>
 													{opp.intent}
 												</span>

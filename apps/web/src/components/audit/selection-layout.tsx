@@ -7,20 +7,8 @@ import Link from "next/link";
 
 type SelectionLayoutProps = {
 	hostname: string;
-	currentStep: 1 | 2;
 	crawlProgress?: { pagesFound: number; complete: boolean };
 	children: React.ReactNode;
-};
-
-const STEP_INFO = {
-	1: {
-		label: "Choose Competitors",
-		description: "Pick sites to analyze against",
-	},
-	2: {
-		label: "Select Topics",
-		description: "Choose what to write about",
-	},
 };
 
 /**
@@ -29,7 +17,6 @@ const STEP_INFO = {
  */
 export function SelectionLayout({
 	hostname,
-	currentStep,
 	crawlProgress,
 	children,
 }: SelectionLayoutProps) {
@@ -68,32 +55,13 @@ export function SelectionLayout({
 			{/* Main content - centered, focused */}
 			<main className="py-12 px-6 relative">
 				<div className="max-w-3xl mx-auto">
-					{/* Step progress header */}
+					{/* Header */}
 					<motion.div
 						initial={{ opacity: 0, y: -10 }}
 						animate={{ opacity: 1, y: 0 }}
 						className="mb-10"
 					>
-						{/* Horizontal step progress */}
-						<div className="flex items-center justify-between mb-8">
-							<div className="flex items-center gap-4">
-								<StepPill step={1} currentStep={currentStep} />
-								<motion.div
-									className="w-12 h-[2px] rounded-full overflow-hidden bg-border/50"
-									initial={false}
-								>
-									<motion.div
-										className="h-full bg-accent"
-										initial={{ width: "0%" }}
-										animate={{ width: currentStep >= 2 ? "100%" : "0%" }}
-										transition={{ duration: 0.4, ease: "easeOut" }}
-									/>
-								</motion.div>
-								<StepPill step={2} currentStep={currentStep} />
-							</div>
-						</div>
-
-						{/* Site being analyzed - more prominent */}
+						{/* Site being analyzed */}
 						<div className="flex items-center gap-4">
 							<motion.div
 								initial={{ scale: 0.9 }}
@@ -109,7 +77,7 @@ export function SelectionLayout({
 									{hostname}
 								</h1>
 								<p className="text-sm text-text-secondary mt-0.5">
-									{STEP_INFO[currentStep].description}
+									Pick sites to analyze against
 								</p>
 							</div>
 						</div>
@@ -220,55 +188,5 @@ export function SelectionLayout({
 				</div>
 			</main>
 		</div>
-	);
-}
-
-function StepPill({ step, currentStep }: { step: 1 | 2; currentStep: 1 | 2 }) {
-	const isActive = currentStep >= step;
-	const isCurrent = currentStep === step;
-	const info = STEP_INFO[step];
-
-	return (
-		<motion.div
-			initial={false}
-			animate={{
-				scale: isCurrent ? 1 : 0.95,
-			}}
-			className={`
-				flex items-center gap-2.5 px-3 py-2 rounded-full transition-colors
-				${isCurrent ? "bg-accent/10 border border-accent/30" : isActive ? "bg-subtle border border-border/50" : "border border-border/30"}
-			`}
-		>
-			<motion.div
-				initial={false}
-				animate={{
-					backgroundColor: isActive ? "var(--accent)" : "var(--bg-subtle)",
-				}}
-				className={`
-					w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-					${isActive ? "text-white" : "text-text-tertiary"}
-				`}
-			>
-				{isActive && step < currentStep ? (
-					<svg
-						className="w-3.5 h-3.5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						strokeWidth={3}
-						aria-hidden="true"
-					>
-						<path d="M5 13l4 4L19 7" />
-					</svg>
-				) : (
-					step
-				)}
-			</motion.div>
-			<span
-				className={`text-sm font-medium ${isCurrent ? "text-accent" : isActive ? "text-text-primary" : "text-text-tertiary"}`}
-			>
-				{info.label}
-			</span>
-		</motion.div>
 	);
 }

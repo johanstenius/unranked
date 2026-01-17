@@ -135,7 +135,6 @@ function AuditContent() {
 		return (
 			<SelectionLayout
 				hostname={hostname}
-				currentStep={1}
 				crawlProgress={{
 					pagesFound: state.pagesFound ?? 0,
 					complete: state.crawlComplete ?? false,
@@ -339,6 +338,7 @@ function AuditContent() {
 											opportunities={components.opportunities}
 											snippets={components.snippets}
 											isNewSite={state.isNewSite}
+											opportunityClusters={state.opportunityClusters}
 										/>
 									)}
 									{activeTab === "quickwins" && (

@@ -11,6 +11,9 @@
 
 import type { AuditStatus, AuditTier } from "@prisma/client";
 import type { BriefStructure, SearchIntent } from "../services/ai/anthropic.js";
+import type { BriefRecommendation } from "../services/brief-recommendations.js";
+
+export type { BriefRecommendation };
 import type {
 	CompetitorGap,
 	CurrentRanking,
@@ -108,12 +111,6 @@ export type PipelineState = {
 
 	/** User-selected competitor domains */
 	selectedCompetitors?: string[];
-
-	/** AI-suggested clusters for briefs */
-	suggestedClusters?: ClusterSuggestion[];
-
-	/** User-selected cluster IDs */
-	selectedClusterIds?: string[];
 
 	/** True when crawl job completes */
 	crawlComplete?: boolean;
@@ -365,8 +362,6 @@ export type AuditState = {
 	interactivePhase?: InteractivePhase;
 	suggestedCompetitors?: CompetitorSuggestion[];
 	selectedCompetitors?: string[];
-	suggestedClusters?: ClusterSuggestion[];
-	selectedClusterIds?: string[];
 	crawlComplete?: boolean;
 	interactiveComplete?: boolean;
 };
@@ -401,13 +396,11 @@ export type AuditSSEEvent =
 			suggestions: CompetitorSuggestion[];
 			maxSelections: number;
 	  }
-	| {
-			type: "interactive:cluster_suggestions";
-			clusters: ClusterSuggestion[];
-			maxSelections: number;
-	  }
 	| { type: "interactive:crawl_complete" }
 	| { type: "interactive:waiting_for_crawl" }
+
+	// Brief recommendations
+	| { type: "brief-recommendations"; data: BriefRecommendation[] }
 
 	// Terminal events
 	| { type: "audit:complete" }

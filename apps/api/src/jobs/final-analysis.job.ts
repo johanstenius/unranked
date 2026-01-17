@@ -8,6 +8,7 @@ import type PgBoss from "pg-boss";
 import {
 	emitAuditComplete,
 	emitAuditStatus,
+	emitBriefRecommendations,
 	emitComponentComplete,
 	emitComponentFail,
 	emitComponentStart,
@@ -18,6 +19,7 @@ import * as auditRepo from "../repositories/audit.repository.js";
 import { getPagesByAuditId } from "../repositories/crawled-page.repository.js";
 import type { AuditTier } from "../schemas/audit.schema.js";
 import { buildHealthScoreInput } from "../services/audit-completion.service.js";
+import { buildBriefRecommendations } from "../services/brief-recommendations.js";
 import type { RedirectChain } from "../services/crawler/types.js";
 import { sendReportReadyEmail } from "../services/email.service.js";
 import type { SSEComponentKey } from "../services/seo/components/types.js";
@@ -182,6 +184,16 @@ async function processFinalAnalysis(
 		healthScore,
 		opportunities: state.results,
 	});
+
+	// Build and emit brief recommendations
+	const briefRecommendations = buildBriefRecommendations({
+		targetKeywords: audit.targetKeywords ?? [],
+		quickWins: state.results.quickWins ?? [],
+		opportunities: state.results.opportunities ?? [],
+	});
+	if (briefRecommendations.length > 0) {
+		emitBriefRecommendations(auditId, briefRecommendations);
+	}
 
 	// Emit health score before completion so frontend has data
 	if (healthScore) {

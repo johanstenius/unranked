@@ -16,7 +16,7 @@ import type {
 import type { HealthScore } from "../services/seo/health-score.js";
 import type {
 	AuditSSEEvent,
-	ClusterSuggestion,
+	BriefRecommendation,
 	CompetitorSuggestion,
 	InteractivePhase,
 	StateComponentKey,
@@ -181,22 +181,17 @@ export function emitCompetitorSuggestions(
 	});
 }
 
-export function emitClusterSuggestions(
-	auditId: string,
-	clusters: ClusterSuggestion[],
-	maxSelections: number,
-): void {
-	emit(auditId, {
-		type: "interactive:cluster_suggestions",
-		clusters,
-		maxSelections,
-	});
-}
-
 export function emitCrawlComplete(auditId: string): void {
 	emit(auditId, { type: "interactive:crawl_complete" });
 }
 
 export function emitWaitingForCrawl(auditId: string): void {
 	emit(auditId, { type: "interactive:waiting_for_crawl" });
+}
+
+export function emitBriefRecommendations(
+	auditId: string,
+	data: BriefRecommendation[],
+): void {
+	emit(auditId, { type: "brief-recommendations", data });
 }

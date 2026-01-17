@@ -11,7 +11,6 @@ export const auditStatusSchema = z.enum([
 	"PENDING",
 	"CRAWLING",
 	"SELECTING_COMPETITORS",
-	"SELECTING_TOPICS",
 	"ANALYZING",
 	"GENERATING_BRIEFS", // Legacy - kept for existing audits
 	"RETRYING", // Legacy - kept for existing audits

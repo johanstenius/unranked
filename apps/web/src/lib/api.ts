@@ -249,12 +249,9 @@ export function subscribeToAudit(
 		"interactive:competitor_suggestions",
 		handleMessage,
 	);
-	eventSource.addEventListener(
-		"interactive:cluster_suggestions",
-		handleMessage,
-	);
 	eventSource.addEventListener("interactive:crawl_complete", handleMessage);
 	eventSource.addEventListener("interactive:waiting_for_crawl", handleMessage);
+	eventSource.addEventListener("brief-recommendations", handleMessage);
 
 	eventSource.onerror = () => {
 		onError?.(new Error("SSE connection error"));
@@ -279,18 +276,5 @@ export async function selectCompetitors(
 	return fetchApi<{ success: boolean }>(`/audits/${token}/competitors/select`, {
 		method: "POST",
 		body: JSON.stringify({ competitors }),
-	});
-}
-
-/**
- * Submit cluster selection for interactive flow
- */
-export async function selectClusters(
-	token: string,
-	clusterIds: string[],
-): Promise<{ success: boolean }> {
-	return fetchApi<{ success: boolean }>(`/audits/${token}/clusters/select`, {
-		method: "POST",
-		body: JSON.stringify({ clusterIds }),
 	});
 }

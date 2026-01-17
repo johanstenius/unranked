@@ -87,18 +87,14 @@ function applyEvent(state: AuditState, event: AuditSSEEvent): AuditState {
 				interactivePhase: "competitor_selection",
 			};
 
-		case "interactive:cluster_suggestions":
-			return {
-				...state,
-				suggestedClusters: event.clusters,
-				interactivePhase: "cluster_selection",
-			};
-
 		case "interactive:crawl_complete":
 			return { ...state, crawlComplete: true };
 
 		case "interactive:waiting_for_crawl":
 			return { ...state, interactivePhase: "generating" };
+
+		case "brief-recommendations":
+			return { ...state, briefRecommendations: event.data };
 
 		case "audit:complete":
 			return { ...state, status: "COMPLETED" };

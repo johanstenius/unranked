@@ -614,8 +614,6 @@ export const auditStateSchema = z.object({
 	interactivePhase: interactivePhaseSchema.optional(),
 	suggestedCompetitors: z.array(competitorSuggestionSchema).optional(),
 	selectedCompetitors: z.array(z.string()).optional(),
-	suggestedClusters: z.array(clusterSuggestionSchema).optional(),
-	selectedClusterIds: z.array(z.string()).optional(),
 	crawlComplete: z.boolean().optional(),
 	interactiveComplete: z.boolean().optional(),
 

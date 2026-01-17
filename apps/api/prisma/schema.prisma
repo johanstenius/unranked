@@ -46,8 +46,6 @@ model Audit {
   crawlComplete         Boolean       @default(false)
   suggestedCompetitors  Json?
   selectedCompetitors   String[]      @default([])
-  suggestedClusters     Json?
-  selectedClusters      String[]      @default([])
   prefetchedRankings Json?
   briefs             Brief[]
   crawledPages       CrawledPage[]
@@ -181,7 +179,6 @@ enum AuditStatus {
   PENDING
   CRAWLING
   SELECTING_COMPETITORS
-  SELECTING_TOPICS
   ANALYZING
   GENERATING_BRIEFS // Legacy - kept for existing audits
   RETRYING          // Legacy - kept for existing audits

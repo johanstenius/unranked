@@ -263,8 +263,6 @@ type AuditDbModel = {
 	crawlComplete: boolean;
 	suggestedCompetitors: unknown;
 	selectedCompetitors: string[];
-	suggestedClusters: unknown;
-	selectedClusters: string[];
 };
 
 type ComponentStatus = "pending" | "running" | "completed" | "failed";
@@ -313,13 +311,6 @@ type PipelineStateWithInteractive = PipelineStateJson & {
 		confidence: number;
 	}>;
 	selectedCompetitors?: string[];
-	suggestedClusters?: Array<{
-		id: string;
-		name: string;
-		keywords: Array<{ keyword: string; volume: number }>;
-		totalVolume: number;
-	}>;
-	selectedClusterIds?: string[];
 	crawlComplete?: boolean;
 	interactiveComplete?: boolean;
 };
@@ -458,9 +449,6 @@ function buildAuditState(audit: AuditDbModel): AuditStateResponse {
 		suggestedCompetitors:
 			audit.suggestedCompetitors as AuditStateResponse["suggestedCompetitors"],
 		selectedCompetitors: audit.selectedCompetitors,
-		suggestedClusters:
-			audit.suggestedClusters as AuditStateResponse["suggestedClusters"],
-		selectedClusterIds: audit.selectedClusters,
 		crawlComplete: audit.crawlComplete,
 		interactiveComplete:
 			audit.status === "ANALYZING" || audit.status === "COMPLETED",
@@ -786,8 +774,6 @@ auditRoutes.openapi(getAuditRoute, async (c) => {
 		crawlComplete: audit.crawlComplete,
 		suggestedCompetitors: audit.suggestedCompetitors,
 		selectedCompetitors: audit.selectedCompetitors,
-		suggestedClusters: audit.suggestedClusters,
-		selectedClusters: audit.selectedClusters,
 	});
 
 	return c.json(auditState, 200);

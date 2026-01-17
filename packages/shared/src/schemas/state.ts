@@ -198,8 +198,6 @@ export const auditStateSchema = z.object({
 	interactivePhase: interactivePhaseSchema.optional(),
 	suggestedCompetitors: z.array(competitorSuggestionSchema).optional(),
 	selectedCompetitors: z.array(z.string()).optional(),
-	suggestedClusters: z.array(clusterSuggestionSchema).optional(),
-	selectedClusterIds: z.array(z.string()).optional(),
 	crawlComplete: z.boolean().optional(),
 	interactiveComplete: z.boolean().optional(),
 
@@ -300,13 +298,13 @@ export const auditSSEEventSchema = z.discriminatedUnion("type", [
 		suggestions: z.array(competitorSuggestionSchema),
 		maxSelections: z.number(),
 	}),
-	z.object({
-		type: z.literal("interactive:cluster_suggestions"),
-		clusters: z.array(clusterSuggestionSchema),
-		maxSelections: z.number(),
-	}),
 	z.object({ type: z.literal("interactive:crawl_complete") }),
 	z.object({ type: z.literal("interactive:waiting_for_crawl") }),
+	// Brief recommendations
+	z.object({
+		type: z.literal("brief-recommendations"),
+		data: z.array(briefRecommendationSchema),
+	}),
 	// Terminal
 	z.object({ type: z.literal("audit:complete") }),
 	z.object({ type: z.literal("audit:error"), message: z.string() }),

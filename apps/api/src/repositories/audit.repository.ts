@@ -52,8 +52,6 @@ export type UpdateAuditInput = {
 	crawlComplete?: boolean;
 	suggestedCompetitors?: Prisma.InputJsonValue;
 	selectedCompetitors?: string[];
-	suggestedClusters?: Prisma.InputJsonValue;
-	selectedClusters?: string[];
 };
 
 export function createAudit(input: CreateAuditInput) {
