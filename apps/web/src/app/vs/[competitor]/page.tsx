@@ -408,7 +408,7 @@ export default async function ComparisonPage({ params }: Props) {
 				{/* Footer */}
 				<footer className="py-10 px-6 border-t border-border">
 					<div className="max-w-[1100px] mx-auto flex items-center justify-between text-sm text-text-tertiary">
-						<span>&copy; 2025 Unranked. All rights reserved.</span>
+						<span>&copy; 2026 Unranked. All rights reserved.</span>
 						<div className="flex gap-6">
 							<Link
 								href="/privacy"

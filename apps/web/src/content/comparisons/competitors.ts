@@ -3,8 +3,11 @@
  *
  * IMPORTANT: Keep this data factually accurate and up-to-date.
  * Pricing and features should be verified periodically.
- * Last full review: January 2025
+ * Last full review: January 2026
  */
+
+export const PRICING_DISCLAIMER =
+	"Competitor pricing shown may change. Visit their websites for current rates.";
 
 export type CompetitorFeature = {
 	name: string;
@@ -74,7 +77,7 @@ export const competitors: Record<string, Competitor> = {
 			"Semrush provides broader marketing toolkit including PPC and social",
 			"Unranked includes AI content briefs in all paid plans",
 		],
-		lastVerified: "2025-01",
+		lastVerified: "2026-01",
 	},
 
 	ahrefs: {
@@ -85,8 +88,8 @@ export const competitors: Record<string, Competitor> = {
 		description:
 			"Ahrefs is known for its extensive backlink database and powerful SEO toolset. Popular among SEO professionals for link building and competitive research.",
 		pricingModel: "subscription",
-		startingPrice: "$129/month",
-		priceNote: "Lite plan, billed monthly. Annual billing available.",
+		startingPrice: "$108/month",
+		priceNote: "Lite plan, billed annually. Monthly billing higher.",
 		bestFor: [
 			"Link building campaigns",
 			"Backlink analysis",
@@ -121,7 +124,7 @@ export const competitors: Record<string, Competitor> = {
 			"Unranked provides AI-generated content briefs",
 			"Ahrefs offers ongoing rank tracking",
 		],
-		lastVerified: "2025-01",
+		lastVerified: "2026-01",
 	},
 
 	"screaming-frog": {
@@ -164,7 +167,7 @@ export const competitors: Record<string, Competitor> = {
 			"Screaming Frog offers more advanced custom extraction",
 			"Unranked provides AI content briefs for opportunities",
 		],
-		lastVerified: "2025-01",
+		lastVerified: "2026-01",
 	},
 
 	ubersuggest: {
@@ -215,7 +218,7 @@ export const competitors: Record<string, Competitor> = {
 			"Unranked focuses on prioritized, actionable opportunities",
 			"Ubersuggest offers broader ongoing SEO monitoring",
 		],
-		lastVerified: "2025-01",
+		lastVerified: "2026-01",
 	},
 
 	seoptimer: {
@@ -254,7 +257,7 @@ export const competitors: Record<string, Competitor> = {
 			"Unranked provides deeper keyword opportunity analysis",
 			"Unranked includes AI content briefs",
 		],
-		lastVerified: "2025-01",
+		lastVerified: "2026-01",
 	},
 
 	"surfer-seo": {
@@ -297,7 +300,7 @@ export const competitors: Record<string, Competitor> = {
 			"Unranked provides comprehensive technical SEO audit",
 			"Surfer offers NLP-based content scoring",
 		],
-		lastVerified: "2025-01",
+		lastVerified: "2026-01",
 	},
 };
 

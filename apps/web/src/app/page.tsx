@@ -296,7 +296,7 @@ export default function HomePage() {
 								Health Score
 							</h3>
 							<p className="text-sm text-text-secondary leading-relaxed">
-								Overall SEO health with breakdown across 6 key factors. See
+								Overall SEO health with breakdown across 7 key factors. See
 								exactly where you stand.
 							</p>
 						</motion.div>
@@ -636,7 +636,7 @@ export default function HomePage() {
 			{/* Footer */}
 			<footer className="py-10 px-10 border-t border-border">
 				<div className="max-w-[1100px] mx-auto flex items-center justify-between text-sm text-text-tertiary">
-					<span>&copy; 2025 Unranked. All rights reserved.</span>
+					<span>&copy; 2026 Unranked. All rights reserved.</span>
 					<div className="flex gap-6">
 						<Link
 							href="/privacy"
