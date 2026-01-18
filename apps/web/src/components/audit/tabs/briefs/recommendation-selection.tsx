@@ -63,6 +63,38 @@ export function RecommendationSelection({
 
 	return (
 		<div className="space-y-6">
+			{/* Action required banner */}
+			<div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-accent-teal/10 to-accent-indigo/10 border border-accent-teal/20">
+				<div className="relative flex-shrink-0">
+					<div className="w-10 h-10 rounded-full bg-accent-teal/20 flex items-center justify-center">
+						<svg
+							className="w-5 h-5 text-accent-teal"
+							fill="none"
+							viewBox="0 0 24 24"
+							strokeWidth={2}
+							stroke="currentColor"
+							aria-hidden="true"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+							/>
+						</svg>
+					</div>
+					<span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-accent-teal rounded-full animate-pulse-soft" />
+				</div>
+				<div className="flex-1">
+					<p className="font-display font-semibold text-text-primary text-sm">
+						Select topics to generate AI content briefs
+					</p>
+					<p className="text-xs text-text-secondary">
+						{briefsRemaining} brief{briefsRemaining !== 1 ? "s" : ""} available
+						with your plan
+					</p>
+				</div>
+			</div>
+
 			{/* Recommended section */}
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
@@ -157,7 +189,21 @@ export function RecommendationSelection({
 								{bySource.quick_win.length > 0 && (
 									<div>
 										<h4 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
-											<span>⚡</span> Quick Wins
+											<svg
+												className="w-4 h-4 text-status-warn"
+												fill="none"
+												viewBox="0 0 24 24"
+												strokeWidth={2}
+												stroke="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
+												/>
+											</svg>
+											Quick Wins
 											<span className="text-text-tertiary">
 												(optimize existing pages)
 											</span>
@@ -180,7 +226,21 @@ export function RecommendationSelection({
 								{bySource.target.length > 0 && (
 									<div>
 										<h4 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
-											<span>🎯</span> Your Target Keywords
+											<svg
+												className="w-4 h-4 text-accent-indigo"
+												fill="none"
+												viewBox="0 0 24 24"
+												strokeWidth={2}
+												stroke="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0-3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"
+												/>
+											</svg>
+											Your Target Keywords
 										</h4>
 										<div className="space-y-2">
 											{bySource.target.map((rec) => (
@@ -200,7 +260,21 @@ export function RecommendationSelection({
 								{bySource.gap.length > 0 && (
 									<div>
 										<h4 className="text-sm font-medium text-text-secondary mb-2 flex items-center gap-2">
-											<span>🔍</span> Content Gaps
+											<svg
+												className="w-4 h-4 text-accent-teal"
+												fill="none"
+												viewBox="0 0 24 24"
+												strokeWidth={2}
+												stroke="currentColor"
+												aria-hidden="true"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+												/>
+											</svg>
+											Content Gaps
 											<span className="text-text-tertiary">
 												(competitors rank, you don't)
 											</span>

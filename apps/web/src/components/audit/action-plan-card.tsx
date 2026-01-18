@@ -42,7 +42,7 @@ export function ActionPlanCard({
 							<h3 className="font-display text-xl text-text-primary font-bold">
 								Action Plan
 							</h3>
-							<span className="px-2.5 py-1 text-xs font-medium rounded-full bg-accent text-bg-canvas">
+							<span className="px-2.5 py-1 text-xs font-medium rounded-full bg-accent text-canvas">
 								{actions.length} {actions.length === 1 ? "action" : "actions"}
 							</span>
 						</div>
